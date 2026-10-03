@@ -60,7 +60,7 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
   return (
     <div className="space-y-4">
       {/* Controls Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-card no-print">
         <div className="flex flex-wrap items-center gap-3">
           {/* Search Input */}
           <div className="relative min-w-[240px]">
@@ -70,19 +70,19 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
               placeholder="Search customer, code, or area..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-600 focus:bg-white transition"
             />
           </div>
 
           {/* Area Filter */}
           <div className="flex items-center gap-2">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <Filter className="w-3.5 h-3.5 text-slate-500" />
             <select
               value={selectedArea}
               onChange={e => setSelectedArea(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:border-brand-600 focus:bg-white"
             >
-              <option value="all">All Areas ({areas.length})</option>
+              <option value="all">All Regions ({areas.length})</option>
               {areas.map(a => (
                 <option key={a} value={a}>{a}</option>
               ))}
@@ -94,14 +94,14 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-semibold transition"
+            className="flex items-center gap-1.5 px-3 py-2 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 rounded-xl text-xs font-semibold transition"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
           </button>
           <button
             onClick={triggerPrint}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition"
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold shadow-sm transition"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print Register</span>
@@ -111,25 +111,25 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
 
       {/* Print Sheet Header (visible only when printing) */}
       <div className="hidden print-only mb-4 text-center">
-        <h1 className="text-xl font-bold uppercase">SHAN POULTRY PROTEIN</h1>
+        <h1 className="text-xl font-bold uppercase tracking-wider">SHAN POULTRY PROTEIN</h1>
         <p className="text-sm font-semibold">Monthly Weight Register — {monthName} {year}</p>
-        <p className="text-xs text-gray-600">Generated on {new Date().toLocaleDateString('en-GB')}</p>
+        <p className="text-xs text-slate-600">Printed on {new Date().toLocaleDateString('en-GB')}</p>
       </div>
 
       {/* Register Matrix Grid */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-card">
         <div className="overflow-x-auto max-h-[72vh]">
           <table className="w-full text-left border-collapse print-table">
             {/* Table Header */}
             <thead>
-              <tr className="bg-slate-800/90 text-[11px] font-bold text-slate-300 uppercase tracking-wider sticky top-0 z-20 backdrop-blur-md">
-                <th className="py-3 px-3 border-b border-r border-slate-700/80 sticky left-0 z-30 bg-slate-800 min-w-[70px]">
+              <tr className="bg-slate-100 text-[11px] font-bold text-slate-700 uppercase tracking-wider sticky top-0 z-20 border-b border-slate-200">
+                <th className="py-3 px-3 border-b border-r border-slate-200 sticky left-0 z-30 bg-slate-100 min-w-[70px]">
                   Code
                 </th>
-                <th className="py-3 px-4 border-b border-r border-slate-700/80 sticky left-[70px] z-30 bg-slate-800 min-w-[180px]">
+                <th className="py-3 px-4 border-b border-r border-slate-200 sticky left-[70px] z-30 bg-slate-100 min-w-[180px]">
                   Customer / Shop
                 </th>
-                <th className="py-3 px-3 border-b border-r border-slate-700/80 min-w-[110px] text-slate-400">
+                <th className="py-3 px-3 border-b border-r border-slate-200 min-w-[110px] text-slate-600">
                   Area
                 </th>
 
@@ -140,8 +140,8 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                   return (
                     <th
                       key={day}
-                      className={`py-3 px-2 text-center border-b border-r border-slate-700/60 min-w-[42px] ${
-                        isToday ? 'bg-emerald-500/20 text-emerald-300 font-extrabold' : ''
+                      className={`py-3 px-1.5 text-center border-b border-r border-slate-200 min-w-[42px] ${
+                        isToday ? 'bg-blue-100 text-brand-800 font-extrabold' : 'text-slate-700'
                       }`}
                     >
                       {day}
@@ -149,42 +149,42 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                   );
                 })}
 
-                <th className="py-3 px-4 text-right border-b border-r border-slate-700/80 min-w-[110px] bg-slate-800/90 text-emerald-400">
+                <th className="py-3 px-4 text-right border-b border-r border-slate-200 min-w-[110px] bg-blue-50/80 text-brand-800">
                   Total (KG)
                 </th>
-                <th className="py-3 px-3 text-center border-b border-r border-slate-700/80 min-w-[60px] text-slate-400">
+                <th className="py-3 px-3 text-center border-b border-r border-slate-200 min-w-[60px] text-slate-600">
                   Days
                 </th>
-                <th className="py-3 px-4 text-right border-b border-slate-700/80 min-w-[120px] bg-slate-800/90 text-amber-400">
+                <th className="py-3 px-4 text-right border-b border-slate-200 min-w-[120px] bg-amber-50/80 text-amber-800">
                   Total (PKR)
                 </th>
               </tr>
             </thead>
 
             {/* Table Body */}
-            <tbody className="divide-y divide-slate-800/60 text-xs">
+            <tbody className="divide-y divide-slate-100 text-xs">
               {filteredRows.map((row, idx) => (
                 <tr
                   key={row.customer.id}
-                  className={`hover:bg-slate-800/50 transition-colors ${
-                    idx % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/90'
+                  className={`hover:bg-slate-50/90 transition-colors ${
+                    idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
                   }`}
                 >
                   {/* Sticky Customer Code */}
-                  <td className="py-2.5 px-3 border-r border-slate-800 sticky left-0 z-10 bg-slate-900 font-mono text-[11px] font-semibold text-emerald-400">
+                  <td className="py-2.5 px-3 border-r border-slate-200 sticky left-0 z-10 bg-white font-mono text-[11px] font-bold text-brand-700">
                     {row.customer.customer_code}
                   </td>
 
                   {/* Sticky Customer Name */}
-                  <td className="py-2.5 px-4 border-r border-slate-800 sticky left-[70px] z-10 bg-slate-900 font-medium text-white truncate max-w-[200px]">
+                  <td className="py-2.5 px-4 border-r border-slate-200 sticky left-[70px] z-10 bg-white font-semibold text-slate-900 truncate max-w-[200px]">
                     <div className="truncate">{row.customer.name}</div>
                     {row.customer.contact_person && (
-                      <div className="text-[10px] text-slate-400 truncate">{row.customer.contact_person}</div>
+                      <div className="text-[10px] font-normal text-slate-500 truncate">{row.customer.contact_person}</div>
                     )}
                   </td>
 
                   {/* Area */}
-                  <td className="py-2.5 px-3 border-r border-slate-800 text-slate-400 truncate">
+                  <td className="py-2.5 px-3 border-r border-slate-200 text-slate-600 truncate font-medium">
                     {row.customer.area}
                   </td>
 
@@ -199,36 +199,36 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                       <td
                         key={day}
                         onClick={() => onCellClick && onCellClick(row.customer, day, weight)}
-                        className={`py-2 px-1 text-center border-r border-slate-800 font-mono text-[11px] cursor-pointer transition select-none ${
-                          isToday ? 'bg-emerald-500/5' : ''
+                        className={`py-2 px-1 text-center border-r border-slate-200 font-mono text-[11px] cursor-pointer transition select-none ${
+                          isToday ? 'bg-blue-50/50' : ''
                         } ${
                           hasWeight
-                            ? 'text-emerald-300 font-bold hover:bg-emerald-500/20'
-                            : 'text-slate-600 font-normal hover:bg-slate-800'
+                            ? 'text-slate-900 font-bold hover:bg-brand-50 hover:text-brand-700'
+                            : 'text-slate-300 font-medium hover:bg-slate-100'
                         }`}
                         title={`Day ${day}: ${hasWeight ? `${weight} KG` : 'No Collection'}`}
                       >
                         {hasWeight ? (
                           <span>{weight}</span>
                         ) : (
-                          <span className="opacity-40">{emptySymbol}</span>
+                          <span className="opacity-60">{emptySymbol}</span>
                         )}
                       </td>
                     );
                   })}
 
                   {/* Customer Monthly Weight Total */}
-                  <td className="py-2.5 px-4 text-right border-r border-slate-800 font-mono font-bold text-emerald-400 bg-emerald-500/5">
+                  <td className="py-2.5 px-4 text-right border-r border-slate-200 font-mono font-extrabold text-brand-800 bg-blue-50/40">
                     {formatWeight(row.totalWeight, '')}
                   </td>
 
                   {/* Collection Days Count */}
-                  <td className="py-2.5 px-3 text-center border-r border-slate-800 font-mono text-slate-400 text-[11px]">
+                  <td className="py-2.5 px-3 text-center border-r border-slate-200 font-mono text-slate-600 text-[11px] font-medium">
                     {row.collectionDaysCount}
                   </td>
 
                   {/* Customer Monthly Amount */}
-                  <td className="py-2.5 px-4 text-right font-mono font-bold text-amber-400 bg-amber-500/5">
+                  <td className="py-2.5 px-4 text-right font-mono font-extrabold text-amber-800 bg-amber-50/40">
                     {formatCurrency(row.totalAmount, '')}
                   </td>
                 </tr>
@@ -236,7 +236,7 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
 
               {filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={daysInMonth + 6} className="text-center py-12 text-slate-500">
+                  <td colSpan={daysInMonth + 6} className="text-center py-12 text-slate-400">
                     No customers found matching your criteria.
                   </td>
                 </tr>
@@ -245,14 +245,14 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
 
             {/* Footer Summary Row (Daily totals across all customers) */}
             <tfoot>
-              <tr className="bg-slate-800 text-[11px] font-extrabold text-white border-t-2 border-slate-700 sticky bottom-0 z-20">
-                <td className="py-3 px-3 border-r border-slate-700 sticky left-0 z-30 bg-slate-800">
+              <tr className="bg-slate-100 text-[11px] font-extrabold text-slate-900 border-t-2 border-slate-300 sticky bottom-0 z-20 shadow-sm">
+                <td className="py-3 px-3 border-r border-slate-300 sticky left-0 z-30 bg-slate-100 font-bold text-slate-800">
                   TOTAL
                 </td>
-                <td className="py-3 px-4 border-r border-slate-700 sticky left-[70px] z-30 bg-slate-800 uppercase tracking-wider text-emerald-400">
-                  Daily Total (KG)
+                <td className="py-3 px-4 border-r border-slate-300 sticky left-[70px] z-30 bg-slate-100 uppercase tracking-wider text-brand-800 font-bold">
+                  Daily Net (KG)
                 </td>
-                <td className="py-3 px-3 border-r border-slate-700 text-slate-400">
+                <td className="py-3 px-3 border-r border-slate-300 text-slate-500">
                   —
                 </td>
 
@@ -263,8 +263,8 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                   return (
                     <td
                       key={day}
-                      className={`py-3 px-1 text-center border-r border-slate-700 font-mono font-extrabold text-[11px] ${
-                        isToday ? 'bg-emerald-500/30 text-emerald-200' : 'text-slate-200'
+                      className={`py-3 px-1 text-center border-r border-slate-200 font-mono font-extrabold text-[11px] ${
+                        isToday ? 'bg-blue-100 text-brand-900' : 'text-slate-800'
                       }`}
                     >
                       {tot > 0 ? tot : '—'}
@@ -273,16 +273,16 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                 })}
 
                 {/* Grand Total Weight */}
-                <td className="py-3 px-4 text-right border-r border-slate-700 font-mono text-xs font-black text-emerald-400 bg-emerald-500/20">
+                <td className="py-3 px-4 text-right border-r border-slate-300 font-mono text-xs font-black text-brand-800 bg-blue-100">
                   {formatWeight(grandTotalWeight, '')}
                 </td>
 
-                <td className="py-3 px-3 text-center border-r border-slate-700 font-mono text-slate-400">
+                <td className="py-3 px-3 text-center border-r border-slate-300 font-mono text-slate-500">
                   —
                 </td>
 
                 {/* Grand Total Amount */}
-                <td className="py-3 px-4 text-right font-mono text-xs font-black text-amber-400 bg-amber-500/20">
+                <td className="py-3 px-4 text-right font-mono text-xs font-black text-amber-900 bg-amber-100">
                   {formatCurrency(grandTotalAmount, '')}
                 </td>
               </tr>

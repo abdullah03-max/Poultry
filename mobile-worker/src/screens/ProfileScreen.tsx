@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Mobile Worker Profile & Offline Queue Sync Manager
+// Daylight Clean B2B Corporate Edition
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -12,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { offlineQueue } from '../services/offlineQueue';
@@ -54,6 +56,7 @@ export const ProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Worker Profile & Sync</Text>
@@ -68,7 +71,9 @@ export const ProfileScreen: React.FC = () => {
             </Text>
           </View>
           <Text style={styles.name}>{worker?.full_name}</Text>
-          <Text style={styles.role}>{worker?.role?.toUpperCase()} • ACTIVE</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>{worker?.role?.toUpperCase()} • ACTIVE</Text>
+          </View>
           <Text style={styles.phone}>{worker?.phone || '+92 300 0000002'}</Text>
         </View>
 
@@ -76,8 +81,10 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.card}>
           <View style={styles.queueHeader}>
             <Text style={styles.cardTitle}>OFFLINE PENDING QUEUE</Text>
-            <View style={styles.queueBadge}>
-              <Text style={styles.queueBadgeText}>{queue.length} PENDING</Text>
+            <View style={[styles.queueBadge, queue.length > 0 ? styles.queueBadgeWarning : styles.queueBadgeSuccess]}>
+              <Text style={[styles.queueBadgeText, queue.length > 0 ? styles.queueBadgeTextWarning : styles.queueBadgeTextSuccess]}>
+                {queue.length} PENDING
+              </Text>
             </View>
           </View>
 
@@ -87,7 +94,7 @@ export const ProfileScreen: React.FC = () => {
 
           {queue.map(item => (
             <View key={item.id} style={styles.queueItem}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.queueCustomer}>{item.customer_name}</Text>
                 <Text style={styles.queueMeta}>
                   {item.customer_code} • {item.payload.total_net_weight} KG (Rs. {item.payload.total_amount})
@@ -99,7 +106,7 @@ export const ProfileScreen: React.FC = () => {
 
           {queue.length === 0 && (
             <View style={styles.emptyQueue}>
-              <Text style={styles.emptyQueueText}>✓ All collections are fully synchronized.</Text>
+              <Text style={styles.emptyQueueText}>✓ All collections are fully synchronized to cloud.</Text>
             </View>
           )}
 
@@ -107,9 +114,10 @@ export const ProfileScreen: React.FC = () => {
             style={[styles.syncButton, syncing ? styles.syncButtonDisabled : null]}
             onPress={handleSyncAll}
             disabled={syncing}
+            activeOpacity={0.85}
           >
             {syncing ? (
-              <ActivityIndicator color="#090d16" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.syncButtonText}>SYNC ALL OFFLINE SLIPS NOW 🔄</Text>
             )}
@@ -118,7 +126,7 @@ export const ProfileScreen: React.FC = () => {
 
         {/* System Settings & Logout */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>SYSTEM INFO</Text>
+          <Text style={styles.cardTitle}>SYSTEM CONFIGURATION</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Company:</Text>
             <Text style={styles.infoValue}>SHAN POULTRY PROTEIN</Text>
@@ -136,8 +144,8 @@ export const ProfileScreen: React.FC = () => {
             <Text style={styles.infoValue}>2 Hours</Text>
           </View>
 
-          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-            <Text style={styles.logoutButtonText}>Sign Out from Mobile Device</Text>
+          <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.7}>
+            <Text style={styles.logoutButtonText}>Sign Out from Device</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -148,176 +156,230 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
   },
   container: {
-    padding: 20,
-    gap: 16,
+    padding: 18,
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 8,
+    paddingBottom: 16,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   title: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
   },
   subtitle: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: '#64748B',
     marginTop: 2,
   },
   profileCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: 24,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    marginBottom: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   avatar: {
     width: 68,
     height: 68,
-    borderRadius: 24,
-    backgroundColor: '#10b981',
-    justifyContent: 'center',
+    borderRadius: 34,
+    backgroundColor: '#2563EB',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   avatarText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
-    color: '#090d16',
+    color: '#FFFFFF',
   },
   name: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
   },
-  role: {
+  roleBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  roleText: {
+    color: '#059669',
     fontSize: 11,
-    color: '#10b981',
     fontWeight: '800',
-    marginTop: 2,
-    letterSpacing: 0.5,
   },
   phone: {
+    color: '#64748B',
     fontSize: 13,
-    color: '#94a3b8',
-    marginTop: 4,
     fontFamily: 'monospace',
   },
   card: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     borderRadius: 18,
     padding: 18,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    marginBottom: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   queueHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   cardTitle: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#94a3b8',
+    color: '#64748B',
     letterSpacing: 0.5,
   },
   queueBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
+  queueBadgeWarning: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  queueBadgeSuccess: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
   queueBadgeText: {
-    color: '#f59e0b',
     fontSize: 10,
     fontWeight: '800',
   },
+  queueBadgeTextWarning: {
+    color: '#B45309',
+  },
+  queueBadgeTextSuccess: {
+    color: '#059669',
+  },
   queueDescription: {
-    color: '#64748b',
     fontSize: 12,
+    color: '#64748B',
     marginBottom: 14,
   },
   queueItem: {
-    backgroundColor: '#1e293b',
-    padding: 12,
-    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   queueCustomer: {
-    color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+    color: '#0F172A',
   },
   queueMeta: {
-    color: '#94a3b8',
     fontSize: 11,
+    color: '#64748B',
+    fontFamily: 'monospace',
     marginTop: 2,
   },
   queueStatus: {
-    color: '#f59e0b',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#D97706',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   emptyQueue: {
-    paddingVertical: 16,
+    padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
     alignItems: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   emptyQueueText: {
-    color: '#10b981',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#059669',
+    fontSize: 12,
+    fontWeight: '700',
   },
   syncButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#2563EB',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 10,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   syncButtonDisabled: {
-    backgroundColor: '#334155',
+    opacity: 0.7,
   },
   syncButtonText: {
-    color: '#090d16',
-    fontWeight: '900',
+    color: '#FFFFFF',
     fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: '#F1F5F9',
   },
   infoLabel: {
-    color: '#94a3b8',
     fontSize: 12,
+    color: '#64748B',
   },
   infoValue: {
-    color: '#ffffff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#0F172A',
   },
   logoutButton: {
     marginTop: 16,
     paddingVertical: 12,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
     alignItems: 'center',
   },
   logoutButtonText: {
-    color: '#ef4444',
+    color: '#DC2626',
     fontSize: 13,
     fontWeight: '700',
   },

@@ -10,7 +10,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 export default function App() {
   return (
     <AuthProvider>
-      <StatusBar style="light" backgroundColor="#090d16" />
+      <StatusBar style="dark" backgroundColor="#F8FAFC" />
       <AppNavigator />
     </AuthProvider>
   );

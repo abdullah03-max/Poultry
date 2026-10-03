@@ -8,11 +8,15 @@ export interface Profile {
   id: string;
   full_name: string;
   phone: string | null;
+  email?: string | null;
   role: UserRole;
   is_active: boolean;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
+  // Computed statistics for worker management
+  total_collections?: number;
+  total_kg_collected?: number;
 }
 
 export interface Customer {
@@ -76,7 +80,7 @@ export interface Collection {
   receipt_no: string;
   client_uuid: string;
   customer_id: string;
-  worker_id: string;
+  worker_id: string | null;
   collection_date: string; // YYYY-MM-DD
   collection_time: string; // HH:MM:SS
   collection_timestamp: string;

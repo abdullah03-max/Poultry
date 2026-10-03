@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Monthly Register View (Digital Handwritten Register)
+// Daylight B2B Clean Palette Edition
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -15,7 +16,11 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export const MonthlyRegisterPage: React.FC = () => {
+interface MonthlyRegisterPageProps {
+  refreshTrigger?: number;
+}
+
+export const MonthlyRegisterPage: React.FC<MonthlyRegisterPageProps> = ({ refreshTrigger }) => {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(now.getMonth());
@@ -58,7 +63,7 @@ export const MonthlyRegisterPage: React.FC = () => {
 
   useEffect(() => {
     fetchRegister();
-  }, [selectedYear, selectedMonthIndex]);
+  }, [selectedYear, selectedMonthIndex, refreshTrigger]);
 
   const handleCellClick = (customer: any, day: number, _weight: number | null) => {
     const dateStr = `${selectedYear}-${String(selectedMonthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -70,17 +75,19 @@ export const MonthlyRegisterPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Header & Month Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl no-print">
-        <div>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-bold text-white tracking-tight">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-card no-print">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
               Digitized Monthly Weight Register
             </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Replaces the physical register sheet. Displays each customer against days 1 to {registerData.daysInMonth}.
+            </p>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Replaces the physical register sheet. Displays each customer against days 1 to {registerData.daysInMonth}.
-          </p>
         </div>
 
         {/* Month & Year Selectors */}
@@ -88,7 +95,7 @@ export const MonthlyRegisterPage: React.FC = () => {
           <select
             value={selectedMonthIndex}
             onChange={e => setSelectedMonthIndex(parseInt(e.target.value, 10))}
-            className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+            className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm"
           >
             {MONTH_NAMES.map((m, idx) => (
               <option key={m} value={idx}>{m}</option>
@@ -98,7 +105,7 @@ export const MonthlyRegisterPage: React.FC = () => {
           <select
             value={selectedYear}
             onChange={e => setSelectedYear(parseInt(e.target.value, 10))}
-            className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+            className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm"
           >
             {[2024, 2025, 2026, 2027].map(y => (
               <option key={y} value={y}>{y}</option>
@@ -108,7 +115,7 @@ export const MonthlyRegisterPage: React.FC = () => {
           <button
             onClick={fetchRegister}
             title="Refresh Register"
-            className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 hover:text-white transition"
+            className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 transition"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -117,49 +124,49 @@ export const MonthlyRegisterPage: React.FC = () => {
 
       {/* Summary KPI Badges for the Selected Month */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-card flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
             <Scale className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-400">Month Net Weight</p>
-            <p className="text-lg font-black text-emerald-400 font-mono mt-0.5">
+            <p className="text-[10px] uppercase font-bold text-slate-500">Month Net Weight</p>
+            <p className="text-xl font-black text-blue-700 font-mono mt-0.5">
               {formatWeight(registerData.grandTotalWeight)}
             </p>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-400">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-card flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
             <DollarSign className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-400">Month Net Amount</p>
-            <p className="text-lg font-black text-amber-400 font-mono mt-0.5">
+            <p className="text-[10px] uppercase font-bold text-slate-500">Month Net Amount</p>
+            <p className="text-xl font-black text-amber-700 font-mono mt-0.5">
               {formatCurrency(registerData.grandTotalAmount)}
             </p>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-400">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-card flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-400">Total Suppliers</p>
-            <p className="text-lg font-black text-white font-mono mt-0.5">
+            <p className="text-[10px] uppercase font-bold text-slate-500">Total Suppliers</p>
+            <p className="text-xl font-black text-slate-900 font-mono mt-0.5">
               {registerData.rows.length}
             </p>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-purple-500/10 text-purple-400">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-card flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
             <Award className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-400">Empty Day Indicator</p>
-            <p className="text-lg font-black text-purple-300 font-mono mt-0.5">
+            <p className="text-[10px] uppercase font-bold text-slate-500">Empty Day Symbol</p>
+            <p className="text-xl font-black text-purple-700 font-mono mt-0.5">
               "{settings?.monthly_register_empty_symbol || 'X'}"
             </p>
           </div>
@@ -168,9 +175,9 @@ export const MonthlyRegisterPage: React.FC = () => {
 
       {/* Main Table Grid */}
       {loading ? (
-        <div className="py-24 flex flex-col items-center justify-center bg-slate-900 rounded-2xl border border-slate-800 text-slate-400 gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-          <p className="text-sm font-medium">Reconciling {MONTH_NAMES[selectedMonthIndex]} {selectedYear} register records...</p>
+        <div className="py-24 flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-200 shadow-card text-slate-400 gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <p className="text-sm font-medium text-slate-600">Reconciling {MONTH_NAMES[selectedMonthIndex]} {selectedYear} register records...</p>
         </div>
       ) : (
         <MonthlyMatrixTable

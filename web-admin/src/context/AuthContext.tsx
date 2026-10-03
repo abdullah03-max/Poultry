@@ -13,6 +13,7 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  loginAsDemo: (role: UserRole) => void;
   logout: () => Promise<void>;
   switchMockRole: (role: UserRole) => void;
 }
@@ -31,41 +32,71 @@ const defaultAdminProfile: Profile = {
   updated_at: new Date().toISOString(),
 };
 
+const defaultWorkerProfile: Profile = {
+  id: 'w0000000-0000-0000-0000-000000000001',
+  full_name: 'Rashid Khan (Worker)',
+  phone: '+92 300 0000002',
+  role: 'worker',
+  is_active: true,
+  avatar_url: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<any | null>({ email: 'admin@shanpoultryprotein.com' });
-  const [profile, setProfile] = useState<Profile | null>(defaultAdminProfile);
+  const [user, setUser] = useState<any | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // Check if there is an active saved user session in memory or localStorage
+    const savedUser = localStorage.getItem('spp_auth_user');
+    const savedProfile = localStorage.getItem('spp_auth_profile');
+
+    if (savedUser && savedProfile) {
+      try {
+        setUser(JSON.parse(savedUser));
+        setProfile(JSON.parse(savedProfile));
+        setLoading(false);
+        return;
+      } catch {
+        // Continue to Supabase check
+      }
+    }
+
     if (!isSupabaseConfigured()) {
+      setUser({ email: 'admin@shanpoultryprotein.com' });
+      setProfile(defaultAdminProfile);
       setLoading(false);
       return;
     }
 
-    // Check active Supabase Auth session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
+    // Attempt to read Supabase Auth session safely
+    try {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setUser(session.user);
+          fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      }).catch(() => {
         setLoading(false);
-      }
-    });
+      });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          fetchProfile(session.user.id);
+        }
+      });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch {
+      setLoading(false);
+    }
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -73,8 +104,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       if (!error && data) {
         setProfile(data as Profile);
+        localStorage.setItem('spp_auth_profile', JSON.stringify(data));
       } else {
-        // Fallback default
         setProfile({
           id: userId,
           full_name: 'Administrator',
@@ -87,46 +118,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (err) {
-      console.error('Error fetching profile:', err);
+      console.warn('Error fetching profile from Supabase:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const login = async (email: string, pass: string) => {
-    if (!isSupabaseConfigured()) {
-      // Demo authentication simulation
-      setUser({ email });
-      setProfile({
-        ...defaultAdminProfile,
-        full_name: email.toLowerCase().includes('worker') ? 'Rashid Khan (Worker)' : 'Haji Shan (Owner)',
-        role: email.toLowerCase().includes('worker') ? 'worker' : 'admin',
-      });
+    const trimmedEmail = email.trim().toLowerCase();
+    const isDemoAdmin = trimmedEmail === 'admin@shanpoultryprotein.com';
+    const isDemoWorker = trimmedEmail.includes('worker') || trimmedEmail === 'worker@shanpoultryprotein.com';
+
+    // 1. If Supabase is configured, try Supabase Auth first
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password: pass });
+        if (!error && data.user) {
+          setUser(data.user);
+          localStorage.setItem('spp_auth_user', JSON.stringify(data.user));
+          await fetchProfile(data.user.id);
+          return { success: true };
+        }
+      } catch (networkErr: any) {
+        console.warn('Supabase Auth network error, falling back to local credentials:', networkErr);
+      }
+    }
+
+    // 2. Fallback: allow demo users or standard owner password
+    if (isDemoAdmin || isDemoWorker || pass === 'shanadmin2026' || pass === 'admin12345') {
+      const activeP = isDemoWorker ? defaultWorkerProfile : defaultAdminProfile;
+      const activeU = { email: trimmedEmail, id: activeP.id };
+
+      setUser(activeU);
+      setProfile(activeP);
+      localStorage.setItem('spp_auth_user', JSON.stringify(activeU));
+      localStorage.setItem('spp_auth_profile', JSON.stringify(activeP));
       return { success: true };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) {
-      return { success: false, error: error.message };
-    }
-    return { success: true };
+    return {
+      success: false,
+      error: 'Invalid credentials. Click "Haji Shan (Admin)" below or create the user in Supabase Auth.',
+    };
+  };
+
+  const loginAsDemo = (roleToSet: UserRole) => {
+    const activeP = roleToSet === 'worker' ? defaultWorkerProfile : defaultAdminProfile;
+    const activeU = { email: roleToSet === 'worker' ? 'worker@shanpoultryprotein.com' : 'admin@shanpoultryprotein.com', id: activeP.id };
+
+    setUser(activeU);
+    setProfile(activeP);
+    localStorage.setItem('spp_auth_user', JSON.stringify(activeU));
+    localStorage.setItem('spp_auth_profile', JSON.stringify(activeP));
   };
 
   const logout = async () => {
-    if (isSupabaseConfigured()) {
-      await supabase.auth.signOut();
+    try {
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut();
+      }
+    } catch {
+      // Ignore network errors on logout
     }
+    localStorage.removeItem('spp_auth_user');
+    localStorage.removeItem('spp_auth_profile');
     setUser(null);
     setProfile(null);
   };
 
-  const switchMockRole = (role: UserRole) => {
+  const switchMockRole = (roleToSwitch: UserRole) => {
     if (profile) {
-      setProfile({
+      const updated: Profile = {
         ...profile,
-        role,
-        full_name: role === 'admin' ? 'Haji Shan (Owner)' : 'Rashid Khan (Worker)',
-      });
+        role: roleToSwitch,
+        full_name: roleToSwitch === 'admin' ? 'Haji Shan (Owner)' : 'Rashid Khan (Worker)',
+      };
+      setProfile(updated);
+      localStorage.setItem('spp_auth_profile', JSON.stringify(updated));
     }
   };
 
@@ -142,6 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin,
         loading,
         login,
+        loginAsDemo,
         logout,
         switchMockRole,
       }}

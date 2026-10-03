@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Touch Signature Pad Modal
+// Daylight Clean B2B Corporate Edition
 // Captures customer / shop representative signature on mobile touch screens
 // =============================================================================
 
@@ -12,6 +13,7 @@ import {
   StyleSheet,
   SafeAreaView,
   PanResponder,
+  StatusBar,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -68,10 +70,12 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Touch Signature</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.7}>
             <Text style={styles.closeButtonText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -84,26 +88,30 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
         <View style={styles.canvasContainer} {...panResponder.panHandlers}>
           <Svg style={styles.svg}>
             {paths.map((d, index) => (
-              <Path key={index} d={d} stroke="#0f172a" strokeWidth={3} fill="none" />
+              <Path key={index} d={d} stroke="#0F172A" strokeWidth={3} fill="none" />
             ))}
             {currentPath ? (
-              <Path d={currentPath} stroke="#0f172a" strokeWidth={3} fill="none" />
+              <Path d={currentPath} stroke="#0F172A" strokeWidth={3} fill="none" />
             ) : null}
           </Svg>
 
           {paths.length === 0 && !currentPath && (
-            <Text style={styles.placeholderText}>Sign here with finger</Text>
+            <View style={styles.placeholderContainer} pointerEvents="none">
+              <Text style={styles.placeholderIcon}>✍️</Text>
+              <Text style={styles.placeholderText}>Sign here with finger</Text>
+              <View style={styles.signatureLine} />
+            </View>
           )}
         </View>
 
         {/* Controls */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-            <Text style={styles.clearButtonText}>Clear</Text>
+          <TouchableOpacity onPress={handleClear} style={styles.clearButton} activeOpacity={0.7}>
+            <Text style={styles.clearButtonText}>Clear Pad</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleConfirm} style={styles.confirmButton}>
-            <Text style={styles.confirmButtonText}>Confirm Signature</Text>
+          <TouchableOpacity onPress={handleConfirm} style={styles.confirmButton} activeOpacity={0.85}>
+            <Text style={styles.confirmButtonText}>Confirm Signature ✓</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -114,7 +122,7 @@ export const SignaturePadModal: React.FC<SignaturePadModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
     padding: 20,
     justifyContent: 'space-between',
   },
@@ -124,48 +132,73 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: '#E2E8F0',
   },
   title: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
   },
   closeButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#F1F5F9',
     borderRadius: 8,
   },
   closeButtonText: {
-    color: '#94a3b8',
+    color: '#64748B',
     fontWeight: '700',
     fontSize: 12,
   },
   instructions: {
-    color: '#94a3b8',
+    color: '#64748B',
     fontSize: 13,
     marginVertical: 12,
   },
   canvasContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#38bdf8',
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
     position: 'relative',
     overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   svg: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
+  },
+  placeholderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderIcon: {
+    fontSize: 32,
+    opacity: 0.4,
+    marginBottom: 6,
   },
   placeholderText: {
-    color: '#94a3b8',
-    fontSize: 16,
+    color: '#94A3B8',
+    fontSize: 14,
     fontWeight: '600',
-    opacity: 0.5,
+  },
+  signatureLine: {
+    position: 'absolute',
+    bottom: 40,
+    left: 30,
+    right: 30,
+    height: 1,
+    backgroundColor: '#E2E8F0',
   },
   footer: {
     flexDirection: 'row',
@@ -175,25 +208,32 @@ const styles = StyleSheet.create({
   clearButton: {
     flex: 1,
     paddingVertical: 14,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#F1F5F9',
     borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   clearButtonText: {
-    color: '#ef4444',
-    fontSize: 14,
+    color: '#64748B',
     fontWeight: '700',
+    fontSize: 14,
   },
   confirmButton: {
     flex: 2,
     paddingVertical: 14,
-    backgroundColor: '#10b981',
+    backgroundColor: '#2563EB',
     borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   confirmButtonText: {
-    color: '#090d16',
-    fontSize: 14,
+    color: '#FFFFFF',
     fontWeight: '800',
+    fontSize: 14,
   },
 });

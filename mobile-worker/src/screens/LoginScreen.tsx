@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Mobile Worker Login Screen
+// Daylight Clean B2B Corporate Edition
 // =============================================================================
 
 import React, { useState } from 'react';
@@ -12,6 +13,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
@@ -47,6 +49,7 @@ export const LoginScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
       <View style={styles.card}>
         <View style={styles.logoBadge}>
           <Text style={styles.logoText}>SP</Text>
@@ -66,7 +69,7 @@ export const LoginScreen: React.FC = () => {
           <TextInput
             style={styles.input}
             placeholder="0300 1234567"
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#94A3B8"
             keyboardType="phone-pad"
             value={phoneOrEmail}
             onChangeText={setPhoneOrEmail}
@@ -79,7 +82,7 @@ export const LoginScreen: React.FC = () => {
           <TextInput
             style={styles.input}
             placeholder="••••••••"
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#94A3B8"
             secureTextEntry
             value={password}
             onChangeText={setPassword}
@@ -90,9 +93,10 @@ export const LoginScreen: React.FC = () => {
           style={styles.loginButton}
           onPress={handleLogin}
           disabled={loading}
+          activeOpacity={0.85}
         >
           {loading ? (
-            <ActivityIndicator color="#090d16" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.loginButtonText}>Sign In as Collector</Text>
           )}
@@ -111,7 +115,7 @@ export const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -119,36 +123,47 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 24,
+    padding: 28,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: '#E2E8F0',
     alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   logoBadge: {
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: '#10b981',
+    backgroundColor: '#2563EB',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   logoText: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#090d16',
+    color: '#FFFFFF',
+    letterSpacing: -1,
   },
   title: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 13,
-    color: '#10b981',
+    color: '#64748B',
     fontWeight: '600',
     marginBottom: 24,
     textAlign: 'center',
@@ -156,14 +171,14 @@ const styles = StyleSheet.create({
   errorBox: {
     width: '100%',
     padding: 12,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: '#FEF2F2',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: '#FECACA',
     marginBottom: 16,
   },
   errorText: {
-    color: '#f87171',
+    color: '#DC2626',
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
@@ -173,37 +188,39 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    color: '#94a3b8',
-    fontSize: 12,
+    color: '#475569',
+    fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: 6,
+    letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    color: '#ffffff',
+    color: '#0F172A',
     fontSize: 15,
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    fontWeight: '500',
   },
   loginButton: {
     width: '100%',
-    backgroundColor: '#10b981',
+    backgroundColor: '#2563EB',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#10b981',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   loginButtonText: {
-    color: '#090d16',
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
   },
@@ -211,7 +228,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   footerText: {
-    color: '#64748b',
+    color: '#94A3B8',
     fontSize: 11,
     textAlign: 'center',
   },

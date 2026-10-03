@@ -24,6 +24,7 @@ const AdminApp: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [isNewCollectionOpen, setIsNewCollectionOpen] = useState<boolean>(false);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   const {
     collections,
@@ -31,6 +32,13 @@ const AdminApp: React.FC = () => {
     latestLiveEvent,
     refreshCollections,
   } = useRealtimeCollections();
+
+  // Re-fetch pages whenever a realtime event arrives from Supabase
+  React.useEffect(() => {
+    if (latestLiveEvent) {
+      setRefreshTrigger(prev => prev + 1);
+    }
+  }, [latestLiveEvent]);
 
   if (authLoading) {
     return (
@@ -130,11 +138,17 @@ const AdminApp: React.FC = () => {
             />
           )}
 
-          {activeTab === 'monthly-register' && <MonthlyRegisterPage />}
+          {activeTab === 'monthly-register' && (
+            <MonthlyRegisterPage refreshTrigger={refreshTrigger} />
+          )}
 
-          {activeTab === 'daily-records' && <DailyRecordPage />}
+          {activeTab === 'daily-records' && (
+            <DailyRecordPage refreshTrigger={refreshTrigger} />
+          )}
 
-          {activeTab === 'collections' && <CollectionsPage />}
+          {activeTab === 'collections' && (
+            <CollectionsPage refreshTrigger={refreshTrigger} />
+          )}
 
           {activeTab === 'customers' && <CustomersPage />}
 
@@ -154,6 +168,7 @@ const AdminApp: React.FC = () => {
         onClose={() => setIsNewCollectionOpen(false)}
         onCreated={() => {
           refreshCollections();
+          setRefreshTrigger(prev => prev + 1);
         }}
       />
     </div>

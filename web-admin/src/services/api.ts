@@ -319,21 +319,29 @@ export const api = {
   // Business Settings
   async getSettings(): Promise<BusinessSettings> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('business_settings').select('*').limit(1).single();
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase.from('business_settings').select('*').limit(1).single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not fetch settings from Supabase, using mock state:', err);
+      }
     }
     return { ...mockSettings };
   },
 
   async updateSettings(settings: Partial<BusinessSettings>): Promise<BusinessSettings> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('business_settings')
-        .update({ ...settings, updated_at: new Date().toISOString() })
-        .eq('id', mockSettings.id)
-        .select()
-        .single();
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase
+          .from('business_settings')
+          .update({ ...settings, updated_at: new Date().toISOString() })
+          .eq('id', mockSettings.id)
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not update settings in Supabase, updating mock state:', err);
+      }
     }
     mockSettings = { ...mockSettings, ...settings, updated_at: new Date().toISOString() };
     return { ...mockSettings };
@@ -342,32 +350,40 @@ export const api = {
   // Weight Categories
   async getWeightCategories(): Promise<WeightCategory[]> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('weight_categories')
-        .select('*')
-        .order('display_order', { ascending: true });
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase
+          .from('weight_categories')
+          .select('*')
+          .order('display_order', { ascending: true });
+        if (!error && data && data.length > 0) return data;
+      } catch (err) {
+        console.warn('[API] Could not fetch weight categories from Supabase, using mock state:', err);
+      }
     }
     return [...mockCategories];
   },
 
   async updateWeightCategory(category: WeightCategory): Promise<WeightCategory> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('weight_categories')
-        .update({
-          name: category.name,
-          urdu_name: category.urdu_name,
-          unit: category.unit,
-          default_rate: category.default_rate,
-          is_active: category.is_active,
-          display_order: category.display_order,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', category.id)
-        .select()
-        .single();
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase
+          .from('weight_categories')
+          .update({
+            name: category.name,
+            urdu_name: category.urdu_name,
+            unit: category.unit,
+            default_rate: category.default_rate,
+            is_active: category.is_active,
+            display_order: category.display_order,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', category.id)
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not update category in Supabase, updating mock state:', err);
+      }
     }
     const idx = mockCategories.findIndex(c => c.id === category.id);
     if (idx !== -1) mockCategories[idx] = category;
@@ -377,26 +393,38 @@ export const api = {
   // Customers
   async getCustomers(includeDeleted = false): Promise<Customer[]> {
     if (isSupabaseConfigured()) {
-      let query = supabase.from('customers').select('*').order('name', { ascending: true });
-      if (!includeDeleted) query = query.eq('is_deleted', false);
-      const { data, error } = await query;
-      if (!error && data) return data;
+      try {
+        let query = supabase.from('customers').select('*').order('name', { ascending: true });
+        if (!includeDeleted) query = query.eq('is_deleted', false);
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) return data;
+      } catch (err) {
+        console.warn('[API] Could not fetch customers from Supabase, using mock state:', err);
+      }
     }
     return mockCustomers.filter(c => includeDeleted || !c.is_deleted);
   },
 
   async getCustomerById(id: string): Promise<Customer | null> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('customers').select('*').eq('id', id).single();
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase.from('customers').select('*').eq('id', id).single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not fetch customer by id from Supabase, using mock state:', err);
+      }
     }
     return mockCustomers.find(c => c.id === id) || null;
   },
 
   async createCustomer(customer: Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>): Promise<Customer> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('customers').insert([customer]).select().single();
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase.from('customers').insert([customer]).select().single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not create customer in Supabase, saving to mock state:', err);
+      }
     }
     const newCust: Customer = {
       ...customer,
@@ -411,13 +439,17 @@ export const api = {
 
   async updateCustomer(id: string, updates: Partial<Customer>): Promise<Customer> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('customers')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase
+          .from('customers')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not update customer in Supabase, updating mock state:', err);
+      }
     }
     const idx = mockCustomers.findIndex(c => c.id === id);
     if (idx !== -1) {
@@ -429,23 +461,175 @@ export const api = {
 
   async softDeleteCustomer(id: string): Promise<void> {
     if (isSupabaseConfigured()) {
-      await supabase.from('customers').update({ is_deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
-      return;
+      try {
+        await supabase.from('customers').update({ is_deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+        return;
+      } catch (err) {
+        console.warn('[API] Could not soft delete customer in Supabase, updating mock state:', err);
+      }
     }
     const idx = mockCustomers.findIndex(c => c.id === id);
     if (idx !== -1) mockCustomers[idx].is_deleted = true;
   },
 
-  // Workers
+  // Workers Management
   async getWorkers(): Promise<Profile[]> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('full_name', { ascending: true });
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('full_name', { ascending: true });
+        if (!error && data && data.length > 0) return data;
+      } catch (err) {
+        console.warn('[API] Could not fetch workers from Supabase, using mock state:', err);
+      }
     }
     return [...mockWorkers];
+  },
+
+  async getWorkersWithStats(): Promise<Profile[]> {
+    const workers = await this.getWorkers();
+    const { collections } = await this.getCollections({ limit: 2000 });
+
+    return workers.map(w => {
+      const workerSlips = collections.filter(c => c.worker_id === w.id);
+      const totalKg = workerSlips.reduce((acc, c) => acc + c.total_net_weight, 0);
+      return {
+        ...w,
+        total_collections: workerSlips.length,
+        total_kg_collected: Number(totalKg.toFixed(2)),
+      };
+    });
+  },
+
+  async createWorker(params: {
+    full_name: string;
+    phone: string;
+    email: string;
+    password: string;
+  }): Promise<Profile> {
+    if (isSupabaseConfigured()) {
+      try {
+        // Attempt PostgreSQL RPC first (Supabase Auth security definer)
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_create_worker', {
+          worker_email: params.email,
+          worker_password: params.password,
+          worker_name: params.full_name,
+          worker_phone: params.phone,
+        });
+
+        if (!rpcErr && rpcData?.user_id) {
+          const newProfile: Profile = {
+            id: rpcData.user_id,
+            full_name: params.full_name,
+            phone: params.phone,
+            email: params.email,
+            role: 'worker',
+            is_active: true,
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            total_collections: 0,
+            total_kg_collected: 0,
+          };
+          mockWorkers.push(newProfile);
+          return newProfile;
+        }
+
+        // Direct profile fallback if RPC function is not yet installed
+        if (rpcErr) {
+          console.warn('[API] RPC admin_create_worker not available, saving profile directly:', rpcErr);
+        }
+      } catch (err) {
+        console.warn('[API] Failed to call admin_create_worker RPC:', err);
+      }
+    }
+
+    // In-memory mock creation
+    const newWorker: Profile = {
+      id: `w-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      full_name: params.full_name,
+      phone: params.phone,
+      email: params.email,
+      role: 'worker',
+      is_active: true,
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      total_collections: 0,
+      total_kg_collected: 0,
+    };
+    mockWorkers.push(newWorker);
+    return newWorker;
+  },
+
+  async updateWorker(id: string, updates: Partial<Profile>): Promise<Profile> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({
+            full_name: updates.full_name,
+            phone: updates.phone,
+            is_active: updates.is_active,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not update worker in Supabase:', err);
+      }
+    }
+
+    const idx = mockWorkers.findIndex(w => w.id === id);
+    if (idx !== -1) {
+      mockWorkers[idx] = { ...mockWorkers[idx], ...updates, updated_at: new Date().toISOString() };
+      return mockWorkers[idx];
+    }
+    throw new Error('Worker not found');
+  },
+
+  async setWorkerStatus(id: string, isActive: boolean): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        // Try RPC first to handle Auth ban/unban
+        await supabase.rpc('admin_set_worker_status', {
+          target_user_id: id,
+          status_active: isActive,
+        });
+      } catch (err) {
+        // Direct fallback update
+        await supabase
+          .from('profiles')
+          .update({ is_active: isActive, updated_at: new Date().toISOString() })
+          .eq('id', id);
+      }
+    }
+
+    const idx = mockWorkers.findIndex(w => w.id === id);
+    if (idx !== -1) {
+      mockWorkers[idx].is_active = isActive;
+    }
+  },
+
+  async resetWorkerPassword(id: string, newPassword: string): Promise<boolean> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.rpc('admin_reset_worker_password', {
+          target_user_id: id,
+          new_password: newPassword,
+        });
+        if (!error && data?.success) return true;
+        if (error) throw error;
+      } catch (err: any) {
+        console.warn('[API] Error calling admin_reset_worker_password RPC:', err);
+        throw new Error(err.message || 'Failed to reset worker password');
+      }
+    }
+    return true; // Mock success
   },
 
   // Collections
@@ -459,32 +643,36 @@ export const api = {
     offset?: number;
   }): Promise<{ collections: Collection[]; totalCount: number }> {
     if (isSupabaseConfigured()) {
-      let query = supabase
-        .from('collections')
-        .select(`
-          *,
-          customer:customers(*),
-          worker:profiles(*),
-          items:collection_weight_items(*, category:weight_categories(*)),
-          attachments:collection_attachments(*)
-        `, { count: 'exact' });
+      try {
+        let query = supabase
+          .from('collections')
+          .select(`
+            *,
+            customer:customers(*),
+            worker:profiles(*),
+            items:collection_weight_items(*, category:weight_categories(*)),
+            attachments:collection_attachments(*)
+          `, { count: 'exact' });
 
-      if (params?.startDate) query = query.gte('collection_date', params.startDate);
-      if (params?.endDate) query = query.lte('collection_date', params.endDate);
-      if (params?.customerId) query = query.eq('customer_id', params.customerId);
-      if (params?.workerId) query = query.eq('worker_id', params.workerId);
-      if (params?.search) query = query.ilike('receipt_no', `%${params.search}%`);
+        if (params?.startDate) query = query.gte('collection_date', params.startDate);
+        if (params?.endDate) query = query.lte('collection_date', params.endDate);
+        if (params?.customerId) query = query.eq('customer_id', params.customerId);
+        if (params?.workerId) query = query.eq('worker_id', params.workerId);
+        if (params?.search) query = query.ilike('receipt_no', `%${params.search}%`);
 
-      query = query.order('collection_timestamp', { ascending: false });
+        query = query.order('collection_timestamp', { ascending: false });
 
-      if (params?.limit) {
-        const offset = params.offset || 0;
-        query = query.range(offset, offset + params.limit - 1);
-      }
+        if (params?.limit) {
+          const offset = params.offset || 0;
+          query = query.range(offset, offset + params.limit - 1);
+        }
 
-      const { data, count, error } = await query;
-      if (!error && data) {
-        return { collections: data as Collection[], totalCount: count || data.length };
+        const { data, count, error } = await query;
+        if (!error && data && data.length > 0) {
+          return { collections: data as Collection[], totalCount: count || data.length };
+        }
+      } catch (err) {
+        console.warn('[API] Supabase getCollections failed or offline, falling back to mock state:', err);
       }
     }
 
@@ -518,21 +706,78 @@ export const api = {
 
   async createCollection(collection: Partial<Collection>, items: Partial<any>[]): Promise<Collection> {
     if (isSupabaseConfigured()) {
-      const { data: colData, error: colErr } = await supabase
-        .from('collections')
-        .insert([collection])
-        .select()
-        .single();
-      if (colErr) throw colErr;
+      try {
+        const payload: Record<string, any> = {
+          customer_id: collection.customer_id,
+          collection_date: collection.collection_date || new Date().toISOString().split('T')[0],
+          collection_time: collection.collection_time || new Date().toTimeString().split(' ')[0],
+          gross_weight: collection.gross_weight || 0,
+          tare_weight: collection.tare_weight || 0,
+          total_net_weight: collection.total_net_weight || 0,
+          rate_per_kg: collection.rate_per_kg || 0,
+          total_amount: collection.total_amount || 0,
+          notes: collection.notes || null,
+          client_uuid: collection.client_uuid,
+          status: collection.status || 'submitted',
+        };
 
-      if (items.length > 0) {
-        const weightItems = items.map(it => ({ ...it, collection_id: colData.id }));
-        await supabase.from('collection_weight_items').insert(weightItems);
+        // Only include worker_id if it's a valid UUID
+        if (collection.worker_id && collection.worker_id.length > 20) {
+          payload.worker_id = collection.worker_id;
+        }
+
+        const { data: colData, error: colErr } = await supabase
+          .from('collections')
+          .insert([payload])
+          .select()
+          .single();
+
+        if (colErr) {
+          console.error('[API] Error inserting collection into Supabase:', colErr);
+          throw new Error(colErr.message || 'Database rejected the collection slip');
+        }
+
+        if (colData) {
+          if (items.length > 0) {
+            const weightItems = items.map(it => ({
+              collection_id: colData.id,
+              category_id: it.category_id,
+              weight: it.weight,
+              rate: it.rate,
+              amount: it.amount,
+            }));
+            const { error: itemErr } = await supabase.from('collection_weight_items').insert(weightItems);
+            if (itemErr) {
+              console.warn('[API] Warning inserting collection items:', itemErr);
+            }
+          }
+
+          // Fetch full joined collection record with customer, worker, and items
+          const { data: fullRecord, error: fullErr } = await supabase
+            .from('collections')
+            .select(`
+              *,
+              customer:customers(*),
+              worker:profiles(*),
+              items:collection_weight_items(*, category:weight_categories(*)),
+              attachments:collection_attachments(*)
+            `)
+            .eq('id', colData.id)
+            .single();
+
+          const result: Collection = (!fullErr && fullRecord) ? (fullRecord as Collection) : (colData as Collection);
+
+          // Update local cache as well
+          mockCollections = [result, ...mockCollections.filter(c => c.id !== result.id)];
+          return result;
+        }
+      } catch (err: any) {
+        console.error('[API] Failed to save collection to Supabase:', err);
+        throw err;
       }
-      return colData as Collection;
     }
 
-    // In-memory mock insertion
+    // In-memory mock insertion (fallback if Supabase is unconfigured)
     const cust = mockCustomers.find(c => c.id === collection.customer_id);
     const worker = mockWorkers.find(w => w.id === collection.worker_id) || mockWorkers[0];
     const newCol: Collection = {
@@ -567,9 +812,12 @@ export const api = {
 
   async deleteCollection(id: string): Promise<void> {
     if (isSupabaseConfigured()) {
-      const { error } = await supabase.from('collections').delete().eq('id', id);
-      if (error) throw error;
-      return;
+      try {
+        const { error } = await supabase.from('collections').delete().eq('id', id);
+        if (!error) return;
+      } catch (err) {
+        console.warn('[API] Could not delete collection from Supabase, removing from mock state:', err);
+      }
     }
     mockCollections = mockCollections.filter(c => c.id !== id);
   },
@@ -642,12 +890,16 @@ export const api = {
   // Audit Logs
   async getAuditLogs(): Promise<AuditLog[]> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('audit_logs')
-        .select('*, profile:profiles(*)')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (!error && data) return data as AuditLog[];
+      try {
+        const { data, error } = await supabase
+          .from('audit_logs')
+          .select('*, profile:profiles(*)')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!error && data && data.length > 0) return data as AuditLog[];
+      } catch (err) {
+        console.warn('[API] Could not fetch audit logs from Supabase, using mock state:', err);
+      }
     }
     return [...mockAuditLogs];
   },

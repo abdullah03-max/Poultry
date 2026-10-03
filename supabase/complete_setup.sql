@@ -276,6 +276,136 @@ CREATE TRIGGER audit_customers
     FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
 -- -----------------------------------------------------------------------------
+-- 8b. WORKER ACCOUNT MANAGEMENT RPC FUNCTIONS (Supabase Auth Provisioning)
+-- -----------------------------------------------------------------------------
+
+-- Create a new worker account directly with Supabase Auth
+CREATE OR REPLACE FUNCTION public.admin_create_worker(
+    worker_email TEXT,
+    worker_password TEXT,
+    worker_name TEXT,
+    worker_phone TEXT
+)
+RETURNS JSONB AS $$
+DECLARE
+    new_user_id UUID := gen_random_uuid();
+    encrypted_pw TEXT;
+BEGIN
+    -- Encrypt password using pgcrypto blowfish
+    encrypted_pw := extensions.crypt(worker_password, extensions.gen_salt('bf'));
+
+    -- Insert into auth.users with email confirmed
+    INSERT INTO auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at
+    ) VALUES (
+        '00000000-0000-0000-0000-000000000000',
+        new_user_id,
+        'authenticated',
+        'authenticated',
+        worker_email,
+        encrypted_pw,
+        timezone('Asia/Karachi', now()),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        jsonb_build_object('full_name', worker_name, 'phone', worker_phone, 'role', 'worker'),
+        timezone('Asia/Karachi', now()),
+        timezone('Asia/Karachi', now())
+    );
+
+    -- Insert into auth.identities
+    INSERT INTO auth.identities (
+        id,
+        user_id,
+        identity_data,
+        provider,
+        last_sign_in_at,
+        created_at,
+        updated_at
+    ) VALUES (
+        new_user_id,
+        new_user_id,
+        jsonb_build_object('sub', new_user_id::text, 'email', worker_email),
+        'email',
+        timezone('Asia/Karachi', now()),
+        timezone('Asia/Karachi', now()),
+        timezone('Asia/Karachi', now())
+    );
+
+    -- Ensure profile exists
+    INSERT INTO public.profiles (id, full_name, phone, role, is_active)
+    VALUES (new_user_id, worker_name, worker_phone, 'worker', true)
+    ON CONFLICT (id) DO UPDATE
+    SET full_name = EXCLUDED.full_name,
+        phone = EXCLUDED.phone,
+        role = 'worker',
+        is_active = true,
+        updated_at = timezone('Asia/Karachi', now());
+
+    RETURN jsonb_build_object('user_id', new_user_id, 'success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Reset worker password in auth.users
+CREATE OR REPLACE FUNCTION public.admin_reset_worker_password(
+    target_user_id UUID,
+    new_password TEXT
+)
+RETURNS JSONB AS $$
+DECLARE
+    encrypted_pw TEXT;
+BEGIN
+    encrypted_pw := extensions.crypt(new_password, extensions.gen_salt('bf'));
+
+    UPDATE auth.users
+    SET encrypted_password = encrypted_pw,
+        updated_at = timezone('Asia/Karachi', now())
+    WHERE id = target_user_id;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Activate / Deactivate worker account
+CREATE OR REPLACE FUNCTION public.admin_set_worker_status(
+    target_user_id UUID,
+    status_active BOOLEAN
+)
+RETURNS JSONB AS $$
+BEGIN
+    UPDATE public.profiles
+    SET is_active = status_active,
+        updated_at = timezone('Asia/Karachi', now())
+    WHERE id = target_user_id;
+
+    -- If deactivated, ban the user in auth.users by setting banned_until
+    IF status_active = false THEN
+        UPDATE auth.users
+        SET banned_until = timezone('Asia/Karachi', now()) + INTERVAL '100 years'
+        WHERE id = target_user_id;
+    ELSE
+        UPDATE auth.users
+        SET banned_until = NULL
+        WHERE id = target_user_id;
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.admin_create_worker TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.admin_reset_worker_password TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_worker_status TO authenticated, anon;
+
+-- -----------------------------------------------------------------------------
 -- 9. ROW LEVEL SECURITY (RLS) POLICIES
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;

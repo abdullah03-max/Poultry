@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Mobile Customers Directory Screen
+// Daylight Clean B2B Corporate Edition
 // =============================================================================
 
 import React, { useState } from 'react';
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   Linking,
   SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { Customer } from '../types';
 
@@ -40,6 +42,7 @@ export const CustomersScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
         <Text style={styles.title}>Customer Directory</Text>
         <Text style={styles.subtitle}>Direct phone & location contacts for assigned shops</Text>
@@ -49,7 +52,7 @@ export const CustomersScreen: React.FC = () => {
         <TextInput
           style={styles.searchInput}
           placeholder="Search customer, area, or phone..."
-          placeholderTextColor="#64748b"
+          placeholderTextColor="#94A3B8"
           value={query}
           onChangeText={setQuery}
         />
@@ -62,7 +65,7 @@ export const CustomersScreen: React.FC = () => {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardTop}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.code}>{item.customer_code}</Text>
                 <Text style={styles.name}>{item.name}</Text>
                 {item.contact_person && (
@@ -72,6 +75,7 @@ export const CustomersScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.callButton}
                 onPress={() => handleCall(item.phone)}
+                activeOpacity={0.7}
               >
                 <Text style={styles.callButtonText}>📞 Call</Text>
               </TouchableOpacity>
@@ -91,48 +95,55 @@ export const CustomersScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
   },
   header: {
     padding: 20,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: '#E2E8F0',
   },
   title: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
   },
   subtitle: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: '#64748B',
     marginTop: 2,
   },
   searchBox: {
     padding: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: '#E2E8F0',
   },
   searchInput: {
-    backgroundColor: '#131b2e',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    color: '#ffffff',
+    color: '#0F172A',
     fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
   },
   list: {
     padding: 16,
     gap: 12,
   },
   card: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: '#E2E8F0',
     borderRadius: 16,
     padding: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   cardTop: {
     flexDirection: 'row',
@@ -140,52 +151,53 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   code: {
-    color: '#10b981',
-    fontWeight: '800',
-    fontSize: 11,
     fontFamily: 'monospace',
-    marginBottom: 2,
+    fontWeight: '800',
+    fontSize: 12,
+    color: '#2563EB',
   },
   name: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 2,
   },
   contact: {
-    color: '#94a3b8',
     fontSize: 12,
+    color: '#64748B',
     marginTop: 2,
   },
   callButton: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: '#EFF6FF',
     borderWidth: 1,
-    borderColor: '#10b981',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderColor: '#BFDBFE',
     borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   callButtonText: {
-    color: '#10b981',
+    color: '#2563EB',
+    fontWeight: '700',
     fontSize: 12,
-    fontWeight: '800',
   },
   details: {
     marginTop: 12,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: '#F1F5F9',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   detailText: {
-    color: '#94a3b8',
     fontSize: 12,
+    color: '#64748B',
     flex: 1,
   },
   rateText: {
-    color: '#f59e0b',
     fontSize: 12,
     fontWeight: '700',
+    color: '#D97706',
+    fontFamily: 'monospace',
   },
 });

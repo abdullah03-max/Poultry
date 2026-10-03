@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Mobile My Collections History Screen
+// Daylight Clean B2B Corporate Edition
 // Shows worker's historical slips with 2-hour edit lock window
 // =============================================================================
 
@@ -9,8 +10,8 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  TouchableOpacity,
   SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { MobileCollection } from '../types';
 
@@ -104,9 +105,10 @@ export const MyCollectionsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
         <Text style={styles.title}>My Collection Slips</Text>
-        <Text style={styles.subtitle}>Slips recorded under your worker ID</Text>
+        <Text style={styles.subtitle}>Slips recorded under your worker ID ({slips.length} total)</Text>
       </View>
 
       <FlatList
@@ -117,13 +119,23 @@ export const MyCollectionsScreen: React.FC = () => {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.receiptNo}>{item.receipt_no}</Text>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>{item.status}</Text>
+              <View style={[
+                styles.statusBadge,
+                item.status === 'verified' ? styles.statusBadgeVerified : styles.statusBadgeSubmitted
+              ]}>
+                <Text style={[
+                  styles.statusText,
+                  item.status === 'verified' ? styles.statusTextVerified : styles.statusTextSubmitted
+                ]}>
+                  {item.status}
+                </Text>
               </View>
             </View>
 
             <Text style={styles.customerName}>{item.customer?.name}</Text>
-            <Text style={styles.areaText}>{item.customer?.area} • {item.collection_date} at {item.collection_time.substring(0, 5)}</Text>
+            <Text style={styles.areaText}>
+              {item.customer?.area} • {item.collection_date} at {item.collection_time.substring(0, 5)}
+            </Text>
 
             <View style={styles.divider} />
 
@@ -147,21 +159,22 @@ export const MyCollectionsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
   },
   header: {
     padding: 20,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: '#E2E8F0',
   },
   title: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
   },
   subtitle: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: '#64748B',
     marginTop: 2,
   },
   listContainer: {
@@ -169,11 +182,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: '#E2E8F0',
     padding: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -184,34 +202,48 @@ const styles = StyleSheet.create({
   receiptNo: {
     fontFamily: 'monospace',
     fontWeight: '800',
-    color: '#10b981',
+    color: '#2563EB',
     fontSize: 13,
   },
   statusBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
+  statusBadgeSubmitted: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  statusBadgeVerified: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
   statusText: {
-    color: '#10b981',
     fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
+  statusTextSubmitted: {
+    color: '#2563EB',
+  },
+  statusTextVerified: {
+    color: '#059669',
+  },
   customerName: {
-    color: '#ffffff',
+    color: '#0F172A',
     fontSize: 16,
     fontWeight: '700',
   },
   areaText: {
-    color: '#94a3b8',
+    color: '#64748B',
     fontSize: 12,
     marginTop: 2,
   },
   divider: {
     height: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#F1F5F9',
     marginVertical: 12,
   },
   cardFooter: {
@@ -221,20 +253,20 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     fontSize: 10,
-    color: '#64748b',
+    color: '#64748B',
     fontWeight: '700',
     marginBottom: 2,
   },
   metricWeight: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '900',
-    color: '#38bdf8',
+    color: '#2563EB',
     fontFamily: 'monospace',
   },
   metricAmount: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '900',
-    color: '#f59e0b',
+    color: '#D97706',
     fontFamily: 'monospace',
   },
 });

@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Mobile Worker Home Dashboard
+// Daylight Clean B2B Corporate Edition
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -11,6 +12,7 @@ import {
   StyleSheet,
   RefreshControl,
   SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { offlineQueue } from '../services/offlineQueue';
@@ -99,12 +101,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   };
 
   const todayTotalWeight = todaySlips.reduce((acc, s) => acc + s.total_net_weight, 0);
+  const todayTotalAmount = todaySlips.reduce((acc, s) => acc + s.total_amount, 0);
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
       <ScrollView
         contentContainerStyle={styles.container}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10b981" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
       >
         {/* Worker Greeting */}
         <View style={styles.header}>
@@ -122,9 +126,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           <TouchableOpacity
             style={styles.offlineBanner}
             onPress={() => onNavigate('Profile')}
+            activeOpacity={0.8}
           >
             <Text style={styles.offlineBannerText}>
-              ⚡ {pendingQueue.length} collection slip(s) pending offline sync. Tap to sync.
+              ⚡ {pendingQueue.length} collection slip(s) pending offline sync. Tap to sync now.
             </Text>
           </TouchableOpacity>
         )}
@@ -133,14 +138,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Today's Net Weight</Text>
-            <Text style={styles.statValueEmerald}>{todayTotalWeight.toFixed(1)} KG</Text>
+            <Text style={styles.statValueBlue}>{todayTotalWeight.toFixed(1)} KG</Text>
             <Text style={styles.statSubtext}>{todaySlips.length} slips recorded</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Pending Sync</Text>
-            <Text style={styles.statValueAmber}>{pendingQueue.length}</Text>
-            <Text style={styles.statSubtext}>Offline queue</Text>
+            <Text style={styles.statLabel}>Today's Billed</Text>
+            <Text style={styles.statValueAmber}>Rs. {todayTotalAmount.toLocaleString()}</Text>
+            <Text style={styles.statSubtext}>{pendingQueue.length} pending sync</Text>
           </View>
         </View>
 
@@ -148,9 +153,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => onNavigate('NewCollection')}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
-          <Text style={styles.actionButtonIcon}>＋</Text>
+          <View style={styles.actionButtonCircle}>
+            <Text style={styles.actionButtonIcon}>＋</Text>
+          </View>
           <View>
             <Text style={styles.actionButtonTitle}>RECORD NEW COLLECTION</Text>
             <Text style={styles.actionButtonSubtitle}>Tap to enter weights & shop signature</Text>
@@ -187,7 +194,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
   },
   container: {
     padding: 20,
@@ -200,39 +207,42 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   greeting: {
-    fontSize: 12,
-    color: '#94a3b8',
-    fontWeight: '600',
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '700',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   workerName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
+    marginTop: 2,
   },
   badge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderColor: '#A7F3D0',
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   badgeText: {
-    color: '#10b981',
+    color: '#059669',
     fontSize: 10,
     fontWeight: '800',
+    letterSpacing: 0.5,
   },
   offlineBanner: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    backgroundColor: '#FEF3C7',
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderColor: '#FDE68A',
     borderRadius: 14,
     padding: 12,
     marginBottom: 16,
   },
   offlineBannerText: {
-    color: '#fbbf24',
+    color: '#B45309',
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -244,65 +254,80 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: '#E2E8F0',
     borderRadius: 18,
     padding: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   statLabel: {
-    color: '#94a3b8',
     fontSize: 11,
-    fontWeight: '700',
+    color: '#64748B',
+    fontWeight: '600',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  statValueEmerald: {
-    color: '#10b981',
+  statValueBlue: {
     fontSize: 22,
     fontWeight: '900',
-    marginVertical: 4,
+    color: '#2563EB',
     fontFamily: 'monospace',
+    marginTop: 4,
   },
   statValueAmber: {
-    color: '#f59e0b',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
-    marginVertical: 4,
+    color: '#D97706',
     fontFamily: 'monospace',
+    marginTop: 4,
   },
   statSubtext: {
-    color: '#64748b',
     fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 4,
   },
   actionButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#2563EB',
     borderRadius: 20,
-    padding: 20,
+    padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    marginBottom: 28,
-    shadowColor: '#10b981',
+    marginBottom: 24,
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 4,
+  },
+  actionButtonCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
   },
   actionButtonIcon: {
-    fontSize: 32,
+    color: '#FFFFFF',
+    fontSize: 24,
     fontWeight: '900',
-    color: '#090d16',
+    marginTop: -2,
   },
   actionButtonTitle: {
-    color: '#090d16',
+    color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   actionButtonSubtitle: {
-    color: '#064e3b',
+    color: '#BFDBFE',
     fontSize: 12,
-    fontWeight: '700',
     marginTop: 2,
   },
   sectionHeader: {
@@ -312,66 +337,75 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    color: '#ffffff',
     fontSize: 14,
     fontWeight: '800',
+    color: '#0F172A',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   seeAllText: {
-    color: '#10b981',
     fontSize: 12,
     fontWeight: '700',
+    color: '#2563EB',
   },
   slipCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: '#E2E8F0',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 10,
+    marginBottom: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   slipHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
+    marginBottom: 6,
   },
   slipReceipt: {
-    color: '#10b981',
     fontFamily: 'monospace',
     fontWeight: '800',
-    fontSize: 12,
+    fontSize: 13,
+    color: '#2563EB',
   },
   slipTime: {
-    color: '#64748b',
     fontSize: 11,
+    color: '#94A3B8',
+    fontFamily: 'monospace',
   },
   slipCustomer: {
-    color: '#ffffff',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#0F172A',
   },
   slipArea: {
-    color: '#94a3b8',
     fontSize: 12,
-    marginBottom: 8,
+    color: '#64748B',
+    marginBottom: 10,
   },
   slipFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
-    paddingTop: 8,
+    borderTopColor: '#F1F5F9',
   },
   slipWeight: {
-    color: '#38bdf8',
-    fontSize: 14,
-    fontWeight: '800',
     fontFamily: 'monospace',
+    fontWeight: '900',
+    fontSize: 16,
+    color: '#2563EB',
   },
   slipAmount: {
-    color: '#f59e0b',
-    fontSize: 14,
-    fontWeight: '800',
     fontFamily: 'monospace',
+    fontWeight: '800',
+    fontSize: 15,
+    color: '#D97706',
   },
 });

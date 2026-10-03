@@ -1,9 +1,10 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Mobile App Navigator
+// Daylight Clean B2B Corporate Edition
 // =============================================================================
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { LoginScreen } from '../screens/LoginScreen';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -21,6 +22,7 @@ export const AppNavigator: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
         <Text style={styles.loadingText}>Initializing Worker System...</Text>
       </View>
     );
@@ -32,6 +34,8 @@ export const AppNavigator: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
       {/* Active Screen Content */}
       <View style={styles.content}>
         {activeTab === 'Home' && <HomeScreen onNavigate={(screen) => setActiveTab(screen as TabType)} />}
@@ -46,16 +50,18 @@ export const AppNavigator: React.FC = () => {
         <TouchableOpacity
           style={styles.tabItem}
           onPress={() => setActiveTab('Home')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabIcon, activeTab === 'Home' && styles.tabActiveText]}>🏠</Text>
+          <Text style={[styles.tabIcon, activeTab === 'Home' && styles.tabActiveIcon]}>🏠</Text>
           <Text style={[styles.tabLabel, activeTab === 'Home' && styles.tabActiveText]}>Home</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.tabItem}
           onPress={() => setActiveTab('MyCollections')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabIcon, activeTab === 'MyCollections' && styles.tabActiveText]}>📋</Text>
+          <Text style={[styles.tabIcon, activeTab === 'MyCollections' && styles.tabActiveIcon]}>📋</Text>
           <Text style={[styles.tabLabel, activeTab === 'MyCollections' && styles.tabActiveText]}>Slips</Text>
         </TouchableOpacity>
 
@@ -63,7 +69,7 @@ export const AppNavigator: React.FC = () => {
         <TouchableOpacity
           style={styles.centerTabItem}
           onPress={() => setActiveTab('NewCollection')}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
           <View style={[styles.centerCircle, activeTab === 'NewCollection' && styles.centerCircleActive]}>
             <Text style={styles.centerIcon}>＋</Text>
@@ -74,16 +80,18 @@ export const AppNavigator: React.FC = () => {
         <TouchableOpacity
           style={styles.tabItem}
           onPress={() => setActiveTab('Customers')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabIcon, activeTab === 'Customers' && styles.tabActiveText]}>👥</Text>
+          <Text style={[styles.tabIcon, activeTab === 'Customers' && styles.tabActiveIcon]}>🏪</Text>
           <Text style={[styles.tabLabel, activeTab === 'Customers' && styles.tabActiveText]}>Shops</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.tabItem}
           onPress={() => setActiveTab('Profile')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabIcon, activeTab === 'Profile' && styles.tabActiveText]}>⚙️</Text>
+          <Text style={[styles.tabIcon, activeTab === 'Profile' && styles.tabActiveIcon]}>⚙️</Text>
           <Text style={[styles.tabLabel, activeTab === 'Profile' && styles.tabActiveText]}>Sync</Text>
         </TouchableOpacity>
       </View>
@@ -94,16 +102,16 @@ export const AppNavigator: React.FC = () => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    color: '#10b981',
+    color: '#2563EB',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -112,13 +120,18 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    height: 72,
-    backgroundColor: '#0f172a',
+    height: 68,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingBottom: 6,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 4,
   },
   tabItem: {
     alignItems: 'center',
@@ -127,16 +140,20 @@ const styles = StyleSheet.create({
   },
   tabIcon: {
     fontSize: 18,
-    color: '#64748b',
+    opacity: 0.6,
+  },
+  tabActiveIcon: {
+    opacity: 1,
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
     marginTop: 2,
   },
   tabActiveText: {
-    color: '#10b981',
+    color: '#2563EB',
+    fontWeight: '800',
   },
   centerTabItem: {
     alignItems: 'center',
@@ -148,27 +165,28 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#10b981',
+    backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10b981',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.35,
     shadowRadius: 6,
-    elevation: 4,
+    elevation: 5,
   },
   centerCircleActive: {
-    backgroundColor: '#34d399',
+    backgroundColor: '#1D4ED8',
   },
   centerIcon: {
-    color: '#090d16',
+    color: '#FFFFFF',
     fontSize: 26,
     fontWeight: '900',
+    marginTop: -2,
   },
   centerLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#10b981',
-    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 3,
   },
 });

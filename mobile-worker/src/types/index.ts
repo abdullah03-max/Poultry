@@ -46,7 +46,7 @@ export interface CollectionItemInput {
 export interface NewCollectionPayload {
   client_uuid: string; // Idempotency key
   customer_id: string;
-  worker_id: string;
+  worker_id?: string | null;
   collection_date: string;
   collection_time: string;
   gross_weight: number;

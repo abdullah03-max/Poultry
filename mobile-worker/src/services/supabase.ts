@@ -6,8 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // In production, loaded via app.json extra or EXPO_PUBLIC_ environment variables
-export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://demo-shan-poultry.supabase.co';
-export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.demo-placeholder';
+export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://ohwslpcuetrpkqhvvszu.supabase.co';
+export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable__TCI9Uw0WZYMn_-80ZRekw_IcA-Q91j';
 
 export const isSupabaseLive = (): boolean => {
   return (

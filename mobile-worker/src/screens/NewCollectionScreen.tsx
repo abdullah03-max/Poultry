@@ -1,9 +1,10 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Fast Mobile Collection Workflow Screen
+// Daylight Clean B2B Corporate Edition
 // Built for high-speed field weigh-in, touch signature, and offline sync
 // =============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +15,8 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  Image,
+  StatusBar,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -28,14 +31,6 @@ const defaultCategories: WeightCategory[] = [
   { id: 'cat_2', code: 'cat_2', name: 'Weight Category 2', urdu_name: 'وزن کیٹیگری ۲', unit: 'KG', default_rate: 40, is_active: true, display_order: 2 },
   { id: 'waste', code: 'waste', name: 'Waste Weight', urdu_name: 'فضلہ وزن', unit: 'KG', default_rate: 48, is_active: true, display_order: 3 },
   { id: 'fat', code: 'fat', name: 'Fat Weight', urdu_name: 'چربی وزن', unit: 'KG', default_rate: 55, is_active: true, display_order: 4 },
-];
-
-const mockCustomers: Customer[] = [
-  { id: 'c1', customer_code: 'CUST-001', name: 'Al-Rehman Chicken Center', contact_person: 'Haji Rehman', phone: '+92 300 1112233', alternate_phone: null, address: 'Main Market, Shop #12', area: 'Gaggoo Mandi', rate_per_kg: 45, status: 'active', notes: null },
-  { id: 'c2', customer_code: 'CUST-002', name: 'Madina Poultry & Broilers', contact_person: 'Muhammad Tariq', phone: '+92 301 2223344', alternate_phone: null, address: 'College Road', area: 'Burewala', rate_per_kg: 48, status: 'active', notes: null },
-  { id: 'c3', customer_code: 'CUST-003', name: 'Bilal Meat & Broiler Point', contact_person: 'Bilal Ahmed', phone: '+92 302 3334455', alternate_phone: null, address: 'Railway Road', area: 'Vehari', rate_per_kg: 42, status: 'active', notes: null },
-  { id: 'c4', customer_code: 'CUST-004', name: 'Subhan Poultry Dressing', contact_person: 'Subhan Ali', phone: '+92 303 4445566', alternate_phone: null, address: 'Grain Market', area: 'Chichawatni', rate_per_kg: 46.5, status: 'active', notes: null },
-  { id: 'c5', customer_code: 'CUST-005', name: 'Ittehad Broiler Wholesale', contact_person: 'Malik Ittehad', phone: '+92 304 5556677', alternate_phone: null, address: 'Katchery Chowk', area: 'Sahiwal', rate_per_kg: 50, status: 'active', notes: null },
 ];
 
 interface NewCollectionScreenProps {
@@ -84,20 +79,24 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
   };
 
   const handlePickPhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Needed', 'Camera permission is required to capture scale/receipt photos.');
-      return;
-    }
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Needed', 'Camera permission is required to capture scale/receipt photos.');
+        return;
+      }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.6,
-    });
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+      });
 
-    if (!result.canceled && result.assets[0]) {
-      setAttachmentUri(result.assets[0].uri);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (!result.canceled && result.assets[0]) {
+        setAttachmentUri(result.assets[0].uri);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err: any) {
+      Alert.alert('Camera Error', err.message);
     }
   };
 
@@ -117,7 +116,12 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const now = new Date();
-      const clientUuid = `mobile-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      // Valid RFC4122 v4 UUID
+      const clientUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
 
       const items: CollectionItemInput[] = defaultCategories
         .filter(c => parseFloat(categoryWeights[c.id]) > 0)
@@ -135,7 +139,7 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
       const payload = {
         client_uuid: clientUuid,
         customer_id: selectedCustomer.id,
-        worker_id: worker?.id || 'w1',
+        worker_id: worker?.id && worker.id.length > 20 ? worker.id : null,
         collection_date: now.toISOString().split('T')[0],
         collection_time: now.toTimeString().split(' ')[0],
         gross_weight: grossNum > 0 ? grossNum : effectiveNetWeight,
@@ -186,6 +190,7 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {/* Step 1: Customer Selection Bar */}
         <TouchableOpacity
@@ -193,7 +198,7 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
           onPress={() => setPickerModalVisible(true)}
           activeOpacity={0.7}
         >
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.stepBadge}>STEP 1: SELECT SHOP</Text>
             {selectedCustomer ? (
               <>
@@ -221,7 +226,7 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
                 <TextInput
                   style={styles.weightInput}
                   placeholder="0.0"
-                  placeholderTextColor="#475569"
+                  placeholderTextColor="#94A3B8"
                   keyboardType="numeric"
                   value={categoryWeights[cat.id]}
                   onChangeText={v => handleWeightChange(cat.id, v)}
@@ -237,7 +242,7 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
               <TextInput
                 style={styles.smallInput}
                 placeholder="Optional"
-                placeholderTextColor="#475569"
+                placeholderTextColor="#94A3B8"
                 keyboardType="numeric"
                 value={grossWeight}
                 onChangeText={setGrossWeight}
@@ -248,7 +253,7 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
               <TextInput
                 style={styles.smallInput}
                 placeholder="0"
-                placeholderTextColor="#475569"
+                placeholderTextColor="#94A3B8"
                 keyboardType="numeric"
                 value={tareWeight}
                 onChangeText={setTareWeight}
@@ -257,67 +262,89 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
           </View>
         </View>
 
-        {/* Step 3: Realtime Calculated Net Weight & Billing */}
+        {/* Step 3: Live Slip Summary Card */}
         <View style={styles.summaryCard}>
-          <View>
-            <Text style={styles.summaryLabel}>TOTAL NET WEIGHT</Text>
-            <Text style={styles.summaryWeight}>{effectiveNetWeight.toFixed(2)} KG</Text>
-          </View>
-          <View style={styles.summaryRight}>
-            <Text style={styles.summaryLabel}>ESTIMATED AMOUNT</Text>
-            <Text style={styles.summaryAmount}>Rs. {totalAmount.toLocaleString()}</Text>
+          <Text style={styles.summaryTitle}>STEP 3: SLIP COMPUTATION</Text>
+          <View style={styles.summaryRow}>
+            <View>
+              <Text style={styles.summaryLabel}>Total Net Weight</Text>
+              <Text style={styles.summaryNetWeight}>{effectiveNetWeight.toFixed(1)} KG</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.summaryLabel}>Calculated Amount</Text>
+              <Text style={styles.summaryAmount}>Rs. {totalAmount.toLocaleString()}</Text>
+              <Text style={styles.summaryRate}>@ Rs. {customerRate}/KG</Text>
+            </View>
           </View>
         </View>
 
-        {/* Step 4: Signature & Attachments */}
+        {/* Step 4: Verification & Attachments */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>STEP 3: VERIFICATION (OPTIONAL)</Text>
+          <Text style={styles.cardTitle}>STEP 4: SHOP SIGNATURE & PHOTO</Text>
 
-          <View style={styles.verificationRow}>
-            {/* Signature Trigger */}
+          <View style={styles.actionRow}>
             <TouchableOpacity
-              style={[styles.verificationButton, signatureData ? styles.verificationButtonSuccess : null]}
+              style={[styles.verificationButton, signatureData && styles.buttonCompleted]}
               onPress={() => setSignatureModalVisible(true)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.verificationIcon}>✍️</Text>
-              <Text style={styles.verificationText}>
-                {signatureData ? 'Signature Added ✓' : 'Customer Sign'}
+              <Text style={styles.verificationButtonIcon}>{signatureData ? '✓' : '✍️'}</Text>
+              <Text style={[styles.verificationButtonText, signatureData && styles.textCompleted]}>
+                {signatureData ? 'Signature Captured' : 'Get Shop Signature'}
               </Text>
             </TouchableOpacity>
 
-            {/* Camera Photo Trigger */}
             <TouchableOpacity
-              style={[styles.verificationButton, attachmentUri ? styles.verificationButtonSuccess : null]}
+              style={[styles.verificationButton, attachmentUri && styles.buttonCompleted]}
               onPress={handlePickPhoto}
+              activeOpacity={0.7}
             >
-              <Text style={styles.verificationIcon}>📷</Text>
-              <Text style={styles.verificationText}>
-                {attachmentUri ? 'Photo Attached ✓' : 'Scale Photo'}
+              <Text style={styles.verificationButtonIcon}>{attachmentUri ? '✓' : '📷'}</Text>
+              <Text style={[styles.verificationButtonText, attachmentUri && styles.textCompleted]}>
+                {attachmentUri ? 'Photo Attached' : 'Capture Scale Photo'}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Optional Notes */}
-          <TextInput
-            style={styles.notesInput}
-            placeholder="Add slip notes (e.g. good clean batch, special crate)..."
-            placeholderTextColor="#64748b"
-            value={notes}
-            onChangeText={setNotes}
-          />
+          {attachmentUri && (
+            <View style={styles.photoPreviewWrapper}>
+              <Image source={{ uri: attachmentUri }} style={styles.photoPreview} />
+              <TouchableOpacity
+                style={styles.removePhotoButton}
+                onPress={() => setAttachmentUri(null)}
+              >
+                <Text style={styles.removePhotoText}>Remove Photo</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Notes field */}
+          <View style={{ marginTop: 14 }}>
+            <Text style={styles.smallLabel}>Optional Notes / Special Remarks</Text>
+            <TextInput
+              style={styles.notesInput}
+              placeholder="e.g. Offal dampness, extra crates, paid on spot..."
+              placeholderTextColor="#94A3B8"
+              value={notes}
+              onChangeText={setNotes}
+            />
+          </View>
         </View>
 
-        {/* Step 5: Save Collection Button with Duplicate Lock */}
+        {/* Step 5: Save & Submit Button */}
         <TouchableOpacity
-          style={[styles.saveButton, saving || effectiveNetWeight <= 0 ? styles.saveButtonDisabled : null]}
+          style={[styles.submitButton, saving && { opacity: 0.7 }]}
           onPress={handleSaveCollection}
-          disabled={saving || effectiveNetWeight <= 0}
-          activeOpacity={0.8}
+          disabled={saving}
+          activeOpacity={0.85}
         >
           {saving ? (
-            <ActivityIndicator color="#090d16" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.saveButtonText}>SAVE & PREPARE NEXT SLIP 💾</Text>
+            <>
+              <Text style={styles.submitButtonText}>CONFIRM & SAVE SLIP</Text>
+              <Text style={styles.submitButtonSub}>Saves locally and syncs to cloud</Text>
+            </>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -325,22 +352,23 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
       {/* Customer Picker Modal */}
       <CustomerPickerModal
         visible={pickerModalVisible}
-        customers={mockCustomers}
-        onSelect={c => {
-          setSelectedCustomer(c);
-          Haptics.selectionAsync();
-        }}
         onClose={() => setPickerModalVisible(false)}
+        onSelectCustomer={customer => {
+          setSelectedCustomer(customer);
+          setPickerModalVisible(false);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
       />
 
       {/* Signature Pad Modal */}
       <SignaturePadModal
         visible={signatureModalVisible}
-        onSave={sig => {
+        onClose={() => setSignatureModalVisible(false)}
+        onSaveSignature={sig => {
           setSignatureData(sig);
+          setSignatureModalVisible(false);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }}
-        onClose={() => setSignatureModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -349,62 +377,73 @@ export const NewCollectionScreen: React.FC<NewCollectionScreenProps> = ({ onSucc
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090d16',
+    backgroundColor: '#F8FAFC',
   },
   container: {
     padding: 18,
     paddingBottom: 40,
   },
   customerSelector: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#10b981',
+    borderColor: '#2563EB',
     borderRadius: 18,
     padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   stepBadge: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#10b981',
+    color: '#2563EB',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   selectedCustomerName: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#0F172A',
   },
   selectedCustomerSub: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: '#64748B',
     marginTop: 2,
   },
   placeholderCustomer: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#38bdf8',
+    color: '#2563EB',
   },
   arrowIcon: {
     fontSize: 24,
-    color: '#10b981',
+    color: '#2563EB',
     fontWeight: '700',
+    paddingLeft: 8,
   },
   card: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: '#E2E8F0',
     borderRadius: 18,
     padding: 16,
     marginBottom: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   cardTitle: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#94a3b8',
+    color: '#64748B',
     letterSpacing: 0.5,
     marginBottom: 14,
   },
@@ -415,154 +454,193 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     width: '48%',
-    backgroundColor: '#1e293b',
+    backgroundColor: '#F8FAFC',
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#E2E8F0',
   },
   categoryLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#0F172A',
   },
   categoryUrdu: {
     fontSize: 11,
-    color: '#10b981',
+    color: '#64748B',
     marginBottom: 8,
   },
   weightInput: {
-    backgroundColor: '#090d16',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    color: '#38bdf8',
+    color: '#2563EB',
     fontSize: 18,
     fontWeight: '900',
     fontFamily: 'monospace',
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
     textAlign: 'center',
   },
   grossTareRow: {
     flexDirection: 'row',
     gap: 12,
     marginTop: 14,
-    paddingTop: 12,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: '#F1F5F9',
   },
   grossTareItem: {
     flex: 1,
   },
   smallLabel: {
     fontSize: 10,
-    color: '#64748b',
-    fontWeight: '600',
+    color: '#64748B',
+    fontWeight: '700',
+    textTransform: 'uppercase',
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   smallInput: {
-    backgroundColor: '#1e293b',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    color: '#ffffff',
-    fontSize: 13,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    color: '#0F172A',
+    fontSize: 14,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
     fontFamily: 'monospace',
-    borderWidth: 1,
-    borderColor: '#334155',
     textAlign: 'center',
   },
   summaryCard: {
-    backgroundColor: '#064e3b',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
     borderRadius: 18,
     padding: 18,
+    marginBottom: 16,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  summaryTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1D4ED8',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#10b981',
   },
   summaryLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#a7f3d0',
-    letterSpacing: 0.5,
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
   },
-  summaryWeight: {
-    fontSize: 24,
+  summaryNetWeight: {
+    fontSize: 26,
     fontWeight: '900',
-    color: '#ffffff',
+    color: '#2563EB',
     fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  summaryRight: {
-    alignItems: 'flex-end',
   },
   summaryAmount: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '900',
-    color: '#fef08a',
+    color: '#D97706',
     fontFamily: 'monospace',
-    marginTop: 2,
   },
-  verificationRow: {
+  summaryRate: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  actionRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 12,
   },
   verificationButton: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     borderRadius: 14,
     paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
+    justifyContent: 'center',
   },
-  verificationButtonSuccess: {
-    borderColor: '#10b981',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  buttonCompleted: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
   },
-  verificationIcon: {
+  verificationButtonIcon: {
     fontSize: 20,
     marginBottom: 4,
   },
-  verificationText: {
-    color: '#ffffff',
-    fontSize: 12,
+  verificationButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+    textAlign: 'center',
+  },
+  textCompleted: {
+    color: '#059669',
+  },
+  photoPreviewWrapper: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  photoPreview: {
+    width: '100%',
+    height: 160,
+    borderRadius: 12,
+  },
+  removePhotoButton: {
+    marginTop: 6,
+  },
+  removePhotoText: {
+    color: '#EF4444',
+    fontSize: 11,
     fontWeight: '700',
   },
   notesInput: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     paddingVertical: 10,
-    color: '#ffffff',
+    paddingHorizontal: 12,
+    color: '#0F172A',
     fontSize: 13,
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
   },
-  saveButton: {
-    backgroundColor: '#10b981',
+  submitButton: {
+    backgroundColor: '#2563EB',
     borderRadius: 18,
     paddingVertical: 18,
     alignItems: 'center',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+    marginTop: 4,
   },
-  saveButtonDisabled: {
-    backgroundColor: '#1e293b',
-    shadowOpacity: 0,
-  },
-  saveButtonText: {
-    color: '#090d16',
-    fontSize: 15,
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  submitButtonSub: {
+    color: '#BFDBFE',
+    fontSize: 11,
+    marginTop: 2,
   },
 });

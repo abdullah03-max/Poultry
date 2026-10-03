@@ -4,34 +4,34 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 min-h-screen selection:bg-emerald-500 selection:text-white;
+    @apply bg-slate-50 text-slate-900 min-h-screen antialiased selection:bg-brand-500 selection:text-white font-sans;
   }
 }
 
-/* Custom modern scrollbars */
+/* Custom modern subtle scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
+  background: #cbd5e1;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #94a3b8;
 }
 
-/* High-fidelity Print Styles for Registers and Reports */
+/* High-fidelity Print Styles for Registers and Daily Reconciliation Sheets */
 @media print {
   body {
     background: #ffffff !important;
-    color: #000000 !important;
+    color: #0f172a !important;
   }
 
   .no-print {
@@ -49,10 +49,10 @@
 
   .print-table th,
   .print-table td {
-    border: 1px solid #333333 !important;
-    padding: 4px 6px !important;
-    font-size: 10pt !important;
-    color: #000000 !important;
-    background: transparent !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+    font-size: 9pt !important;
+    color: #0f172a !important;
+    background: #ffffff !important;
   }
 }
