@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Shan Poultry Worker",
+    "slug": "shan-poultry-worker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#090d16"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shanpoultry.worker"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#090d16"
+      },
+      "package": "com.shanpoultry.worker",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Shan Poultry Protein to access your photos to attach scale photos.",
+          "cameraPermission": "Allow Shan Poultry Protein to take photos of weight scales and collection receipts."
+        }
+      ]
+    ]
+  }
+}
