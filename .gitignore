@@ -10,6 +10,7 @@ web-admin/dist/
 *.apk
 *.aab
 !apk/ShanPoultryWorker.apk
+!web-admin/public/ShanPoultryWorker.apk
 
 # Android build outputs
 .gradle/
