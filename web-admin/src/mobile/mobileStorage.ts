@@ -226,7 +226,7 @@ export const mobileStorage = {
             rate_per_kg: slip.rate_per_kg,
             total_amount: slip.total_amount,
             notes: slip.notes,
-            signature_url: slip.signature_base64 ? slip.signature_base64.substring(0, 100) : null,
+            signature_url: slip.signature_base64 || null,
             status: 'submitted',
           })
           .select()
@@ -248,6 +248,18 @@ export const mobileStorage = {
             amount: item.amount,
           }));
           await supabase.from('collection_weight_items').insert(itemPayload);
+        }
+
+        // 3. Insert scale photo attachment if present
+        if (collectionId && slip.photo_base64) {
+          await supabase.from('collection_attachments').insert({
+            collection_id: collectionId,
+            storage_bucket: 'collection-attachments',
+            file_path: slip.photo_base64,
+            file_name: `photo_${slip.receipt_no}.jpg`,
+            file_type: 'image/jpeg',
+            uploaded_by: slip.worker_id && slip.worker_id.length > 20 ? slip.worker_id : null,
+          });
         }
 
         this.updateOfflineSlipStatus(slip.client_uuid, 'synced');

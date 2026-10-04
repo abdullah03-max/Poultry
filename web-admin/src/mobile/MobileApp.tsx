@@ -162,65 +162,76 @@ export const MobileApp: React.FC = () => {
 
     const emailTrim = loginEmail.trim();
     if (!emailTrim) {
-      setAuthError('Please enter your assigned email or phone number.');
+      setAuthError('Please enter your assigned email or phone number. / ای میل یا فون نمبر درج کریں');
       return;
     }
     if (!loginPassword) {
-      setAuthError('Please enter your password.');
+      setAuthError('Please enter your password. / پاس ورڈ درج کریں');
       return;
     }
 
     setAuthLoading(true);
 
     try {
-      // 1. Try Supabase Auth first if online
+      // 1. Direct Supabase profiles query (live database check)
       if (navigator.onLine) {
         try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: emailTrim.toLowerCase(),
-            password: loginPassword,
-          });
+          const cleanPhone = emailTrim.replace(/\D/g, '');
+          let query = supabase
+            .from('profiles')
+            .select('*')
+            .eq('role', 'worker');
 
-          if (!error && data?.user) {
-            const { data: profData } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.user.id)
-              .single();
+          if (cleanPhone.length >= 7) {
+            query = query.or(`email.ilike.${emailTrim},phone.ilike.%${cleanPhone}%,full_name.ilike.${emailTrim}`);
+          } else {
+            query = query.or(`email.ilike.${emailTrim},full_name.ilike.${emailTrim}`);
+          }
 
-            if (profData) {
-              if (profData.is_active === false) {
-                setAuthError('Your worker account has been deactivated by Admin Haji Shan.');
-                setAuthLoading(false);
-                return;
-              }
-              const loggedWorker = {
-                id: profData.id,
-                full_name: profData.full_name || 'Field Worker',
-                phone: profData.phone || '',
-                email: profData.email || emailTrim,
-                role: 'worker',
-              };
-              mobileStorage.setLoggedWorker(loggedWorker);
-              setWorker(loggedWorker);
-              loadData();
+          const { data: profs, error: profErr } = await query;
+
+          if (!profErr && profs && profs.length > 0) {
+            const matched = profs.find(p => p.password === loginPassword);
+            if (!matched) {
+              setAuthError('پاس ورڈ درست نہیں۔ ایڈمن حاجی شان کا دیا گیا پاس ورڈ درج کریں۔ / Incorrect password.');
               setAuthLoading(false);
               return;
             }
+
+            if (matched.is_active === false) {
+              setAuthError('آپ کا اکاؤنٹ ایڈمن نے غیر فعال کر دیا ہے۔ / Worker account deactivated by Admin.');
+              setAuthLoading(false);
+              return;
+            }
+
+            const loggedWorker = {
+              id: matched.id,
+              full_name: matched.full_name || 'Field Worker',
+              phone: matched.phone || '',
+              email: matched.email || emailTrim,
+              role: 'worker',
+            };
+
+            mobileStorage.saveRegisteredWorker(matched);
+            mobileStorage.setLoggedWorker(loggedWorker);
+            setWorker(loggedWorker);
+            loadData();
+            setAuthLoading(false);
+            return;
           }
         } catch (netErr) {
-          console.warn('Supabase auth network attempt failed, trying local store:', netErr);
+          console.warn('Supabase worker login query failed, checking offline store:', netErr);
         }
       }
 
-      // 2. Try registered workers store (assigned by Admin)
+      // 2. Offline fallback (if no internet in field)
       const authResult = mobileStorage.verifyWorkerCredentials(emailTrim, loginPassword);
       if (authResult.success && authResult.worker) {
         mobileStorage.setLoggedWorker(authResult.worker);
         setWorker(authResult.worker);
         loadData();
       } else {
-        setAuthError(authResult.error || 'Invalid credentials. Only Admin Haji Shan can assign worker logins.');
+        setAuthError(authResult.error || 'ایڈمن نے اس ای میل یا فون پر کوئی ورکر اکاؤنٹ رجسٹر نہیں کیا۔ / No worker account found.');
       }
     } catch (err: any) {
       setAuthError(err.message || 'Login failed. Please verify your credentials.');
@@ -390,6 +401,7 @@ export const MobileApp: React.FC = () => {
               rate_per_kg: newSlip.rate_per_kg,
               total_amount: newSlip.total_amount,
               notes: newSlip.notes,
+              signature_url: newSlip.signature_base64 || null,
               status: 'submitted',
             })
             .select()
@@ -398,6 +410,30 @@ export const MobileApp: React.FC = () => {
           if (!colError && colData) {
             savedOnline = true;
             newSlip.status = 'synced';
+
+            // Insert weight categories breakdown
+            if (items && items.length > 0) {
+              const weightItems = items.map(it => ({
+                collection_id: colData.id,
+                category_id: it.category_id,
+                weight: it.weight,
+                rate: it.rate,
+                amount: it.amount,
+              }));
+              await supabase.from('collection_weight_items').insert(weightItems);
+            }
+
+            // Insert scale photo attachment if captured
+            if (photoBase64) {
+              await supabase.from('collection_attachments').insert({
+                collection_id: colData.id,
+                storage_bucket: 'collection-attachments',
+                file_path: photoBase64,
+                file_name: `photo_${receiptNo}.jpg`,
+                file_type: 'image/jpeg',
+                uploaded_by: worker?.id && worker.id.length > 20 ? worker.id : null,
+              });
+            }
           }
         } catch (e) {
           console.warn('Online insert failed, saved to offline queue:', e);
@@ -530,20 +566,26 @@ export const MobileApp: React.FC = () => {
             <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-3xl mx-auto shadow-xl shadow-blue-500/25 border border-blue-400/20">
               S
             </div>
-            <h1 className="text-xl font-extrabold tracking-tight text-white">
-              SHAN POULTRY PROTEIN
+            <h1 className="text-xl font-black tracking-tight text-white">
+              شن پولٹری پروٹین
             </h1>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-bold uppercase tracking-wider">
-              Field Worker Mobile App
+            <p className="text-xs text-blue-400 font-semibold uppercase tracking-wider">
+              SHAN POULTRY PROTEIN
+            </p>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-bold tracking-wider">
+              فیلڈ کلیکٹر موبائل ایپ (Field Worker App)
             </div>
           </div>
 
           {/* Login Card */}
           <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-5">
             <div>
-              <h2 className="text-base font-bold text-slate-100">Worker Terminal Login</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-slate-100">ورکر لاگ ان</h2>
+                <span className="text-xs text-slate-400 font-mono">Terminal Login</span>
+              </div>
               <p className="text-xs text-slate-400 mt-1">
-                Enter your login credentials assigned by Admin Haji Shan to access your field terminal.
+                ایڈمن حاجی شان کا دیا گیا ای میل یا فون نمبر اور پاس ورڈ درج کریں۔
               </p>
             </div>
 
@@ -556,8 +598,9 @@ export const MobileApp: React.FC = () => {
 
             <form onSubmit={handleWorkerLogin} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5 uppercase tracking-wider">
-                  Assigned Email or Phone
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between mb-1.5">
+                  <span>Assigned Email or Phone</span>
+                  <span className="text-[11px] text-blue-400 font-normal">ای میل یا فون نمبر</span>
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -565,7 +608,7 @@ export const MobileApp: React.FC = () => {
                     type="text"
                     value={loginEmail}
                     onChange={e => setLoginEmail(e.target.value)}
-                    placeholder="e.g. rashid@shanpoultry.com"
+                    placeholder="e.g. ali@gmail.com / 03197784575"
                     autoCapitalize="none"
                     autoCorrect="off"
                     className="w-full pl-10 pr-3.5 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-medium text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
@@ -574,15 +617,16 @@ export const MobileApp: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5 uppercase tracking-wider">
-                  Assigned Password
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between mb-1.5">
+                  <span>Assigned Password</span>
+                  <span className="text-[11px] text-blue-400 font-normal">پاس ورڈ</span>
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={loginPassword}
                     onChange={e => setLoginPassword(e.target.value)}
-                    placeholder="Enter password"
+                    placeholder="Enter password..."
                     className="w-full px-3.5 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-mono text-white placeholder-slate-500 pr-10 focus:outline-none focus:border-blue-500"
                   />
                   <button
@@ -591,7 +635,7 @@ export const MobileApp: React.FC = () => {
                     className="absolute right-3 top-3 text-slate-400 hover:text-slate-200"
                     title={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-slate-400" />}
                   </button>
                 </div>
               </div>
@@ -604,17 +648,17 @@ export const MobileApp: React.FC = () => {
                 {authLoading ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Verifying Credentials...</span>
+                    <span>تصدیق ہو رہی ہے... (Verifying...)</span>
                   </>
                 ) : (
-                  <span>Log In to Terminal</span>
+                  <span>لاگ ان کریں / Log In to Terminal</span>
                 )}
               </button>
             </form>
 
             <div className="pt-2 border-t border-slate-700/60 text-center">
               <p className="text-[11px] text-slate-400">
-                Workers cannot access this app without credentials assigned by Admin.
+                ورکرز ایڈمن کے تفویض کردہ لاگ ان کے بغیر داخل نہیں ہو سکتے۔
               </p>
             </div>
           </div>
@@ -838,29 +882,29 @@ export const MobileApp: React.FC = () => {
           <div className="space-y-4 max-w-lg mx-auto">
             <div className="flex items-center justify-between pb-1">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Record New Collection</h2>
-                <p className="text-xs text-slate-500">Field weigh-in and shop confirmation</p>
+                <h2 className="text-lg font-black text-slate-900">نئی رسید درج کریں</h2>
+                <p className="text-xs text-slate-500">Record New Collection & Customer Confirmation</p>
               </div>
               <button
                 onClick={() => setActiveTab('home')}
                 className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl active:bg-slate-100"
               >
-                Cancel
+                منسوخ (Cancel)
               </button>
             </div>
 
             {/* STEP 1: CUSTOMER SELECTION */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Step 1: Customer / Poultry Shop *
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <span>Step 1: گاہک / دکان کا انتخاب</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => setAddCustomerModalOpen(true)}
                   className="text-xs font-bold text-blue-600 hover:text-blue-700"
                 >
-                  + Add New
+                  + نئی دکان درج کریں
                 </button>
               </div>
 
@@ -872,11 +916,11 @@ export const MobileApp: React.FC = () => {
                   <div>
                     <div className="font-black text-sm text-slate-900">{selectedCustomer.name}</div>
                     <div className="text-xs text-slate-600 mt-0.5">
-                      {selectedCustomer.area} • Rate: <span className="font-bold text-blue-700">Rs. {selectedCustomer.rate_per_kg}/KG</span>
+                      {selectedCustomer.area} • ریٹ: <span className="font-bold text-blue-700">Rs. {selectedCustomer.rate_per_kg}/KG</span>
                     </div>
                   </div>
                   <span className="text-xs font-bold text-blue-600 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs">
-                    Change
+                    تبدیل کریں (Change)
                   </span>
                 </div>
               ) : (
@@ -885,7 +929,7 @@ export const MobileApp: React.FC = () => {
                   onClick={() => setCustomerModalOpen(true)}
                   className="w-full py-3.5 px-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-left flex items-center justify-between text-slate-600 active:bg-slate-100"
                 >
-                  <span className="text-sm font-semibold text-slate-500">Tap to select shop / dealer...</span>
+                  <span className="text-sm font-semibold text-slate-500">گاہک یا دکان منتخب کرنے کیلئے ٹچ کریں...</span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </button>
               )}
@@ -894,13 +938,16 @@ export const MobileApp: React.FC = () => {
             {/* STEP 2: WEIGHT ENTRY */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-4">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
-                Step 2: Weight Details (KG) *
+                Step 2: وزن کی تفصیلات (Weight Details KG) *
               </label>
 
               <div className="grid grid-cols-2 gap-3">
                 {/* Gross Weight */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Gross Weight (KG)</label>
+                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between mb-1">
+                    <span>Gross (KG)</span>
+                    <span className="text-blue-600 text-[11px]">کل وزن</span>
+                  </label>
                   <input
                     type="number"
                     step="0.1"
@@ -930,7 +977,10 @@ export const MobileApp: React.FC = () => {
 
                 {/* Tare Weight */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Tare / Crates (KG)</label>
+                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between mb-1">
+                    <span>Tare (KG)</span>
+                    <span className="text-slate-500 text-[11px]">کریٹ / کٹوتی</span>
+                  </label>
                   <input
                     type="number"
                     step="0.1"
@@ -957,7 +1007,10 @@ export const MobileApp: React.FC = () => {
 
               {/* Rate per KG */}
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Rate per KG (PKR)</label>
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between mb-1">
+                  <span>Rate per KG (PKR)</span>
+                  <span className="text-blue-600 text-[11px]">ریٹ فی کلو</span>
+                </label>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -975,7 +1028,7 @@ export const MobileApp: React.FC = () => {
                   onClick={() => setShowCategories(!showCategories)}
                   className="text-xs font-bold text-blue-600 flex items-center gap-1"
                 >
-                  {showCategories ? '▼ Hide Category Breakdown' : '▶ Add Multi-Category Breakdown (Optional)'}
+                  {showCategories ? '▼ کیٹیگری اوزان چھپائیں' : '▶ کیٹیگری کے الگ اوزان درج کریں (اختیاری)'}
                 </button>
 
                 {showCategories && (
@@ -983,7 +1036,7 @@ export const MobileApp: React.FC = () => {
                     {defaultCategories.map(cat => (
                       <div key={cat.id}>
                         <label className="text-[11px] font-bold text-slate-600 block mb-0.5">
-                          {cat.name} ({cat.urdu_name})
+                          {cat.urdu_name} ({cat.name})
                         </label>
                         <input
                           type="number"
@@ -1003,11 +1056,11 @@ export const MobileApp: React.FC = () => {
               {/* Net Weight & Total Amount Summary Bar */}
               <div className="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Calculated Net Weight</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">خالص وزن (Net Weight)</span>
                   <span className="text-xl font-black font-mono text-blue-400">{effectiveNetWeight.toFixed(1)} KG</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Total Billed Amount</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">کل رقم (Total Bill)</span>
                   <span className="text-xl font-black font-mono text-amber-400">Rs. {totalAmount.toLocaleString()}</span>
                 </div>
               </div>
@@ -1015,8 +1068,9 @@ export const MobileApp: React.FC = () => {
 
             {/* STEP 3: PHOTO ATTACHMENT */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
-                Step 3: Scale / Receipt Photo Proof (Optional)
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
+                <span>Step 3: Scale / Slip Photo Proof</span>
+                <span className="text-[11px] text-slate-400 font-normal">کانٹے / رسید کی تصویر</span>
               </label>
 
               {photoBase64 ? (
@@ -1035,8 +1089,8 @@ export const MobileApp: React.FC = () => {
                   <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-1">
                     <Camera className="w-5 h-5" />
                   </div>
-                  <span className="text-xs font-bold text-slate-700">Capture or Attach Photo</span>
-                  <span className="text-[10px] text-slate-400">Scale indicator or printed slip</span>
+                  <span className="text-xs font-bold text-slate-700">تصویر بنائیں یا منتخب کریں</span>
+                  <span className="text-[10px] text-slate-400">کانٹے کے وزن کا فوٹو ثبوت (Photo Proof)</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -1051,8 +1105,8 @@ export const MobileApp: React.FC = () => {
             {/* STEP 4: CUSTOMER SIGNATURE PAD */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Step 4: Customer Touch Signature *
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <span>Step 4: گاہک کے ڈیجیٹل دستخط *</span>
                 </label>
                 {signatureBase64 && (
                   <button
@@ -1060,7 +1114,7 @@ export const MobileApp: React.FC = () => {
                     onClick={clearSignature}
                     className="text-xs font-bold text-red-600 flex items-center gap-1"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" /> Clear
+                    <RotateCcw className="w-3.5 h-3.5" /> دوبارہ کریں (Clear)
                   </button>
                 )}
               </div>
@@ -1081,7 +1135,7 @@ export const MobileApp: React.FC = () => {
                 />
                 {!signatureBase64 && (
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-xs font-medium text-slate-300">
-                    Sign with finger here...
+                    یہاں انگلی سے دستخط کروائیں (Sign with finger)...
                   </div>
                 )}
               </div>
@@ -1089,12 +1143,13 @@ export const MobileApp: React.FC = () => {
 
             {/* STEP 5: NOTES */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-1.5">
-                Remarks / Notes
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between mb-1.5">
+                <span>Remarks / Notes</span>
+                <span className="text-[11px] text-slate-400 font-normal">ریمارکس / تفصیل</span>
               </label>
               <input
                 type="text"
-                placeholder="e.g. Crate deposit, cash paid, or remarks..."
+                placeholder="مثلاً: کیش ادا کیا، کریٹ جمع، وغیرہ..."
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
@@ -1115,12 +1170,12 @@ export const MobileApp: React.FC = () => {
               {isSavingCollection ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>SAVING COLLECTION...</span>
+                  <span>محفوظ ہو رہا ہے... (SAVING...)</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>SAVE & SUBMIT COLLECTION</span>
+                  <span>رسید محفوظ کریں / SAVE COLLECTION</span>
                 </>
               )}
             </button>
@@ -1353,7 +1408,7 @@ export const MobileApp: React.FC = () => {
       {/* =========================================================================
           FIXED BOTTOM NAVIGATION BAR
       ========================================================================= */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg z-30">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-3 py-1.5 flex items-center justify-around shadow-lg z-30">
         <button
           onClick={() => setActiveTab('home')}
           className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition ${
@@ -1361,7 +1416,7 @@ export const MobileApp: React.FC = () => {
           }`}
         >
           <Home className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Home</span>
+          <span className="text-[10px]">ہوم (Home)</span>
         </button>
 
         <button
@@ -1371,13 +1426,14 @@ export const MobileApp: React.FC = () => {
           }`}
         >
           <FileText className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Slips</span>
+          <span className="text-[10px]">رسیدیں (Slips)</span>
         </button>
 
         {/* Center Prominent Record Button */}
         <button
           onClick={() => setActiveTab('new_collection')}
           className="w-13 h-13 -mt-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/40 border-4 border-slate-50 active:scale-95 transition"
+          title="نئی رسید (New Collection)"
         >
           <PlusCircle className="w-7 h-7" />
         </button>
@@ -1389,7 +1445,7 @@ export const MobileApp: React.FC = () => {
           }`}
         >
           <Users className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Shops</span>
+          <span className="text-[10px]">گاہک (Shops)</span>
         </button>
 
         <button
@@ -1399,7 +1455,7 @@ export const MobileApp: React.FC = () => {
           }`}
         >
           <User className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px]">Profile</span>
+          <span className="text-[10px]">پروفائل (Profile)</span>
           {pendingCount > 0 && (
             <span className="absolute top-0 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           )}
@@ -1581,59 +1637,60 @@ export const MobileApp: React.FC = () => {
                 S
               </div>
               <div className="font-extrabold text-base text-slate-900 tracking-wide">SHAN POULTRY PROTEIN</div>
-              <div className="text-[11px] text-slate-500 font-medium">Official Weight Collection Slip</div>
+              <div className="text-[11px] text-slate-500 font-medium">آفیشل وصولی رسید (Official Collection Slip)</div>
               <div className="font-mono font-black text-sm text-blue-600 mt-1">{receiptModalSlip.receipt_no}</div>
             </div>
 
             {/* Receipt Breakdown Details */}
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Shop / Customer:</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">گاہک / دوکان (Customer):</span>
                 <span className="font-bold text-slate-900 text-right">{receiptModalSlip.customer_name}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Area / Mandi:</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">علاقہ / منڈی (Area):</span>
                 <span className="font-medium text-slate-700">{receiptModalSlip.customer_area}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Date & Time:</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">تاریخ اور وقت (Date & Time):</span>
                 <span className="font-mono text-slate-700">
                   {receiptModalSlip.collection_date} {receiptModalSlip.collection_time.substring(0, 5)}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Collector:</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">کلیکٹر (Collector):</span>
                 <span className="font-medium text-slate-700">{receiptModalSlip.worker_name}</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 my-2 font-mono">
                 <div className="flex justify-between text-slate-600">
-                  <span>Gross Weight:</span>
+                  <span>کل وزن (Gross):</span>
                   <span>{receiptModalSlip.gross_weight} KG</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Tare Deduction:</span>
+                  <span>کٹوتی / خالی (Tare):</span>
                   <span>-{receiptModalSlip.tare_weight} KG</span>
                 </div>
                 <div className="flex justify-between text-slate-900 font-black pt-1 border-t border-slate-200 text-sm">
-                  <span>Net Weight:</span>
+                  <span>خالص وزن (Net):</span>
                   <span className="text-blue-600">{receiptModalSlip.total_net_weight} KG</span>
                 </div>
                 <div className="flex justify-between text-slate-600 text-xs">
-                  <span>Rate:</span>
+                  <span>ریٹ (Rate):</span>
                   <span>Rs. {receiptModalSlip.rate_per_kg} / KG</span>
                 </div>
                 <div className="flex justify-between text-slate-900 font-black text-base pt-1 border-t border-slate-200">
-                  <span>Total Amount:</span>
-                  <span className="text-amber-600">Rs. {receiptModalSlip.total_amount.toLocaleString()}</span>
+                  <span>کل رقم (Total):</span>
+                  <span className="text-amber-600 font-bold">Rs. {receiptModalSlip.total_amount.toLocaleString()}</span>
                 </div>
               </div>
 
               {/* Signature Display if available */}
               {receiptModalSlip.signature_base64 && (
                 <div className="pt-1">
-                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">
-                    Customer Signature
+                  <div className="text-[10px] text-slate-500 font-bold tracking-wider mb-1 flex justify-between">
+                    <span>گاہک کے دستخط</span>
+                    <span className="text-[9px] uppercase text-slate-400">Customer Signature</span>
                   </div>
                   <div className="h-14 border border-slate-200 rounded-lg bg-white overflow-hidden flex items-center justify-center">
                     <img src={receiptModalSlip.signature_base64} alt="Signature" className="max-h-full max-w-full" />
@@ -1643,14 +1700,14 @@ export const MobileApp: React.FC = () => {
 
               {/* Status */}
               <div className="flex justify-between items-center pt-2">
-                <span className="text-slate-500">Status:</span>
+                <span className="text-slate-500">حالت (Status):</span>
                 {receiptModalSlip.status === 'synced' ? (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                    VERIFIED & SYNCED
+                    تصدیق شدہ (VERIFIED & SYNCED)
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                    SAVED LOCALLY (OFFLINE)
+                    محفوظ شدہ (SAVED LOCALLY)
                   </span>
                 )}
               </div>
@@ -1663,7 +1720,7 @@ export const MobileApp: React.FC = () => {
                 onClick={() => setReceiptModalSlip(null)}
                 className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20"
               >
-                Done
+                مکمل (Done)
               </button>
             </div>
           </div>

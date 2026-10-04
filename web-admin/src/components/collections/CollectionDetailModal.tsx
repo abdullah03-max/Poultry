@@ -145,12 +145,17 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
             <p className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
               <Scale className="w-3.5 h-3.5 text-slate-500" /> Scale / Slip Photo
             </p>
-            {collection.attachments && collection.attachments.length > 0 ? (
-              <div className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+            {collection.attachments && collection.attachments.length > 0 && (collection.attachments[0].public_url || collection.attachments[0].file_path) ? (
+              <div className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
                 <img
-                  src={collection.attachments[0].public_url || 'https://images.unsplash.com/photo-1596524430615-b46475ddff6e?auto=format&fit=crop&w=400&q=80'}
+                  src={collection.attachments[0].public_url || collection.attachments[0].file_path}
                   alt="Collection Attachment"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition"
+                  onClick={() => {
+                    const url = collection.attachments![0].public_url || collection.attachments![0].file_path;
+                    if (url) window.open(url, '_blank');
+                  }}
+                  title="Click to view full photo"
                 />
               </div>
             ) : (

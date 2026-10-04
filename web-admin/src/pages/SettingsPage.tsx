@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BusinessSettings, WeightCategory } from '../types/database';
 import { Settings, Save, Check, Scale, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
@@ -27,7 +28,19 @@ export const SettingsPage: React.FC = () => {
   const [credError, setCredError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.email) {
+    if (isSupabaseConfigured()) {
+      supabase
+        .from('profiles')
+        .select('email')
+        .eq('role', 'admin')
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }: { data: any }) => {
+          if (data?.email) {
+            setAdminEmail(data.email);
+          }
+        });
+    } else if (user?.email) {
       setAdminEmail(user.email);
     }
   }, [user]);

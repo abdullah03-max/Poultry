@@ -320,8 +320,11 @@ export const api = {
   async getSettings(): Promise<BusinessSettings> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.from('business_settings').select('*').limit(1).single();
-        if (!error && data) return data;
+        const { data, error } = await supabase.from('business_settings').select('*').limit(1).maybeSingle();
+        if (!error && data) {
+          mockSettings = data;
+          return data;
+        }
       } catch (err) {
         console.warn('[API] Could not fetch settings from Supabase, using mock state:', err);
       }
@@ -332,13 +335,18 @@ export const api = {
   async updateSettings(settings: Partial<BusinessSettings>): Promise<BusinessSettings> {
     if (isSupabaseConfigured()) {
       try {
+        const { data: existing } = await supabase.from('business_settings').select('id').limit(1).maybeSingle();
+        const targetId = existing?.id || mockSettings.id;
         const { data, error } = await supabase
           .from('business_settings')
           .update({ ...settings, updated_at: new Date().toISOString() })
-          .eq('id', mockSettings.id)
+          .eq('id', targetId)
           .select()
           .single();
-        if (!error && data) return data;
+        if (!error && data) {
+          mockSettings = data;
+          return data;
+        }
       } catch (err) {
         console.warn('[API] Could not update settings in Supabase, updating mock state:', err);
       }
@@ -397,7 +405,7 @@ export const api = {
         let query = supabase.from('customers').select('*').order('name', { ascending: true });
         if (!includeDeleted) query = query.eq('is_deleted', false);
         const { data, error } = await query;
-        if (!error && data && data.length > 0) return data;
+        if (!error && data) return data;
       } catch (err) {
         console.warn('[API] Could not fetch customers from Supabase, using mock state:', err);
       }
@@ -490,28 +498,26 @@ export const api = {
   // Workers Management
   async getWorkers(): Promise<Profile[]> {
     const deletedIds: string[] = JSON.parse(localStorage.getItem('spp_deleted_worker_ids') || '[]');
-    const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
 
-    let list: Profile[] = [];
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
+          .eq('role', 'worker')
           .order('full_name', { ascending: true });
-        if (!error && data && data.length > 0) {
-          list = data as Profile[];
+        if (!error && data) {
+          const list = (data as Profile[]).filter(w => !deletedIds.includes(w.id));
+          mockWorkers = [...list];
+          return list;
         }
       } catch (err) {
         console.warn('[API] Could not fetch workers from Supabase, using mock state:', err);
       }
     }
 
-    if (list.length === 0) {
-      list = [...mockWorkers];
-    }
-
-    // Merge any custom created workers
+    const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
+    let list = [...mockWorkers.filter(w => w.role === 'worker')];
     for (const cw of customWorkers) {
       const idx = list.findIndex(w => w.id === cw.id || (w.email && cw.email && w.email.toLowerCase() === cw.email.toLowerCase()));
       if (idx !== -1) {
@@ -520,14 +526,7 @@ export const api = {
         list.push(cw);
       }
     }
-
-    // Filter out any explicitly deleted workers
-    list = list.filter(w => !deletedIds.includes(w.id));
-
-    // Keep mockWorkers in sync for in-memory joins
-    mockWorkers = [...list];
-
-    return list;
+    return list.filter(w => !deletedIds.includes(w.id));
   },
 
   async getWorkersWithStats(): Promise<Profile[]> {
@@ -904,8 +903,8 @@ export const api = {
         }
 
         const { data, count, error } = await query;
-        if (!error && data && data.length > 0) {
-          return { collections: data as Collection[], totalCount: count || data.length };
+        if (!error && data !== null) {
+          return { collections: data as Collection[], totalCount: count !== null ? count : data.length };
         }
       } catch (err) {
         console.warn('[API] Supabase getCollections failed or offline, falling back to mock state:', err);
@@ -953,6 +952,8 @@ export const api = {
           rate_per_kg: collection.rate_per_kg || 0,
           total_amount: collection.total_amount || 0,
           notes: collection.notes || null,
+          signature_url: collection.signature_url || null,
+          signee_name: collection.signee_name || null,
           client_uuid: collection.client_uuid,
           status: collection.status || 'submitted',
         };
@@ -986,6 +987,18 @@ export const api = {
             if (itemErr) {
               console.warn('[API] Warning inserting collection items:', itemErr);
             }
+          }
+
+          if (collection.attachments && collection.attachments.length > 0) {
+            const attItems = collection.attachments.map(att => ({
+              collection_id: colData.id,
+              storage_bucket: att.storage_bucket || 'collection-attachments',
+              file_path: att.file_path,
+              file_name: att.file_name || `photo_${colData.receipt_no || Date.now()}.jpg`,
+              file_type: att.file_type || 'image/jpeg',
+              uploaded_by: colData.worker_id || null,
+            }));
+            await supabase.from('collection_attachments').insert(attItems);
           }
 
           // Fetch full joined collection record with customer, worker, and items

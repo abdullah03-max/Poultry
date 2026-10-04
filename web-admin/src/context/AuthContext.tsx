@@ -127,25 +127,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string) => {
     const trimmedEmail = email.trim().toLowerCase();
-    const isDemoAdmin = trimmedEmail === 'admin@shanpoultryprotein.com';
-    const isDemoWorker = trimmedEmail.includes('worker') || trimmedEmail === 'worker@shanpoultryprotein.com';
 
-    // 1. If Supabase is configured, try Supabase Auth first
+    // 1. If Supabase is configured, check admin credentials directly from Supabase profiles
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password: pass });
-        if (!error && data.user) {
-          setUser(data.user);
-          localStorage.setItem('spp_auth_user', JSON.stringify(data.user));
-          await fetchProfile(data.user.id);
-          return { success: true };
+        const { data: adminProf, error: adminErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'admin')
+          .limit(1)
+          .maybeSingle();
+
+        if (!adminErr && adminProf) {
+          const registeredEmail = (adminProf.email || '').toLowerCase().trim();
+          const registeredPassword = adminProf.password;
+
+          if (registeredEmail === trimmedEmail && registeredPassword === pass) {
+            const activeProfile: Profile = {
+              id: adminProf.id,
+              full_name: adminProf.full_name || 'Haji Shan (Owner)',
+              phone: adminProf.phone || null,
+              role: 'admin',
+              is_active: true,
+              email: adminProf.email,
+              avatar_url: adminProf.avatar_url || null,
+              created_at: adminProf.created_at,
+              updated_at: adminProf.updated_at,
+            };
+            const activeU = { email: adminProf.email, id: adminProf.id };
+            setUser(activeU);
+            setProfile(activeProfile);
+            localStorage.setItem('spp_auth_user', JSON.stringify(activeU));
+            localStorage.setItem('spp_auth_profile', JSON.stringify(activeProfile));
+            return { success: true };
+          } else {
+            return {
+              success: false,
+              error: 'Invalid admin credentials. Please enter the correct email and password.',
+            };
+          }
         }
-      } catch (networkErr: any) {
-        console.warn('Supabase Auth network error, falling back to local credentials:', networkErr);
+      } catch (err) {
+        console.warn('Supabase admin login query error:', err);
       }
     }
 
-    // 2. Custom updated admin credentials check
+    // 2. Custom updated admin credentials check (local fallback if completely offline)
     const savedCustom = localStorage.getItem('spp_admin_custom_creds');
     if (savedCustom) {
       try {
@@ -164,20 +191,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { success: true };
         }
       } catch (e) {
-        // ignore JSON parse error
+        // ignore
       }
-    }
-
-    // 3. Fallback: allow demo users or standard owner password
-    if (isDemoAdmin || isDemoWorker || pass === 'shanadmin2026' || pass === 'admin12345') {
-      const activeP = isDemoWorker ? defaultWorkerProfile : defaultAdminProfile;
-      const activeU = { email: trimmedEmail, id: activeP.id };
-
-      setUser(activeU);
-      setProfile(activeP);
-      localStorage.setItem('spp_auth_user', JSON.stringify(activeU));
-      localStorage.setItem('spp_auth_profile', JSON.stringify(activeP));
-      return { success: true };
     }
 
     return {
@@ -188,22 +203,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateAdminCredentials = async (newEmail: string, newPass: string) => {
     try {
-      if (isSupabaseConfigured() && user) {
-        const { error } = await supabase.auth.updateUser({
-          email: newEmail,
-          password: newPass,
-        });
-        if (error) {
-          console.warn('Supabase updateUser error:', error);
+      const cleanEmail = newEmail.trim().toLowerCase();
+
+      // 1. Update in Supabase profiles (role = 'admin')
+      if (isSupabaseConfigured()) {
+        try {
+          const { error: profErr } = await supabase
+            .from('profiles')
+            .upsert({
+              id: defaultAdminProfile.id,
+              full_name: profile?.full_name || 'Haji Shan (Owner)',
+              role: 'admin',
+              is_active: true,
+              email: cleanEmail,
+              password: newPass,
+              updated_at: new Date().toISOString(),
+            });
+
+          if (profErr) {
+            console.warn('[Auth] Could not update admin profile in Supabase:', profErr);
+          } else {
+            console.log('[Auth] Admin credentials updated in Supabase profiles!');
+          }
+        } catch (e) {
+          console.warn('[Auth] Error updating Supabase admin:', e);
         }
       }
 
-      const customCreds = { email: newEmail, password: newPass };
+      // 2. Save locally for session persistence
+      const customCreds = { email: cleanEmail, password: newPass };
       localStorage.setItem('spp_admin_custom_creds', JSON.stringify(customCreds));
 
-      const updatedUser = { ...(user || {}), email: newEmail };
+      const updatedUser = { ...(user || {}), email: cleanEmail };
+      const updatedProfile = { ...(profile || defaultAdminProfile), email: cleanEmail };
       setUser(updatedUser);
+      setProfile(updatedProfile);
       localStorage.setItem('spp_auth_user', JSON.stringify(updatedUser));
+      localStorage.setItem('spp_auth_profile', JSON.stringify(updatedProfile));
 
       return { success: true };
     } catch (err: any) {
@@ -211,14 +247,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginAsDemo = (roleToSet: UserRole) => {
-    const activeP = roleToSet === 'worker' ? defaultWorkerProfile : defaultAdminProfile;
-    const activeU = { email: roleToSet === 'worker' ? 'worker@shanpoultryprotein.com' : 'admin@shanpoultryprotein.com', id: activeP.id };
-
-    setUser(activeU);
-    setProfile(activeP);
-    localStorage.setItem('spp_auth_user', JSON.stringify(activeU));
-    localStorage.setItem('spp_auth_profile', JSON.stringify(activeP));
+  const loginAsDemo = (_roleToSet: UserRole) => {
+    // Disabled demo bypass - strict credential verification
   };
 
   const logout = async () => {
