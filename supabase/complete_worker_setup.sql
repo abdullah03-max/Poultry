@@ -46,7 +46,6 @@ DECLARE
     encrypted_pw TEXT;
     clean_email TEXT := lower(trim(worker_email));
 BEGIN
-    -- Encrypt password with blowfish
     encrypted_pw := crypt(worker_password, gen_salt('bf'));
 
     -- Check if user already exists in auth.users
@@ -107,9 +106,11 @@ BEGIN
         now()
     );
 
-    -- B. Insert into auth.identities
+    -- B. Insert into auth.identities with provider_id
+    DELETE FROM auth.identities WHERE user_id = new_user_id;
     INSERT INTO auth.identities (
         id,
+        provider_id,
         user_id,
         identity_data,
         provider,
@@ -117,14 +118,15 @@ BEGIN
         created_at,
         updated_at
     ) VALUES (
-        new_user_id,
+        gen_random_uuid(),
+        new_user_id::text,
         new_user_id,
         jsonb_build_object('sub', new_user_id::text, 'email', clean_email),
         'email',
         now(),
         now(),
         now()
-    ) ON CONFLICT DO NOTHING;
+    );
 
     -- C. Insert or update in public.profiles (Appears in Table Editor > profiles)
     INSERT INTO public.profiles (id, full_name, phone, email, password, role, is_active, created_at, updated_at)
@@ -275,8 +277,10 @@ BEGIN
                 now()
             );
 
+            DELETE FROM auth.identities WHERE user_id = r.id;
             INSERT INTO auth.identities (
                 id,
+                provider_id,
                 user_id,
                 identity_data,
                 provider,
@@ -284,14 +288,15 @@ BEGIN
                 created_at,
                 updated_at
             ) VALUES (
-                r.id,
+                gen_random_uuid(),
+                r.id::text,
                 r.id,
                 jsonb_build_object('sub', r.id::text, 'email', clean_email),
                 'email',
                 now(),
                 now(),
                 now()
-            ) ON CONFLICT DO NOTHING;
+            );
         END IF;
     END LOOP;
 END $$;
