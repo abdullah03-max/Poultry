@@ -97,6 +97,27 @@ export const mobileStorage = {
     } catch {}
   },
 
+  updateOfflineSlip(updatedSlip: OfflineCollectionItem): void {
+    const list = this.getOfflineSlips();
+    const idx = list.findIndex(
+      s => (s.client_uuid && s.client_uuid === updatedSlip.client_uuid) || (s.receipt_no && s.receipt_no === updatedSlip.receipt_no)
+    );
+    if (idx >= 0) {
+      list[idx] = updatedSlip;
+    } else {
+      list.unshift(updatedSlip);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(list));
+    } catch {}
+  },
+
+  setAllOfflineSlips(slips: OfflineCollectionItem[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(slips));
+    } catch {}
+  },
+
   getPendingSyncCount(): number {
     return this.getOfflineSlips().filter(s => s.status === 'pending_sync').length;
   },

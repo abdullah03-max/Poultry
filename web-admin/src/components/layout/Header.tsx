@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Radio, Clock, Plus, Printer } from 'lucide-react';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { triggerPrint } from '../../utils/exportUtils';
+import { NotificationBell } from './NotificationBell';
+import { Collection } from '../../types/database';
 
 interface HeaderProps {
   title: string;
@@ -9,6 +11,12 @@ interface HeaderProps {
   realtimeActive?: boolean;
   onOpenNewCollection?: () => void;
   showPrint?: boolean;
+  latestEvent?: {
+    type: 'INSERT' | 'UPDATE' | 'DELETE';
+    collection?: Collection;
+    timestamp: Date;
+  } | null;
+  onViewCollection?: (collection: Collection) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   realtimeActive = false,
   onOpenNewCollection,
   showPrint = false,
+  latestEvent,
+  onViewCollection,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -80,6 +90,9 @@ export const Header: React.FC<HeaderProps> = ({
           <Clock className="w-3.5 h-3.5 text-slate-500" />
           <span className="font-mono font-medium">{currentTime}</span>
         </div>
+
+        {/* Notification Bell with Chime Sound */}
+        <NotificationBell latestEvent={latestEvent} onViewCollection={onViewCollection} />
 
         {/* Print Button */}
         {showPrint && (

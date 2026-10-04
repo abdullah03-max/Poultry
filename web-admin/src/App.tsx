@@ -18,12 +18,15 @@ import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { useRealtimeCollections } from './hooks/useRealtimeCollections';
 import { NewCollectionModal } from './components/collections/NewCollectionModal';
+import { CollectionDetailModal } from './components/collections/CollectionDetailModal';
+import { Collection } from './types/database';
 import { CheckCircle2 } from 'lucide-react';
 
 const AdminApp: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [isNewCollectionOpen, setIsNewCollectionOpen] = useState<boolean>(false);
+  const [selectedSlipForModal, setSelectedSlipForModal] = useState<Collection | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   const {
@@ -109,6 +112,8 @@ const AdminApp: React.FC = () => {
           realtimeActive={realtimeActive}
           onOpenNewCollection={() => setIsNewCollectionOpen(true)}
           showPrint={currentHeader.showPrint}
+          latestEvent={latestLiveEvent}
+          onViewCollection={setSelectedSlipForModal}
         />
 
         {/* Live Event Realtime Toast Notification */}
@@ -165,6 +170,20 @@ const AdminApp: React.FC = () => {
           setRefreshTrigger(prev => prev + 1);
         }}
       />
+
+      {/* Collection Detail Modal when clicked from notification */}
+      {selectedSlipForModal && (
+        <CollectionDetailModal
+          isOpen={true}
+          collection={selectedSlipForModal}
+          onClose={() => setSelectedSlipForModal(null)}
+          onDelete={() => {
+            setSelectedSlipForModal(null);
+            refreshCollections();
+            setRefreshTrigger(prev => prev + 1);
+          }}
+        />
+      )}
     </div>
   );
 };

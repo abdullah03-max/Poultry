@@ -32,7 +32,8 @@ import {
   TrendingUp,
   MapPin,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Edit2
 } from 'lucide-react';
 
 type Tab = 'home' | 'new_collection' | 'collections' | 'customers' | 'profile';
@@ -113,6 +114,20 @@ export const MobileApp: React.FC = () => {
   const [offlineSlips, setOfflineSlips] = useState<OfflineCollectionItem[]>([]);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
+  // Refresh & Scope State
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [todayScope, setTodayScope] = useState<'all' | 'mine'>('all');
+  const [allSlipsScope, setAllSlipsScope] = useState<'all' | 'mine'>('all');
+
+  // Edit Slip Modal State
+  const [editingSlip, setEditingSlip] = useState<OfflineCollectionItem | null>(null);
+  const [editCustomerId, setEditCustomerId] = useState<string>('');
+  const [editGross, setEditGross] = useState<string>('');
+  const [editTare, setEditTare] = useState<string>('0');
+  const [editRate, setEditRate] = useState<string>('45');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+
   // Modals
   const [customerModalOpen, setCustomerModalOpen] = useState<boolean>(false);
   const [customerSearch, setCustomerSearch] = useState<string>('');
@@ -175,15 +190,49 @@ export const MobileApp: React.FC = () => {
     };
   }, []);
 
+  // Realtime subscription & auto-sync across workers
+  useEffect(() => {
+    if (!worker) return;
+
+    // Supabase Realtime Channel: Listen to all events on collections
+    const channel = supabase
+      .channel('public:mobile_worker_collections_sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'collections',
+        },
+        () => {
+          // Immediately reload data when ANY worker inserts, updates, or deletes
+          loadData();
+        }
+      )
+      .subscribe();
+
+    // 10-second polling fallback to guarantee fresh updates
+    const pollInterval = setInterval(() => {
+      if (navigator.onLine) {
+        loadData();
+      }
+    }, 10000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [worker?.id]);
+
   const loadData = async (activeWorkerParam?: any) => {
     const activeWorker = activeWorkerParam !== undefined ? activeWorkerParam : (worker || mobileStorage.getLoggedWorker());
     const workerId = activeWorker?.id;
 
-    // 1. Initial Local Slips - filtered strictly by current worker
+    // 1. Initial Local Slips
     const allLocalSlips = mobileStorage.getOfflineSlips();
-    const workerLocalSlips = workerId ? allLocalSlips.filter(s => s.worker_id === workerId) : [];
-    setOfflineSlips(workerLocalSlips);
-    setPendingCount(workerLocalSlips.filter(s => s.status === 'pending_sync').length);
+    setOfflineSlips(allLocalSlips);
+    const pendingSlips = allLocalSlips.filter(s => s.status === 'pending_sync');
+    setPendingCount(pendingSlips.length);
 
     // 2. Customers
     const cached = mobileStorage.getCachedCustomers();
@@ -191,7 +240,7 @@ export const MobileApp: React.FC = () => {
       setCustomers(cached);
     }
 
-    // Try fetching live customers & live worker collections if online
+    // Try fetching live customers & live collections across ALL workers if online
     if (navigator.onLine) {
       try {
         const { data, error } = await supabase
@@ -207,62 +256,160 @@ export const MobileApp: React.FC = () => {
         console.warn('Could not fetch live customers, using cache:', err);
       }
 
-      // Fetch today's real collections from Supabase for this worker
-      if (workerId && workerId.length > 20) {
-        try {
-          const todayDate = new Date().toISOString().split('T')[0];
-          const { data: remoteData, error: colError } = await supabase
-            .from('collections')
-            .select(`
-              *,
-              customer:customers(*)
-            `)
-            .eq('worker_id', workerId)
-            .eq('collection_date', todayDate)
-            .order('collection_timestamp', { ascending: false });
+      // Fetch collections across ALL workers so Worker B sees Worker A's collections immediately
+      try {
+        const { data: remoteData, error: colError } = await supabase
+          .from('collections')
+          .select(`
+            *,
+            customer:customers(*),
+            worker:profiles(id, full_name, phone)
+          `)
+          .order('collection_timestamp', { ascending: false })
+          .limit(150);
 
-          if (!colError && remoteData) {
-            const mappedRemote: OfflineCollectionItem[] = remoteData.map((r: any) => ({
-              client_uuid: r.client_uuid || r.id,
-              receipt_no: r.receipt_no,
-              customer_id: r.customer_id,
-              customer_name: r.customer?.name || 'Customer',
-              customer_area: r.customer?.area || '',
-              worker_id: r.worker_id,
-              worker_name: activeWorker?.full_name || 'Field Collector',
-              collection_date: r.collection_date,
-              collection_time: r.collection_time || '00:00',
-              gross_weight: r.gross_weight,
-              tare_weight: r.tare_weight,
-              total_net_weight: r.total_net_weight,
-              rate_per_kg: r.rate_per_kg,
-              total_amount: r.total_amount,
-              notes: r.notes,
-              signature_base64: r.signature_url || null,
-              photo_base64: null,
-              items: [],
-              status: 'synced',
-              created_at: r.created_at || r.collection_timestamp,
-            }));
+        if (!colError && remoteData) {
+          const mappedRemote: OfflineCollectionItem[] = remoteData.map((r: any) => ({
+            client_uuid: r.client_uuid || r.id,
+            receipt_no: r.receipt_no,
+            customer_id: r.customer_id,
+            customer_name: r.customer?.name || 'Customer',
+            customer_area: r.customer?.area || '',
+            worker_id: r.worker_id,
+            worker_name: r.worker?.full_name || (r.worker_id === workerId ? (activeWorker?.full_name || 'Field Collector') : 'Field Collector'),
+            collection_date: r.collection_date,
+            collection_time: r.collection_time || '00:00',
+            gross_weight: r.gross_weight,
+            tare_weight: r.tare_weight,
+            total_net_weight: r.total_net_weight,
+            rate_per_kg: r.rate_per_kg,
+            total_amount: r.total_amount,
+            notes: r.notes,
+            signature_base64: r.signature_url || null,
+            photo_base64: null,
+            items: [],
+            status: 'synced',
+            created_at: r.created_at || r.collection_timestamp,
+          }));
 
-            // Pending slips not yet synced
-            const pending = workerLocalSlips.filter(s => s.status === 'pending_sync');
-            const seenReceipts = new Set(pending.map(s => s.receipt_no));
-            const merged = [...pending];
-            for (const rem of mappedRemote) {
-              if (!seenReceipts.has(rem.receipt_no)) {
-                merged.push(rem);
-                seenReceipts.add(rem.receipt_no);
-              }
+          // Merge pending slips from local storage (pending take precedence if un-synced)
+          const seenReceipts = new Set(pendingSlips.map(s => s.receipt_no));
+          const merged = [...pendingSlips];
+          for (const rem of mappedRemote) {
+            if (!seenReceipts.has(rem.receipt_no)) {
+              merged.push(rem);
+              seenReceipts.add(rem.receipt_no);
             }
-
-            setOfflineSlips(merged);
-            setPendingCount(pending.length);
           }
-        } catch (colErr) {
-          console.warn('Could not fetch worker collections from Supabase:', colErr);
+
+          setOfflineSlips(merged);
+          mobileStorage.setAllOfflineSlips(merged);
+          setPendingCount(pendingSlips.length);
+        }
+      } catch (colErr) {
+        console.warn('Could not fetch collections from Supabase:', colErr);
+      }
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (navigator.onLine) {
+        await mobileStorage.syncAllPending();
+      }
+      await loadData();
+    } catch (e) {
+      console.warn('Manual refresh failed:', e);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  const startEditingSlip = (slip: OfflineCollectionItem) => {
+    setEditingSlip(slip);
+    setEditCustomerId(slip.customer_id);
+    setEditGross(slip.gross_weight.toString());
+    setEditTare(slip.tare_weight.toString());
+    setEditRate(slip.rate_per_kg.toString());
+    setEditNotes(slip.notes || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSlip) return;
+
+    const gross = parseFloat(editGross) || 0;
+    const tare = parseFloat(editTare) || 0;
+    const rate = parseFloat(editRate) || 0;
+
+    if (gross <= 0) {
+      alert('Please enter a valid gross weight greater than 0 KG.');
+      return;
+    }
+    if (gross < tare) {
+      alert('Gross weight cannot be less than tare weight.');
+      return;
+    }
+
+    const net = Math.max(0, gross - tare);
+    const amount = Math.round(net * rate);
+    const selectedCust = customers.find(c => c.id === editCustomerId);
+
+    setIsSavingEdit(true);
+
+    const updatedSlip: OfflineCollectionItem = {
+      ...editingSlip,
+      customer_id: editCustomerId,
+      customer_name: selectedCust?.name || editingSlip.customer_name,
+      customer_area: selectedCust?.area || editingSlip.customer_area,
+      gross_weight: gross,
+      tare_weight: tare,
+      total_net_weight: net,
+      rate_per_kg: rate,
+      total_amount: amount,
+      notes: editNotes.trim() || null,
+    };
+
+    try {
+      // 1. Update in Supabase if online
+      if (navigator.onLine) {
+        try {
+          await supabase
+            .from('collections')
+            .update({
+              customer_id: editCustomerId,
+              gross_weight: gross,
+              tare_weight: tare,
+              total_net_weight: net,
+              rate_per_kg: rate,
+              total_amount: amount,
+              notes: editNotes.trim() || null,
+            })
+            .or(`client_uuid.eq.${editingSlip.client_uuid},receipt_no.eq.${editingSlip.receipt_no}`);
+        } catch (supErr) {
+          console.warn('Could not update online collection, updated locally:', supErr);
         }
       }
+
+      // 2. Update locally
+      mobileStorage.updateOfflineSlip(updatedSlip);
+
+      // 3. Update state
+      setOfflineSlips(prev =>
+        prev.map(s => (s.client_uuid === updatedSlip.client_uuid || s.receipt_no === updatedSlip.receipt_no ? updatedSlip : s))
+      );
+
+      // If currently open in receipt modal, update it too
+      if (receiptModalSlip && (receiptModalSlip.client_uuid === updatedSlip.client_uuid || receiptModalSlip.receipt_no === updatedSlip.receipt_no)) {
+        setReceiptModalSlip(updatedSlip);
+      }
+
+      setEditingSlip(null);
+      alert('Collection slip updated successfully! / رسید کامیابی سے تبدیل ہو گئی!');
+    } catch (e: any) {
+      alert(`Error updating slip: ${e.message}`);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -664,11 +811,23 @@ export const MobileApp: React.FC = () => {
     alert(`Sync completed! ${result.success} synced successfully, ${result.failed} failed.`);
   };
 
-  // Today's Totals
+  // Today's Combined Totals (All Workers)
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySlips = offlineSlips.filter(s => s.collection_date === todayStr);
   const todayTotalWeight = todaySlips.reduce((acc, s) => acc + s.total_net_weight, 0);
   const todayTotalAmount = todaySlips.reduce((acc, s) => acc + s.total_amount, 0);
+
+  // My Personal Share Today
+  const myTodaySlips = todaySlips.filter(s => s.worker_id === worker?.id);
+  const myTodayWeight = myTodaySlips.reduce((acc, s) => acc + s.total_net_weight, 0);
+  const myTodayAmount = myTodaySlips.reduce((acc, s) => acc + s.total_amount, 0);
+
+  // Today's scope filtered list
+  const displayedTodaySlips = todayScope === 'mine' ? myTodaySlips : todaySlips;
+
+  // All Slips scope filtered list
+  const myAllSlips = offlineSlips.filter(s => s.worker_id === worker?.id);
+  const displayedAllSlips = allSlipsScope === 'mine' ? myAllSlips : offlineSlips;
 
   // Filtered Customers for Modal
   const filteredCustomers = customers.filter(c =>
@@ -684,8 +843,15 @@ export const MobileApp: React.FC = () => {
         <div className="w-full max-w-sm space-y-6">
           {/* Logo & Branding */}
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-3xl mx-auto shadow-xl shadow-blue-500/25 border border-blue-400/20">
-              S
+            <div className="w-16 h-16 rounded-2xl mx-auto shadow-xl shadow-blue-500/25 border border-blue-400/20 overflow-hidden flex items-center justify-center bg-blue-600">
+              <img
+                src="/app_icon.png"
+                alt="Shan Poultry"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                }}
+              />
             </div>
             <h1 className="text-xl font-black tracking-tight text-white">
               شن پولٹری پروٹین
@@ -806,34 +972,50 @@ export const MobileApp: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 text-slate-900 select-none overflow-hidden font-sans">
       {/* =========================================================================
-          TOP STATUS & BRAND HEADER
+          TOP STATUS & BRAND HEADER WITH REFRESH BUTTON & APP ICON
       ========================================================================= */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 shrink-0 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-xl shadow-md shadow-blue-500/20">
-            S
-          </div>
+          <img
+            src="/app_icon.png"
+            alt="Shan Poultry"
+            className="w-10 h-10 rounded-xl object-cover shadow-md shadow-blue-500/20 border border-slate-200"
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+          />
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-sm tracking-wide text-slate-900">SHAN POULTRY</span>
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">FIELD</span>
             </div>
-            <div className="text-xs text-slate-500 font-medium truncate max-w-[160px]">
+            <div className="text-xs text-slate-500 font-medium truncate max-w-[150px]">
               {worker?.full_name || 'Worker App'}
             </div>
           </div>
         </div>
 
-        {/* Online / Offline Status Badge */}
+        {/* Action Controls: Refresh + Online/Offline Status */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 text-xs font-bold transition shadow-2xs disabled:opacity-50"
+            title="تازہ کریں / Refresh Data"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : 'text-slate-600'}`} />
+            <span className="text-[11px] font-bold">تازہ کریں</span>
+          </button>
+
           {isOnline ? (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               ONLINE
             </div>
           ) : (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               OFFLINE
             </div>
           )}
@@ -868,22 +1050,34 @@ export const MobileApp: React.FC = () => {
               </div>
             )}
 
-            {/* Today's KPI Metric Cards */}
+            {/* Today's Combined KPI Metric Cards (All Workers Total) */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Today's Net Weight</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">آج کا کل وزن</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">تمام ورکرز</span>
+                </div>
                 <div className="text-2xl font-black text-blue-600 mt-1 font-mono tracking-tight">
                   {todayTotalWeight.toFixed(1)} <span className="text-sm font-bold text-slate-500">KG</span>
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1 font-medium">{todaySlips.length} slips recorded</div>
+                <div className="text-[10px] text-slate-500 mt-1 font-medium flex items-center justify-between">
+                  <span>{todaySlips.length} رسیدیں</span>
+                  <span className="text-blue-700 font-bold">آپ کا: {myTodayWeight.toFixed(1)} KG</span>
+                </div>
               </div>
 
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Today's Billed</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">آج کی کل رقم</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">تمام ورکرز</span>
+                </div>
                 <div className="text-2xl font-black text-amber-600 mt-1 font-mono tracking-tight">
                   Rs. {todayTotalAmount.toLocaleString()}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1 font-medium">{pendingCount} pending upload</div>
+                <div className="text-[10px] text-slate-500 mt-1 font-medium flex items-center justify-between">
+                  <span>{pendingCount} زیر التواء</span>
+                  <span className="text-amber-700 font-bold">آپ کا: Rs. {myTodayAmount.toLocaleString()}</span>
+                </div>
               </div>
             </div>
 
@@ -897,8 +1091,8 @@ export const MobileApp: React.FC = () => {
                   <PlusCircle className="w-6 h-6" />
                 </div>
                 <div className="text-left">
-                  <div className="text-sm font-black tracking-wide">RECORD NEW COLLECTION</div>
-                  <div className="text-xs text-blue-100 font-medium">Weigh, signature, photo & receipt</div>
+                  <div className="text-sm font-black tracking-wide">نئی رسید درج کریں (RECORD COLLECTION)</div>
+                  <div className="text-xs text-blue-100 font-medium">وزن، کیمرہ، دستخط اور ڈیجیٹل سلپ</div>
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-white/70" />
@@ -913,7 +1107,7 @@ export const MobileApp: React.FC = () => {
                 <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-1.5">
                   <Users className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">Customers</span>
+                <span className="text-xs font-bold text-slate-700">گاہک (Shops)</span>
                 <span className="text-[10px] text-slate-400 font-medium">{customers.length} shops</span>
               </button>
 
@@ -924,7 +1118,7 @@ export const MobileApp: React.FC = () => {
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-1.5">
                   <FileText className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">All Slips</span>
+                <span className="text-xs font-bold text-slate-700">تمام رسیدیں</span>
                 <span className="text-[10px] text-slate-400 font-medium">{offlineSlips.length} total</span>
               </button>
 
@@ -935,41 +1129,83 @@ export const MobileApp: React.FC = () => {
                 <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-1.5">
                   <RefreshCw className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">Sync Center</span>
+                <span className="text-xs font-bold text-slate-700">سنک سینٹر</span>
                 <span className="text-[10px] text-slate-400 font-medium">{pendingCount} unsynced</span>
               </button>
             </div>
 
-            {/* Today's Collections List */}
+            {/* Today's Collections List with Scope Filter */}
             <div className="space-y-2.5 pt-2">
               <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Today's Collections ({todaySlips.length})</span>
-                <button
-                  onClick={() => setActiveTab('collections')}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-700"
-                >
-                  See All
-                </button>
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    آج کی وصولیاں
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono ml-1.5">({displayedTodaySlips.length})</span>
+                </div>
+                <div className="flex items-center bg-slate-200/80 p-0.5 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setTodayScope('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                      todayScope === 'all' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    تمام ورکرز ({todaySlips.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTodayScope('mine')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                      todayScope === 'mine' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    میری رسیدیں ({myTodaySlips.length})
+                  </button>
+                </div>
               </div>
 
-              {todaySlips.length === 0 ? (
+              {displayedTodaySlips.length === 0 ? (
                 <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-8 text-center">
                   <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
                     <FileText className="w-6 h-6" />
                   </div>
-                  <div className="text-sm font-bold text-slate-700">No collections recorded yet today</div>
-                  <div className="text-xs text-slate-400 mt-1">Tap the blue button above to record your first weigh-in.</div>
+                  <div className="text-sm font-bold text-slate-700">
+                    {todayScope === 'mine' ? 'آپ نے آج کوئی رسید درج نہیں کی' : 'آج کی کوئی رسید درج نہیں ہوئی'}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">نئی رسید درج کرنے کے لیے اوپر نیلا بٹن دبائیں۔</div>
                 </div>
               ) : (
-                todaySlips.map(s => (
+                displayedTodaySlips.map(s => (
                   <div
                     key={s.client_uuid}
                     onClick={() => setReceiptModalSlip(s)}
                     className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm active:bg-slate-50 transition cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-mono font-bold text-xs text-blue-600">{s.receipt_no}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">{s.collection_time.substring(0, 5)}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-xs text-blue-600">{s.receipt_no}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          s.worker_id === worker?.id ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {s.worker_id === worker?.id ? `آپ (${s.worker_name})` : s.worker_name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-slate-400 font-mono">{s.collection_time.substring(0, 5)}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditingSlip(s);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-xs font-bold flex items-center gap-1 transition"
+                          title="ایڈٹ کریں / Edit Slip"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>ایڈٹ</span>
+                        </button>
+                      </div>
                     </div>
                     <div className="font-bold text-slate-900 text-sm truncate">{s.customer_name}</div>
                     <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
@@ -1314,8 +1550,8 @@ export const MobileApp: React.FC = () => {
           <div className="space-y-4 max-w-lg mx-auto">
             <div className="flex items-center justify-between pb-1">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Collection Slips</h2>
-                <p className="text-xs text-slate-500">{offlineSlips.length} total slips on device</p>
+                <h2 className="text-lg font-black text-slate-900">رسیدوں کا ریکارڈ (All Slips)</h2>
+                <p className="text-xs text-slate-500">{displayedAllSlips.length} slips shown</p>
               </div>
               {pendingCount > 0 && (
                 <button
@@ -1328,22 +1564,53 @@ export const MobileApp: React.FC = () => {
               )}
             </div>
 
-            {offlineSlips.length === 0 ? (
+            {/* Scope Toggle: All Workers vs My Slips */}
+            <div className="flex items-center bg-slate-200/80 p-1 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setAllSlipsScope('all')}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition text-center ${
+                  allSlipsScope === 'all' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                تمام ورکرز ({offlineSlips.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllSlipsScope('mine')}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition text-center ${
+                  allSlipsScope === 'mine' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                میری رسیدیں ({myAllSlips.length})
+              </button>
+            </div>
+
+            {displayedAllSlips.length === 0 ? (
               <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-10 text-center">
                 <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <div className="text-sm font-bold text-slate-700">No collection history yet</div>
+                <div className="text-sm font-bold text-slate-700">
+                  {allSlipsScope === 'mine' ? 'آپ کے پاس کوئی رسید موجود نہیں' : 'کوئی وصولی رسید موجود نہیں'}
+                </div>
                 <div className="text-xs text-slate-400 mt-1">Recorded weigh-in slips will appear here.</div>
               </div>
             ) : (
               <div className="space-y-2.5">
-                {offlineSlips.map(s => (
+                {displayedAllSlips.map(s => (
                   <div
                     key={s.client_uuid}
                     onClick={() => setReceiptModalSlip(s)}
                     className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm active:bg-slate-50 transition cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono font-black text-xs text-blue-600">{s.receipt_no}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-black text-xs text-blue-600">{s.receipt_no}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          s.worker_id === worker?.id ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {s.worker_id === worker?.id ? `آپ (${s.worker_name})` : s.worker_name}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-slate-400 font-mono">{s.collection_date}</span>
                         {s.status === 'synced' ? (
@@ -1355,6 +1622,18 @@ export const MobileApp: React.FC = () => {
                             OFFLINE
                           </span>
                         )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditingSlip(s);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-xs font-bold flex items-center gap-1 transition ml-1"
+                          title="ایڈٹ کریں / Edit Slip"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>ایڈٹ</span>
+                        </button>
                       </div>
                     </div>
                     <div className="font-bold text-slate-900 text-sm truncate">{s.customer_name}</div>
@@ -1762,8 +2041,15 @@ export const MobileApp: React.FC = () => {
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-5 space-y-4 animate-scaleUp">
             {/* Receipt Header */}
             <div className="text-center pb-3 border-b border-dashed border-slate-200">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-xl mx-auto mb-1.5">
-                S
+              <div className="w-12 h-12 rounded-xl mx-auto mb-1.5 shadow-md shadow-blue-500/20 border border-slate-200 overflow-hidden flex items-center justify-center bg-blue-600">
+                <img
+                  src="/app_icon.png"
+                  alt="Shan Poultry"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
               </div>
               <div className="font-extrabold text-base text-slate-900 tracking-wide">SHAN POULTRY PROTEIN</div>
               <div className="text-[11px] text-slate-500 font-medium">آفیشل وصولی رسید (Official Collection Slip)</div>
@@ -1846,10 +2132,173 @@ export const MobileApp: React.FC = () => {
             <div className="pt-2 flex gap-2">
               <button
                 type="button"
+                onClick={() => {
+                  const slipToEdit = receiptModalSlip;
+                  setReceiptModalSlip(null);
+                  startEditingSlip(slipToEdit);
+                }}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-black shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition"
+              >
+                <Edit2 className="w-4 h-4" />
+                <span>ایڈٹ کریں (Edit)</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setReceiptModalSlip(null)}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20"
               >
                 مکمل (Done)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL 4: EDIT COLLECTION SLIP
+      ========================================================================= */}
+      {editingSlip && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-5 space-y-4 animate-scaleUp max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-black text-base text-slate-900">رسید تبدیل کریں (Edit Slip)</h3>
+                <p className="text-xs font-mono font-bold text-blue-600">{editingSlip.receipt_no}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSlip(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {/* Customer */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  گاہک / دوکان (Customer Shop)
+                </label>
+                <select
+                  value={editCustomerId}
+                  onChange={(e) => {
+                    setEditCustomerId(e.target.value);
+                    const selected = customers.find(c => c.id === e.target.value);
+                    if (selected) {
+                      setEditRate(selected.rate_per_kg.toString());
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900"
+                >
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.area}) - Rs. {c.rate_per_kg}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Gross Weight */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    کل وزن (Gross KG)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editGross}
+                    onChange={(e) => setEditGross(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    کٹوتی (Tare KG)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editTare}
+                    onChange={(e) => setEditTare(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Rate */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  ریٹ فی کلو (Rate PKR / KG)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={editRate}
+                  onChange={(e) => setEditRate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900"
+                />
+              </div>
+
+              {/* Calculated Summary Box */}
+              {(() => {
+                const g = parseFloat(editGross) || 0;
+                const t = parseFloat(editTare) || 0;
+                const r = parseFloat(editRate) || 0;
+                const n = Math.max(0, g - t);
+                const tot = Math.round(n * r);
+                return (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-1 font-mono">
+                    <div className="flex justify-between text-blue-900 font-bold">
+                      <span>خالص وزن (Net Weight):</span>
+                      <span>{n.toFixed(1)} KG</span>
+                    </div>
+                    <div className="flex justify-between text-blue-950 font-black text-sm pt-1 border-t border-blue-200">
+                      <span>کل رقم (Total Billed):</span>
+                      <span className="text-blue-700">Rs. {tot.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Notes */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  نوٹس / ریمارکس (Notes)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional remarks..."
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingSlip(null)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+              >
+                منسوخ (Cancel)
+              </button>
+              <button
+                type="button"
+                disabled={isSavingEdit}
+                onClick={handleSaveEdit}
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5"
+              >
+                {isSavingEdit ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>محفوظ ہو رہا ہے...</span>
+                  </>
+                ) : (
+                  <span>تبدیلیاں محفوظ کریں</span>
+                )}
               </button>
             </div>
           </div>

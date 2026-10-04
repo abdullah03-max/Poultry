@@ -15,6 +15,11 @@ export default defineConfig({
         if (fs.existsSync(mobileHtml)) {
           fs.copyFileSync(mobileHtml, indexHtml);
         }
+        const iconSrc = path.resolve(__dirname, 'public/app_icon.png');
+        const iconDest = path.join(outDir, 'app_icon.png');
+        if (fs.existsSync(iconSrc)) {
+          fs.copyFileSync(iconSrc, iconDest);
+        }
       },
     },
   ],
