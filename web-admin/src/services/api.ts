@@ -563,9 +563,54 @@ export const api = {
       });
     };
 
-    const newId = generateUUID();
+    let workerId = generateUUID();
+
+    // 1. Save to Supabase (creates in BOTH auth.users AND public.profiles via RPC)
+    if (isSupabaseConfigured()) {
+      let rpcSuccess = false;
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_create_worker', {
+          worker_email: params.email.trim().toLowerCase(),
+          worker_password: params.password,
+          worker_name: params.full_name.trim(),
+          worker_phone: params.phone.trim(),
+        });
+
+        if (!rpcErr && rpcData && (rpcData as any).user_id) {
+          workerId = (rpcData as any).user_id;
+          rpcSuccess = true;
+          console.log('[API] Worker created in Supabase auth.users & profiles:', rpcData);
+        } else {
+          console.warn('[API] admin_create_worker RPC not available or failed:', rpcErr);
+        }
+      } catch (err) {
+        console.warn('[API] Could not call admin_create_worker RPC:', err);
+      }
+
+      // Fallback: direct insert to public.profiles if RPC not installed yet
+      if (!rpcSuccess) {
+        try {
+          const { error: insErr } = await supabase.from('profiles').upsert({
+            id: workerId,
+            full_name: params.full_name,
+            phone: params.phone || null,
+            email: params.email || null,
+            password: params.password || null,
+            role: 'worker',
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          });
+          if (insErr) {
+            console.warn('[API] Fallback direct profile upsert failed:', insErr);
+          }
+        } catch (err) {
+          console.warn('[API] Failed direct profile upsert:', err);
+        }
+      }
+    }
+
     const newWorker: Profile = {
-      id: newId,
+      id: workerId,
       full_name: params.full_name,
       phone: params.phone,
       email: params.email,
@@ -578,66 +623,51 @@ export const api = {
       total_kg_collected: 0,
     };
 
-    // 1. Remove from deleted IDs if previously deleted
+    // 2. Remove from deleted IDs if previously deleted
     try {
       const deletedIds: string[] = JSON.parse(localStorage.getItem('spp_deleted_worker_ids') || '[]');
-      const filteredDeleted = deletedIds.filter(id => id !== newId);
+      const filteredDeleted = deletedIds.filter(id => id !== workerId);
       localStorage.setItem('spp_deleted_worker_ids', JSON.stringify(filteredDeleted));
     } catch {}
 
-    // 2. Save to persistent custom workers
+    // 3. Save to persistent custom workers
     try {
       const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
-      customWorkers.unshift(newWorker);
+      const existIdx = customWorkers.findIndex(w => w.id === workerId || (w.email && w.email.toLowerCase() === params.email.toLowerCase()));
+      if (existIdx !== -1) {
+        customWorkers[existIdx] = newWorker;
+      } else {
+        customWorkers.unshift(newWorker);
+      }
       localStorage.setItem('spp_custom_workers', JSON.stringify(customWorkers));
     } catch {}
 
-    // 3. Save to auth store for mobile worker app
+    // 4. Save to auth store for mobile worker app
     try {
       const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
-      authList.push({
+      const existIdx = authList.findIndex((w: any) => w.id === workerId || (w.email && w.email.toLowerCase() === params.email.toLowerCase()));
+      const authRecord = {
         id: newWorker.id,
         full_name: newWorker.full_name,
         phone: newWorker.phone,
         email: newWorker.email,
         password: params.password,
         is_active: true,
-      });
+      };
+      if (existIdx !== -1) {
+        authList[existIdx] = authRecord;
+      } else {
+        authList.push(authRecord);
+      }
       localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
     } catch {}
 
-    mockWorkers.push(newWorker);
-
-    // 4. Save to Supabase
-    if (isSupabaseConfigured()) {
-      try {
-        // Try direct insert with email & password
-        const { error: insErr } = await supabase.from('profiles').insert({
-          id: newId,
-          full_name: params.full_name,
-          phone: params.phone || null,
-          email: params.email || null,
-          password: params.password || null,
-          role: 'worker',
-          is_active: true,
-        });
-
-        if (insErr) {
-          // If custom columns don't exist yet, try standard columns
-          const { error: fallbackErr } = await supabase.from('profiles').insert({
-            id: newId,
-            full_name: params.full_name,
-            phone: params.phone || null,
-            role: 'worker',
-            is_active: true,
-          });
-          if (fallbackErr) {
-            console.warn('[API] Could not insert profile directly into Supabase (run fix_worker_permissions.sql):', fallbackErr);
-          }
-        }
-      } catch (err) {
-        console.warn('[API] Failed to insert worker to Supabase:', err);
-      }
+    // 5. Update in-memory mock workers
+    const mIdx = mockWorkers.findIndex(w => w.id === workerId);
+    if (mIdx !== -1) {
+      mockWorkers[mIdx] = newWorker;
+    } else {
+      mockWorkers.push(newWorker);
     }
 
     return newWorker;
@@ -715,29 +745,62 @@ export const api = {
     // 4. Remove from mock state
     mockWorkers = mockWorkers.filter(w => w.id !== id);
 
-    // 5. Delete in Supabase (hard delete or fallback soft delete)
+    // 5. Delete in Supabase (removes from auth.users, auth.identities, profiles, and unlinks collections)
     if (isSupabaseConfigured()) {
+      let rpcDeleted = false;
       try {
-        const { error: delErr } = await supabase.from('profiles').delete().eq('id', id);
-        if (delErr) {
-          console.warn('[API] Hard delete failed, setting is_active = false in Supabase:', delErr);
-          await supabase.from('profiles').update({ is_active: false }).eq('id', id);
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_delete_worker', {
+          target_user_id: id,
+        });
+        if (!rpcErr && rpcData && (rpcData as any).success) {
+          rpcDeleted = true;
+          console.log('[API] Worker deleted via admin_delete_worker RPC:', id);
+        } else {
+          console.warn('[API] admin_delete_worker RPC not available, using direct delete:', rpcErr);
         }
       } catch (err) {
-        console.warn('[API] Could not delete worker from Supabase:', err);
+        console.warn('[API] Could not call admin_delete_worker RPC:', err);
+      }
+
+      if (!rpcDeleted) {
+        try {
+          const { error: delErr } = await supabase.from('profiles').delete().eq('id', id);
+          if (delErr) {
+            console.warn('[API] Direct delete failed, soft deleting profile:', delErr);
+            await supabase.from('profiles').update({ is_active: false }).eq('id', id);
+          }
+        } catch (err) {
+          console.warn('[API] Could not delete worker profile:', err);
+        }
       }
     }
   },
 
   async setWorkerStatus(id: string, isActive: boolean): Promise<void> {
     if (isSupabaseConfigured()) {
+      let rpcDone = false;
       try {
-        await supabase
-          .from('profiles')
-          .update({ is_active: isActive, updated_at: new Date().toISOString() })
-          .eq('id', id);
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_set_worker_status', {
+          target_user_id: id,
+          status_active: isActive,
+        });
+        if (!rpcErr && rpcData) {
+          rpcDone = true;
+          console.log('[API] Worker status updated via RPC:', id, isActive);
+        }
       } catch (err) {
-        console.warn('[API] Could not update worker status in Supabase:', err);
+        console.warn('[API] Could not call admin_set_worker_status RPC:', err);
+      }
+
+      if (!rpcDone) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ is_active: isActive, updated_at: new Date().toISOString() })
+            .eq('id', id);
+        } catch (err) {
+          console.warn('[API] Could not update worker status in Supabase:', err);
+        }
       }
     }
 
@@ -767,13 +830,29 @@ export const api = {
 
   async resetWorkerPassword(id: string, newPassword: string): Promise<boolean> {
     if (isSupabaseConfigured()) {
+      let rpcDone = false;
       try {
-        await supabase
-          .from('profiles')
-          .update({ password: newPassword, updated_at: new Date().toISOString() })
-          .eq('id', id);
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_reset_worker_password', {
+          target_user_id: id,
+          new_password: newPassword,
+        });
+        if (!rpcErr && rpcData) {
+          rpcDone = true;
+          console.log('[API] Worker password reset via RPC:', id);
+        }
       } catch (err) {
-        console.warn('[API] Could not update password in Supabase profiles:', err);
+        console.warn('[API] Could not call admin_reset_worker_password RPC:', err);
+      }
+
+      if (!rpcDone) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ password: newPassword, updated_at: new Date().toISOString() })
+            .eq('id', id);
+        } catch (err) {
+          console.warn('[API] Could not update password in Supabase profiles:', err);
+        }
       }
     }
 

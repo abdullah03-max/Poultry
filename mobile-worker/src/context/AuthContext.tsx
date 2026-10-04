@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const WORKER_SESSION_KEY = '@shan_poultry_worker_session';
 
 const defaultWorkerProfile: Profile = {
-  id: 'w0000000-0000-0000-0000-000000000001',
+  id: 'b0000000-0000-0000-0000-000000000001',
   full_name: 'Rashid Khan (Collector)',
   phone: '+92 300 0000002',
   role: 'worker',

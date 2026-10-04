@@ -32,8 +32,8 @@ ON CONFLICT (customer_code) DO NOTHING;
 INSERT INTO public.profiles (id, full_name, phone, role, is_active)
 VALUES
     ('a0000000-0000-0000-0000-000000000001', 'Admin Owner (Shan Poultry)', '+92 300 0000001', 'admin', true),
-    ('w0000000-0000-0000-0000-000000000001', 'Rashid Khan (Collector)', '+92 300 0000002', 'worker', true),
-    ('w0000000-0000-0000-0000-000000000002', 'Aslam Pervez (Collector)', '+92 300 0000003', 'worker', true)
+    ('b0000000-0000-0000-0000-000000000001', 'Rashid Khan (Collector)', '+92 300 0000002', 'worker', true),
+    ('b0000000-0000-0000-0000-000000000002', 'Aslam Pervez (Collector)', '+92 300 0000003', 'worker', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- -----------------------------------------------------------------------------
@@ -62,7 +62,7 @@ BEGIN
         collection_date, collection_time, gross_weight, tare_weight, total_net_weight, rate_per_kg, total_amount, status
     ) VALUES (
         col1_id, 'SPP-202610-00101', 'e1000000-0000-0000-0000-000000000001',
-        'c1000000-0000-0000-0000-000000000001', 'w0000000-0000-0000-0000-000000000001',
+        'c1000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
         CURRENT_DATE, '08:30:00', 82.50, 2.50, 80.00, 45.00, 3600.00, 'submitted'
     ) ON CONFLICT (id) DO NOTHING;
 
@@ -78,7 +78,7 @@ BEGIN
         collection_date, collection_time, gross_weight, tare_weight, total_net_weight, rate_per_kg, total_amount, status
     ) VALUES (
         col2_id, 'SPP-202610-00102', 'e1000000-0000-0000-0000-000000000002',
-        'c1000000-0000-0000-0000-000000000002', 'w0000000-0000-0000-0000-000000000001',
+        'c1000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-000000000001',
         CURRENT_DATE, '09:15:00', 125.00, 5.00, 120.00, 48.00, 5760.00, 'submitted'
     ) ON CONFLICT (id) DO NOTHING;
 
@@ -94,7 +94,7 @@ BEGIN
         collection_date, collection_time, gross_weight, tare_weight, total_net_weight, rate_per_kg, total_amount, status
     ) VALUES (
         col3_id, 'SPP-202610-00103', 'e1000000-0000-0000-0000-000000000003',
-        'c1000000-0000-0000-0000-000000000001', 'w0000000-0000-0000-0000-000000000002',
+        'c1000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002',
         CURRENT_DATE - INTERVAL '1 day', '08:45:00', 76.00, 2.00, 74.00, 45.00, 3330.00, 'submitted'
     ) ON CONFLICT (id) DO NOTHING;
 
@@ -109,7 +109,7 @@ BEGIN
         collection_date, collection_time, gross_weight, tare_weight, total_net_weight, rate_per_kg, total_amount, status
     ) VALUES (
         col4_id, 'SPP-202610-00104', 'e1000000-0000-0000-0000-000000000004',
-        'c1000000-0000-0000-0000-000000000003', 'w0000000-0000-0000-0000-000000000002',
+        'c1000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-000000000002',
         CURRENT_DATE - INTERVAL '1 day', '10:00:00', 95.00, 3.00, 92.00, 42.00, 3864.00, 'submitted'
     ) ON CONFLICT (id) DO NOTHING;
 
@@ -125,7 +125,7 @@ BEGIN
         collection_date, collection_time, gross_weight, tare_weight, total_net_weight, rate_per_kg, total_amount, status
     ) VALUES (
         col5_id, 'SPP-202610-00105', 'e1000000-0000-0000-0000-000000000005',
-        'c1000000-0000-0000-0000-000000000004', 'w0000000-0000-0000-0000-000000000001',
+        'c1000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-000000000001',
         CURRENT_DATE - INTERVAL '2 days', '11:20:00', 112.00, 4.00, 108.00, 46.50, 5022.00, 'submitted'
     ) ON CONFLICT (id) DO NOTHING;
 
