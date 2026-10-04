@@ -1,5 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Main Web Admin Application Entry
+// Daylight B2B Clean Corporate Dashboard (Strictly for Administrator)
 // =============================================================================
 
 import React, { useState } from 'react';
@@ -14,11 +15,10 @@ import { CustomersPage } from './pages/CustomersPage';
 import { WorkersPage } from './pages/WorkersPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { AuditLogsPage } from './pages/AuditLogsPage';
 import { LoginPage } from './pages/LoginPage';
 import { useRealtimeCollections } from './hooks/useRealtimeCollections';
 import { NewCollectionModal } from './components/collections/NewCollectionModal';
-import { Sparkles, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 const AdminApp: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -91,10 +91,6 @@ const AdminApp: React.FC = () => {
       title: 'Business & System Settings',
       subtitle: 'Dynamic weight categories, rates, and register parameters',
     },
-    'audit-logs': {
-      title: 'Compliance Audit Trail',
-      subtitle: 'Immutable record of modifications, additions, and deletions',
-    },
   };
 
   const currentHeader = pageHeaders[activeTab];
@@ -157,8 +153,6 @@ const AdminApp: React.FC = () => {
           {activeTab === 'reports' && <ReportsPage />}
 
           {activeTab === 'settings' && <SettingsPage />}
-
-          {activeTab === 'audit-logs' && <AuditLogsPage />}
         </main>
       </div>
 

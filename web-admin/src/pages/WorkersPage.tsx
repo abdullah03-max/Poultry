@@ -28,6 +28,7 @@ import {
   AlertCircle,
   Shield,
   FileSpreadsheet,
+  Trash2,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
@@ -234,6 +235,19 @@ export const WorkersPage: React.FC = () => {
     setIsActivityOpen(true);
   };
 
+  // Handle Delete Worker
+  const handleDeleteWorker = async (worker: Profile) => {
+    if (!confirm(`Are you sure you want to delete worker "${worker.full_name}"? Their account and access to the Mobile App will be permanently removed.`)) {
+      return;
+    }
+    try {
+      await api.deleteWorker(worker.id);
+      loadData();
+    } catch (err: any) {
+      alert(`Failed to delete worker: ${err.message || 'Error'}`);
+    }
+  };
+
   const workerSpecificCollections = selectedWorker
     ? collections.filter(c => c.worker_id === selectedWorker.id)
     : [];
@@ -434,13 +448,22 @@ export const WorkersPage: React.FC = () => {
                           <Edit2 className="w-4 h-4" />
                         </button>
                         {!isOwner && (
-                          <button
-                            onClick={() => handleOpenResetPassword(w)}
-                            title="Reset Mobile App password"
-                            className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition"
-                          >
-                            <KeyRound className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleOpenResetPassword(w)}
+                              title="Reset Mobile App password"
+                              className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition"
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteWorker(w)}
+                              title="Delete worker account"
+                              className="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

@@ -112,6 +112,92 @@ export const mobileStorage = {
     localStorage.removeItem(STORAGE_KEY_LOGGED_WORKER);
   },
 
+  // Registered Workers & Assigned Credentials Management
+  getRegisteredWorkers(): any[] {
+    const KEY = 'spp_registered_workers_auth';
+    try {
+      const saved = localStorage.getItem(KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // fallback
+    }
+    const defaultWorkers = [
+      {
+        id: 'w0000000-0000-0000-0000-000000000001',
+        full_name: 'Rashid Khan (Worker)',
+        email: 'rashid@shanpoultry.com',
+        phone: '+92 300 0000002',
+        password: 'worker123',
+        is_active: true,
+      },
+      {
+        id: 'worker-field-01',
+        full_name: 'Tariq Mahmood (Field Collector)',
+        email: 'tariq@shanpoultry.com',
+        phone: '+92 301 5556677',
+        password: 'worker123',
+        is_active: true,
+      },
+    ];
+    localStorage.setItem(KEY, JSON.stringify(defaultWorkers));
+    return defaultWorkers;
+  },
+
+  saveRegisteredWorker(worker: any): void {
+    const KEY = 'spp_registered_workers_auth';
+    const list = this.getRegisteredWorkers();
+    const existingIdx = list.findIndex(w => w.id === worker.id || (worker.email && w.email?.toLowerCase() === worker.email.toLowerCase()));
+    if (existingIdx !== -1) {
+      list[existingIdx] = { ...list[existingIdx], ...worker };
+    } else {
+      list.push(worker);
+    }
+    localStorage.setItem(KEY, JSON.stringify(list));
+  },
+
+  verifyWorkerCredentials(identifier: string, pass: string): { success: boolean; worker?: any; error?: string } {
+    const cleanId = identifier.trim().toLowerCase();
+    const list = this.getRegisteredWorkers();
+    const found = list.find(w =>
+      (w.email && w.email.toLowerCase() === cleanId) ||
+      (w.phone && w.phone.replace(/\s+/g, '') === cleanId.replace(/\s+/g, '')) ||
+      (w.full_name && w.full_name.toLowerCase() === cleanId)
+    );
+
+    if (!found) {
+      return {
+        success: false,
+        error: 'No worker account found matching this email or phone. Contact Admin Haji Shan to assign your login credentials.',
+      };
+    }
+
+    if (!found.is_active) {
+      return {
+        success: false,
+        error: 'This worker account has been deactivated by Admin. Contact Haji Shan to reactivate.',
+      };
+    }
+
+    if (found.password && found.password !== pass) {
+      return {
+        success: false,
+        error: 'Incorrect password. Contact Admin Haji Shan if you forgot your assigned password.',
+      };
+    }
+
+    return {
+      success: true,
+      worker: {
+        id: found.id,
+        full_name: found.full_name,
+        email: found.email,
+        phone: found.phone,
+        role: 'worker',
+        is_active: true,
+      },
+    };
+  },
+
   // Sync Engine: upload pending slips to Supabase
   async syncAllPending(onProgress?: (current: number, total: number) => void): Promise<{ success: number; failed: number }> {
     const slips = this.getOfflineSlips().filter(s => s.status === 'pending_sync');

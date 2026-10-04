@@ -5,15 +5,32 @@
 
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { BusinessSettings, WeightCategory } from '../types/database';
-import { Settings, Save, Check, Scale, Building, Shield } from 'lucide-react';
+import { Settings, Save, Check, Scale, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
+  const { user, updateAdminCredentials } = useAuth();
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [categories, setCategories] = useState<WeightCategory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Admin Credentials State
+  const [adminEmail, setAdminEmail] = useState<string>(user?.email || 'admin@shanpoultryprotein.com');
+  const [adminPassword, setAdminPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [showAdminPass, setShowAdminPass] = useState<boolean>(false);
+  const [credLoading, setCredLoading] = useState<boolean>(false);
+  const [credSuccess, setCredSuccess] = useState<string | null>(null);
+  const [credError, setCredError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.email) {
+      setAdminEmail(user.email);
+    }
+  }, [user]);
 
   useEffect(() => {
     Promise.all([api.getSettings(), api.getWeightCategories()]).then(([s, c]) => {
@@ -49,6 +66,42 @@ export const SettingsPage: React.FC = () => {
     setCategories(prev =>
       prev.map(c => (c.id === id ? { ...c, [field]: val } : c))
     );
+  };
+
+  const handleUpdateAdminCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCredError(null);
+    setCredSuccess(null);
+
+    if (!adminEmail.trim()) {
+      setCredError('Admin email cannot be empty.');
+      return;
+    }
+    if (adminPassword.length < 6) {
+      setCredError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (adminPassword !== confirmPassword) {
+      setCredError('Passwords do not match. Please verify.');
+      return;
+    }
+
+    try {
+      setCredLoading(true);
+      const res = await updateAdminCredentials(adminEmail.trim(), adminPassword);
+      if (res.success) {
+        setCredSuccess('Admin login credentials updated successfully! Use your new credentials for future logins.');
+        setAdminPassword('');
+        setConfirmPassword('');
+        setTimeout(() => setCredSuccess(null), 5000);
+      } else {
+        setCredError(res.error || 'Failed to update credentials.');
+      }
+    } catch (err: any) {
+      setCredError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setCredLoading(false);
+    }
   };
 
   if (loading || !settings) {
@@ -267,6 +320,98 @@ export const SettingsPage: React.FC = () => {
             />
             <p className="text-[10px] text-slate-400 mt-1">Fixed to Asia/Karachi (PKT)</p>
           </div>
+        </div>
+      </div>
+
+      {/* 4. Administrator Login & Security Credentials */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <Lock className="w-4 h-4 text-blue-600" /> Admin Security & Login Credentials
+          </h3>
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            Admin Only
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          Update your administrator email and password used to access this Web Admin dashboard. Keep these credentials confidential.
+        </p>
+
+        {credSuccess && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-2">
+            <Check className="w-4 h-4 shrink-0" />
+            <span>{credSuccess}</span>
+          </div>
+        )}
+
+        {credError && (
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{credError}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              Admin Email / Username
+            </label>
+            <input
+              type="email"
+              value={adminEmail}
+              onChange={e => setAdminEmail(e.target.value)}
+              placeholder="admin@shanpoultryprotein.com"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              New Password
+            </label>
+            <div className="relative">
+              <input
+                type={showAdminPass ? 'text' : 'password'}
+                value={adminPassword}
+                onChange={e => setAdminPassword(e.target.value)}
+                placeholder="Min. 6 characters"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-800 pr-10 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAdminPass(!showAdminPass)}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+              >
+                {showAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              Confirm New Password
+            </label>
+            <input
+              type={showAdminPass ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              placeholder="Repeat new password"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="pt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={handleUpdateAdminCredentials}
+            disabled={credLoading}
+            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
+          >
+            {credLoading ? <Check className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+            <span>{credLoading ? 'Updating Credentials...' : 'Update Admin Credentials'}</span>
+          </button>
         </div>
       </div>
     </form>

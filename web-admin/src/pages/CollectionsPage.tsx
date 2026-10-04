@@ -7,9 +7,10 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Collection, Customer, Profile } from '../types/database';
 import { formatDate, formatTime, formatWeight, formatCurrency } from '../utils/formatters';
-import { Search, Plus, Eye, Trash2, Download, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { Search, Plus, Eye, Edit2, Trash2, Download, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
 import { NewCollectionModal } from '../components/collections/NewCollectionModal';
+import { EditCollectionModal } from '../components/collections/EditCollectionModal';
 import { exportToCSV } from '../utils/exportUtils';
 
 interface CollectionsPageProps {
@@ -34,6 +35,8 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
 
   // Modals
   const [selectedSlip, setSelectedSlip] = useState<Collection | null>(null);
+  const [editingSlip, setEditingSlip] = useState<Collection | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isNewModalOpen, setIsNewModalOpen] = useState<boolean>(false);
 
   const fetchCollections = async () => {
@@ -295,6 +298,16 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
                         </button>
                         <button
                           onClick={() => {
+                            setEditingSlip(c);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                          title="Edit Slip"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
                             if (confirm(`Are you sure you want to delete slip ${c.receipt_no}?`)) {
                               handleDelete(c.id);
                             }
@@ -351,6 +364,17 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
         isOpen={!!selectedSlip}
         onClose={() => setSelectedSlip(null)}
         onDelete={handleDelete}
+      />
+
+      {/* Edit Slip Modal */}
+      <EditCollectionModal
+        collection={editingSlip}
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingSlip(null);
+        }}
+        onSaved={fetchCollections}
       />
 
       {/* New Slip Modal */}

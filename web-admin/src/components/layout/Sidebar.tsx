@@ -8,10 +8,7 @@ import {
   UserCheck,
   FileSpreadsheet,
   Settings,
-  ShieldAlert,
   LogOut,
-  Shield,
-  Layers,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,8 +20,7 @@ export type NavigationTab =
   | 'customers'
   | 'workers'
   | 'reports'
-  | 'settings'
-  | 'audit-logs';
+  | 'settings';
 
 interface SidebarProps {
   activeTab: NavigationTab;
@@ -32,7 +28,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
-  const { role, logout, switchMockRole, profile } = useAuth();
+  const { logout, profile } = useAuth();
 
   const navItems: { id: NavigationTab; label: string; urdu: string; icon: any; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', urdu: 'ڈیش بورڈ', icon: LayoutDashboard },
@@ -43,7 +39,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
     { id: 'workers', label: 'Workers Management', urdu: 'ورکرز مینجمنٹ', icon: UserCheck, badge: 'Admin' },
     { id: 'reports', label: 'Reports & Export', urdu: 'رپورٹس', icon: FileSpreadsheet },
     { id: 'settings', label: 'System Settings', urdu: 'ترتیبات', icon: Settings },
-    { id: 'audit-logs', label: 'Compliance Audit', urdu: 'آڈٹ لاگ', icon: ShieldAlert },
   ];
 
   return (
@@ -62,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
       {/* Navigation Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          Core Operations
+          Admin Portal
         </div>
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
@@ -99,41 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
         })}
       </nav>
 
-      {/* Role Indicator & Test Switcher */}
-      <div className="px-3 py-3 mx-3 mb-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
-        <div className="flex items-center justify-between text-[11px] mb-2">
-          <span className="flex items-center gap-1.5 font-medium text-slate-300">
-            <Shield className="w-3.5 h-3.5 text-brand-400" /> Current Role
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 font-bold uppercase text-[9px]">
-            {role}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => switchMockRole('admin')}
-            className={`py-1 text-xs rounded-lg font-medium transition ${
-              role === 'admin'
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-slate-700/40 text-slate-400 hover:text-white hover:bg-slate-700'
-            }`}
-          >
-            Admin View
-          </button>
-          <button
-            onClick={() => switchMockRole('worker')}
-            className={`py-1 text-xs rounded-lg font-medium transition ${
-              role === 'worker'
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-slate-700/40 text-slate-400 hover:text-white hover:bg-slate-700'
-            }`}
-          >
-            Worker View
-          </button>
-        </div>
-      </div>
-
-      {/* Footer / User Profile */}
+      {/* Footer / Admin Profile */}
       <div className="p-3.5 border-t border-slate-800 flex items-center justify-between bg-slate-900/60">
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-brand-600/30 border border-brand-500/30 text-brand-300 flex items-center justify-center font-bold text-xs shrink-0">
@@ -143,8 +104,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
             <p className="text-xs font-semibold text-white truncate">
               {profile?.full_name || 'Haji Shan'}
             </p>
-            <p className="text-[10px] text-slate-400 truncate capitalize">
-              {profile?.role === 'admin' ? 'Owner / Administrator' : 'Field Worker'}
+            <p className="text-[10px] text-brand-400 font-bold uppercase tracking-wider truncate">
+              Administrator (Owner)
             </p>
           </div>
         </div>

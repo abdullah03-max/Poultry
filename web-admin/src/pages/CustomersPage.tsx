@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Customer, Collection } from '../types/database';
 import { formatWeight, formatCurrency, formatDate } from '../utils/formatters';
-import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2 } from 'lucide-react';
+import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2, Trash2 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 
 export const CustomersPage: React.FC = () => {
@@ -61,6 +61,18 @@ export const CustomersPage: React.FC = () => {
       fetchCustomers();
     } catch (err) {
       console.error('Failed to toggle customer status:', err);
+    }
+  };
+
+  const handleDeleteCustomer = async (cust: Customer) => {
+    if (!confirm(`Are you sure you want to delete customer "${cust.name}"? This will remove this shop from the directory.`)) {
+      return;
+    }
+    try {
+      await api.deleteCustomer(cust.id);
+      fetchCustomers();
+    } catch (err: any) {
+      alert(`Failed to delete customer: ${err.message || 'Error'}`);
     }
   };
 
@@ -259,6 +271,13 @@ export const CustomersPage: React.FC = () => {
                     title={cust.status === 'active' ? 'Deactivate Customer' : 'Activate Customer'}
                   >
                     {cust.status === 'active' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCustomer(cust)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                    title="Delete Customer"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

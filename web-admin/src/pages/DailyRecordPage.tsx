@@ -7,8 +7,9 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Collection, WeightCategory } from '../types/database';
 import { formatDate, formatTime, formatWeight, formatCurrency } from '../utils/formatters';
-import { Calendar, Printer, Scale, Eye, Loader2, ArrowLeft, ArrowRight, DollarSign, FileSpreadsheet } from 'lucide-react';
+import { Calendar, Printer, Scale, Eye, Edit2, Trash2, Loader2, ArrowLeft, ArrowRight, DollarSign, FileSpreadsheet } from 'lucide-react';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
+import { EditCollectionModal } from '../components/collections/EditCollectionModal';
 import { triggerPrint } from '../utils/exportUtils';
 
 interface DailyRecordPageProps {
@@ -21,6 +22,8 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
   const [categories, setCategories] = useState<WeightCategory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedSlip, setSelectedSlip] = useState<Collection | null>(null);
+  const [editingSlip, setEditingSlip] = useState<Collection | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
 
   const fetchDailyData = async () => {
     try {
@@ -46,6 +49,18 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + delta);
     setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleDeleteCollection = async (id: string, receipt_no: string) => {
+    if (!confirm(`Are you sure you want to delete collection slip ${receipt_no}? This will recalculate the daily records and register.`)) {
+      return;
+    }
+    try {
+      await api.deleteCollection(id);
+      fetchDailyData();
+    } catch (err: any) {
+      alert(`Failed to delete collection: ${err.message || 'Error'}`);
+    }
   };
 
   const totalGross = collections.reduce((acc, c) => acc + c.gross_weight, 0);
@@ -253,13 +268,32 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
                     <td className="py-3 px-4 text-right font-mono text-slate-500">{c.rate_per_kg}</td>
                     <td className="py-3 px-4 text-right font-mono font-bold text-amber-700">{formatCurrency(c.total_amount, '')}</td>
                     <td className="py-3 px-4 text-center no-print">
-                      <button
-                        onClick={() => setSelectedSlip(c)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
-                        title="View Slip"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setSelectedSlip(c)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
+                          title="View Slip"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingSlip(c);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition"
+                          title="Edit Slip"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCollection(c.id, c.receipt_no)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                          title="Delete Slip"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -295,6 +329,16 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
         collection={selectedSlip}
         isOpen={!!selectedSlip}
         onClose={() => setSelectedSlip(null)}
+      />
+
+      <EditCollectionModal
+        isOpen={isEditModalOpen}
+        collection={editingSlip}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingSlip(null);
+        }}
+        onSaved={fetchDailyData}
       />
     </div>
   );

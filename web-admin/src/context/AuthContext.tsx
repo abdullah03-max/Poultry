@@ -16,6 +16,7 @@ interface AuthContextType {
   loginAsDemo: (role: UserRole) => void;
   logout: () => Promise<void>;
   switchMockRole: (role: UserRole) => void;
+  updateAdminCredentials: (newEmail: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -144,7 +145,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. Fallback: allow demo users or standard owner password
+    // 2. Custom updated admin credentials check
+    const savedCustom = localStorage.getItem('spp_admin_custom_creds');
+    if (savedCustom) {
+      try {
+        const parsed = JSON.parse(savedCustom);
+        if (
+          parsed.email &&
+          parsed.password &&
+          trimmedEmail === parsed.email.toLowerCase() &&
+          pass === parsed.password
+        ) {
+          const activeU = { email: parsed.email, id: defaultAdminProfile.id };
+          setUser(activeU);
+          setProfile(defaultAdminProfile);
+          localStorage.setItem('spp_auth_user', JSON.stringify(activeU));
+          localStorage.setItem('spp_auth_profile', JSON.stringify(defaultAdminProfile));
+          return { success: true };
+        }
+      } catch (e) {
+        // ignore JSON parse error
+      }
+    }
+
+    // 3. Fallback: allow demo users or standard owner password
     if (isDemoAdmin || isDemoWorker || pass === 'shanadmin2026' || pass === 'admin12345') {
       const activeP = isDemoWorker ? defaultWorkerProfile : defaultAdminProfile;
       const activeU = { email: trimmedEmail, id: activeP.id };
@@ -158,8 +182,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return {
       success: false,
-      error: 'Invalid credentials. Click "Haji Shan (Admin)" below or create the user in Supabase Auth.',
+      error: 'Invalid credentials. Please verify your email and password.',
     };
+  };
+
+  const updateAdminCredentials = async (newEmail: string, newPass: string) => {
+    try {
+      if (isSupabaseConfigured() && user) {
+        const { error } = await supabase.auth.updateUser({
+          email: newEmail,
+          password: newPass,
+        });
+        if (error) {
+          console.warn('Supabase updateUser error:', error);
+        }
+      }
+
+      const customCreds = { email: newEmail, password: newPass };
+      localStorage.setItem('spp_admin_custom_creds', JSON.stringify(customCreds));
+
+      const updatedUser = { ...(user || {}), email: newEmail };
+      setUser(updatedUser);
+      localStorage.setItem('spp_auth_user', JSON.stringify(updatedUser));
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to update credentials' };
+    }
   };
 
   const loginAsDemo = (roleToSet: UserRole) => {
@@ -213,6 +262,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginAsDemo,
         logout,
         switchMockRole,
+        updateAdminCredentials,
       }}
     >
       {children}

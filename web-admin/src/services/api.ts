@@ -472,6 +472,21 @@ export const api = {
     if (idx !== -1) mockCustomers[idx].is_deleted = true;
   },
 
+  async deleteCustomer(id: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('customers').delete().eq('id', id);
+        if (error) {
+          await this.softDeleteCustomer(id);
+        }
+      } catch (err) {
+        console.warn('[API] Could not delete customer from Supabase, attempting soft delete:', err);
+        await this.softDeleteCustomer(id);
+      }
+    }
+    mockCustomers = mockCustomers.filter(c => c.id !== id);
+  },
+
   // Workers Management
   async getWorkers(): Promise<Profile[]> {
     if (isSupabaseConfigured()) {
@@ -534,6 +549,18 @@ export const api = {
             total_kg_collected: 0,
           };
           mockWorkers.push(newProfile);
+          try {
+            const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+            authList.push({
+              id: newProfile.id,
+              full_name: newProfile.full_name,
+              phone: newProfile.phone,
+              email: newProfile.email,
+              password: params.password,
+              is_active: true,
+            });
+            localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
+          } catch {}
           return newProfile;
         }
 
@@ -561,6 +588,18 @@ export const api = {
       total_kg_collected: 0,
     };
     mockWorkers.push(newWorker);
+    try {
+      const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+      authList.push({
+        id: newWorker.id,
+        full_name: newWorker.full_name,
+        phone: newWorker.phone,
+        email: newWorker.email,
+        password: params.password,
+        is_active: true,
+      });
+      localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
+    } catch {}
     return newWorker;
   },
 
@@ -587,9 +626,33 @@ export const api = {
     const idx = mockWorkers.findIndex(w => w.id === id);
     if (idx !== -1) {
       mockWorkers[idx] = { ...mockWorkers[idx], ...updates, updated_at: new Date().toISOString() };
+      try {
+        const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+        const aIdx = authList.findIndex((w: any) => w.id === id);
+        if (aIdx !== -1) {
+          authList[aIdx] = { ...authList[aIdx], ...updates };
+          localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
+        }
+      } catch {}
       return mockWorkers[idx];
     }
     throw new Error('Worker not found');
+  },
+
+  async deleteWorker(id: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('profiles').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[API] Could not delete worker from Supabase:', err);
+      }
+    }
+    mockWorkers = mockWorkers.filter(w => w.id !== id);
+    try {
+      const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+      const filtered = authList.filter((w: any) => w.id !== id);
+      localStorage.setItem('spp_registered_workers_auth', JSON.stringify(filtered));
+    } catch {}
   },
 
   async setWorkerStatus(id: string, isActive: boolean): Promise<void> {
@@ -613,6 +676,14 @@ export const api = {
     if (idx !== -1) {
       mockWorkers[idx].is_active = isActive;
     }
+    try {
+      const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+      const aIdx = authList.findIndex((w: any) => w.id === id);
+      if (aIdx !== -1) {
+        authList[aIdx].is_active = isActive;
+        localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
+      }
+    } catch {}
   },
 
   async resetWorkerPassword(id: string, newPassword: string): Promise<boolean> {
@@ -622,13 +693,31 @@ export const api = {
           target_user_id: id,
           new_password: newPassword,
         });
-        if (!error && data?.success) return true;
+        if (!error && data?.success) {
+          try {
+            const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+            const aIdx = authList.findIndex((w: any) => w.id === id);
+            if (aIdx !== -1) {
+              authList[aIdx].password = newPassword;
+              localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
+            }
+          } catch {}
+          return true;
+        }
         if (error) throw error;
       } catch (err: any) {
         console.warn('[API] Error calling admin_reset_worker_password RPC:', err);
         throw new Error(err.message || 'Failed to reset worker password');
       }
     }
+    try {
+      const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+      const aIdx = authList.findIndex((w: any) => w.id === id);
+      if (aIdx !== -1) {
+        authList[aIdx].password = newPassword;
+        localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
+      }
+    } catch {}
     return true; // Mock success
   },
 
@@ -808,6 +897,78 @@ export const api = {
 
     mockCollections.unshift(newCol);
     return newCol;
+  },
+
+  async updateCollection(id: string, updates: Partial<Collection>, items?: any[]): Promise<Collection> {
+    if (isSupabaseConfigured()) {
+      try {
+        const payload: Record<string, any> = {
+          customer_id: updates.customer_id,
+          collection_date: updates.collection_date,
+          collection_time: updates.collection_time,
+          gross_weight: updates.gross_weight,
+          tare_weight: updates.tare_weight,
+          total_net_weight: updates.total_net_weight,
+          rate_per_kg: updates.rate_per_kg,
+          total_amount: updates.total_amount,
+          notes: updates.notes,
+          status: updates.status || 'submitted',
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data, error } = await supabase
+          .from('collections')
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (!error && data) {
+          if (items && items.length > 0) {
+            await supabase.from('collection_weight_items').delete().eq('collection_id', id);
+            const weightItems = items.map(it => ({
+              collection_id: id,
+              category_id: it.category_id,
+              weight: it.weight,
+              rate: it.rate,
+              amount: it.amount,
+            }));
+            await supabase.from('collection_weight_items').insert(weightItems);
+          }
+
+          const { data: fullRecord } = await supabase
+            .from('collections')
+            .select(`
+              *,
+              customer:customers(*),
+              worker:profiles(*),
+              items:collection_weight_items(*, category:weight_categories(*)),
+              attachments:collection_attachments(*)
+            `)
+            .eq('id', id)
+            .single();
+
+          if (fullRecord) {
+            mockCollections = mockCollections.map(c => c.id === id ? (fullRecord as Collection) : c);
+            return fullRecord as Collection;
+          }
+        }
+      } catch (err) {
+        console.warn('[API] Could not update collection in Supabase:', err);
+      }
+    }
+
+    const idx = mockCollections.findIndex(c => c.id === id);
+    if (idx !== -1) {
+      mockCollections[idx] = {
+        ...mockCollections[idx],
+        ...updates,
+        items: items || mockCollections[idx].items,
+        updated_at: new Date().toISOString(),
+      };
+      return mockCollections[idx];
+    }
+    throw new Error('Collection not found');
   },
 
   async deleteCollection(id: string): Promise<void> {
