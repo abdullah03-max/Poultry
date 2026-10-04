@@ -25,6 +25,7 @@ import { CheckCircle2 } from 'lucide-react';
 const AdminApp: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isNewCollectionOpen, setIsNewCollectionOpen] = useState<boolean>(false);
   const [selectedSlipForModal, setSelectedSlipForModal] = useState<Collection | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
@@ -100,11 +101,16 @@ const AdminApp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-      {/* Fixed Left Sidebar */}
-      <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
+      {/* Responsive Left Sidebar */}
+      <Sidebar
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+      />
 
       {/* Main Content Area */}
-      <div className="flex-1 ml-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:ml-64 ml-0 flex flex-col min-w-0 w-full transition-all duration-300">
         {/* Sticky Top Header */}
         <Header
           title={currentHeader.title}
@@ -114,11 +120,12 @@ const AdminApp: React.FC = () => {
           showPrint={currentHeader.showPrint}
           latestEvent={latestLiveEvent}
           onViewCollection={setSelectedSlipForModal}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         />
 
         {/* Live Event Realtime Toast Notification */}
         {latestLiveEvent && (
-          <div className="mx-8 mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between animate-fadeIn no-print">
+          <div className="mx-3 sm:mx-6 lg:mx-8 mt-3 sm:mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between animate-fadeIn no-print">
             <div className="flex items-center gap-2 text-xs text-emerald-300 font-semibold">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>
@@ -130,7 +137,7 @@ const AdminApp: React.FC = () => {
         )}
 
         {/* Page Content View */}
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="flex-1 p-3 sm:p-5 lg:p-8 overflow-y-auto w-full">
           {activeTab === 'dashboard' && (
             <DashboardPage
               collections={collections}

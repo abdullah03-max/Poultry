@@ -63,7 +63,7 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-card no-print">
         <div className="flex flex-wrap items-center gap-3">
           {/* Search Input */}
-          <div className="relative min-w-[240px]">
+          <div className="relative w-full sm:w-auto min-w-[200px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -91,7 +91,7 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3 py-2 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 rounded-xl text-xs font-semibold transition"

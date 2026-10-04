@@ -33,13 +33,13 @@ export const AuditLogsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card flex items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Security Audit Trail</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Security Audit Trail</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Immutable log of record insertions, deletions, status changes, and administrative actions.
             </p>
@@ -57,7 +57,7 @@ export const AuditLogsPage: React.FC = () => {
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-card">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full min-w-[650px] text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <th className="py-3 px-4">Timestamp</th>

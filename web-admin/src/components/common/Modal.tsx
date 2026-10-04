@@ -45,13 +45,13 @@ export const Modal: React.FC<ModalProps> = ({
         onClick={onClose} 
       />
 
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="flex min-h-full items-center justify-center p-2.5 sm:p-4">
         <div 
           className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white border border-slate-200 rounded-2xl shadow-dropdown overflow-hidden z-10`}
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/80">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50/80">
             <div>
               <h3 className="text-base font-bold text-slate-900">{title}</h3>
               {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
@@ -65,7 +65,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
 
           {/* Body */}
-          <div className="p-6 max-h-[85vh] overflow-y-auto text-slate-800">
+          <div className="p-4 sm:p-6 max-h-[85vh] overflow-y-auto text-slate-800">
             {children}
           </div>
         </div>

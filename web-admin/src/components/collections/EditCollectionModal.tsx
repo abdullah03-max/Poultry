@@ -192,7 +192,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
           </div>
 
           {/* Date & Time */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Collection Date *
@@ -292,18 +292,18 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+          <div className="pt-2 flex flex-col-reverse sm:flex-row justify-end gap-2 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl transition"
+              className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl transition text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
+              className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               <span>{submitting ? 'Updating Slip...' : 'Save Slip Changes'}</span>

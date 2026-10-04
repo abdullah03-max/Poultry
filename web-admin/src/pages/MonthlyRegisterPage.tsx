@@ -75,13 +75,13 @@ export const MonthlyRegisterPage: React.FC<MonthlyRegisterPageProps> = ({ refres
   return (
     <div className="space-y-6">
       {/* Top Header & Month Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-card no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-card no-print">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
             <Calendar className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
               Digitized Monthly Weight Register
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -91,7 +91,7 @@ export const MonthlyRegisterPage: React.FC<MonthlyRegisterPageProps> = ({ refres
         </div>
 
         {/* Month & Year Selectors */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <select
             value={selectedMonthIndex}
             onChange={e => setSelectedMonthIndex(parseInt(e.target.value, 10))}

@@ -176,7 +176,7 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
         )}
 
         {/* Modal Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-100">
           <div>
             {onDelete && (
               <button
@@ -186,7 +186,7 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
                     onClose();
                   }
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Delete Slip</span>
@@ -196,14 +196,14 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={triggerPrint}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-sm transition"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-sm transition"
             >
               <Printer className="w-4 h-4" />
               <span>Print Slip</span>
             </button>
             <button
               onClick={onClose}
-              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition"
+              className="flex-1 sm:flex-initial px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition text-center"
             >
               Close
             </button>

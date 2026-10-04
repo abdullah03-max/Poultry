@@ -242,7 +242,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-xs min-w-[850px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <th className="py-3.5 px-4">Slip #</th>

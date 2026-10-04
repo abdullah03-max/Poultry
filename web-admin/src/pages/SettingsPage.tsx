@@ -129,7 +129,7 @@ export const SettingsPage: React.FC = () => {
   return (
     <form onSubmit={handleSaveSettings} className="space-y-6 max-w-5xl">
       {/* Top Header & Save Button */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
             <Settings className="w-5 h-5" />
@@ -160,7 +160,7 @@ export const SettingsPage: React.FC = () => {
       )}
 
       {/* 1. Business Profile Section */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
           <Building className="w-4 h-4 text-blue-600" /> Company Profile
         </h3>
@@ -217,7 +217,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* 2. Weight Categories Configurator */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
             <Scale className="w-4 h-4 text-blue-600" /> Configurable Weight Categories
@@ -286,7 +286,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* 3. Register & System Rules */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
           <Shield className="w-4 h-4 text-blue-600" /> Operational & Register Rules
         </h3>
@@ -337,7 +337,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* 4. Administrator Login & Security Credentials */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
             <Lock className="w-4 h-4 text-blue-600" /> Admin Security & Login Credentials
@@ -415,12 +415,12 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="pt-2 flex justify-end">
+        <div className="pt-2 flex flex-col sm:flex-row justify-end">
           <button
             type="button"
             onClick={handleUpdateAdminCredentials}
             disabled={credLoading}
-            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
+            className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center justify-center gap-2"
           >
             {credLoading ? <Check className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
             <span>{credLoading ? 'Updating Credentials...' : 'Update Admin Credentials'}</span>

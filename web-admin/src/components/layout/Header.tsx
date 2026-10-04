@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Radio, Clock, Plus, Printer } from 'lucide-react';
+import { Radio, Clock, Plus, Printer, Menu } from 'lucide-react';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { triggerPrint } from '../../utils/exportUtils';
 import { NotificationBell } from './NotificationBell';
@@ -17,6 +17,7 @@ interface HeaderProps {
     timestamp: Date;
   } | null;
   onViewCollection?: (collection: Collection) => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   showPrint = false,
   latestEvent,
   onViewCollection,
+  onToggleMobileSidebar,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -50,18 +52,34 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="h-20 bg-white/95 backdrop-blur border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-20 no-print">
-      {/* Title & Subtitle */}
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">{title}</h2>
-        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+    <header className="h-16 sm:h-20 bg-white/95 backdrop-blur border-b border-slate-200 px-3 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-20 no-print">
+      {/* Title & Hamburger Menu */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
+        {/* Mobile Hamburger Menu Toggle */}
+        <button
+          type="button"
+          onClick={onToggleMobileSidebar}
+          className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition shrink-0"
+          aria-label="Open navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 tracking-tight truncate">
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="hidden md:block text-xs text-slate-500 mt-0.5 truncate">{subtitle}</p>
+          )}
+        </div>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Realtime Status Badge */}
         <div
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium border ${
             realtimeActive
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
               : isSupabaseConfigured()
@@ -82,11 +100,12 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </span>
           <Radio className="w-3.5 h-3.5" />
-          <span>{realtimeActive ? 'Supabase Live' : 'Database Ready'}</span>
+          <span className="hidden sm:inline">{realtimeActive ? 'Supabase Live' : 'Database Ready'}</span>
+          <span className="sm:hidden">{realtimeActive ? 'Live' : 'Ready'}</span>
         </div>
 
-        {/* Karachi Clock */}
-        <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200/80">
+        {/* Karachi Clock (hidden on smaller screens) */}
+        <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200/80">
           <Clock className="w-3.5 h-3.5 text-slate-500" />
           <span className="font-mono font-medium">{currentTime}</span>
         </div>
@@ -94,25 +113,26 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Notification Bell with Chime Sound */}
         <NotificationBell latestEvent={latestEvent} onViewCollection={onViewCollection} />
 
-        {/* Print Button */}
+        {/* Print Button (hidden on mobile, print is desktop oriented) */}
         {showPrint && (
           <button
             onClick={triggerPrint}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-sm transition"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-sm transition"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print</span>
           </button>
         )}
 
-        {/* Action Button */}
+        {/* Action Button: New Collection */}
         {onOpenNewCollection && (
           <button
             onClick={onOpenNewCollection}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition active:scale-95"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>New Collection</span>
+            <span className="hidden sm:inline">New Collection</span>
+            <span className="sm:hidden">New</span>
           </button>
         )}
       </div>

@@ -340,7 +340,7 @@ export const WorkersPage: React.FC = () => {
 
         {/* Table View */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs min-w-[750px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                 <th className="py-3.5 px-4">Worker Profile</th>
@@ -596,18 +596,18 @@ export const WorkersPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={actionLoading}
-              className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
             >
               {actionLoading ? (
                 <>
@@ -672,18 +672,18 @@ export const WorkersPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsEditModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={actionLoading}
-              className="flex items-center gap-2 px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl transition"
+              className="flex items-center justify-center gap-2 px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl transition"
             >
               {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Save Changes</span>}
             </button>
@@ -747,18 +747,18 @@ export const WorkersPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsResetPasswordOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={actionLoading || newPassword.length < 6}
-              className="flex items-center gap-2 px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition"
+              className="flex items-center justify-center gap-2 px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition"
             >
               {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Update Password</span>}
             </button>
@@ -792,8 +792,8 @@ export const WorkersPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="max-h-[55vh] overflow-y-auto border border-slate-200 rounded-xl">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="max-h-[55vh] overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl">
+            <table className="w-full min-w-[650px] text-left border-collapse text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
                 <tr>
                   <th className="py-2.5 px-3">Slip #</th>

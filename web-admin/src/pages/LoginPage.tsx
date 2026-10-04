@@ -33,12 +33,19 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-card space-y-6">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-3 sm:p-4">
+      <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-5 sm:p-8 shadow-card space-y-6">
         {/* Brand Banner */}
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-700 to-blue-500 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/25 text-white font-black text-2xl tracking-tighter">
-            SP
+          <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/25 overflow-hidden border border-slate-200 bg-blue-600">
+            <img
+              src="/app_icon.png"
+              alt="Shan Poultry"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+            />
           </div>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">SHAN POULTRY PROTEIN</h1>
           <p className="text-xs text-slate-500">Admin Portal - Waste Collection & Weight Management</p>
