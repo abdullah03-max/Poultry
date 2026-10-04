@@ -1,0 +1,181 @@
+// =============================================================================
+// SHAN POULTRY PROTEIN - Mobile Offline Storage & Sync Engine
+// =============================================================================
+
+import { supabase } from '../lib/supabase';
+import { Collection, Customer, WeightCategory } from '../types/database';
+
+export interface OfflineCollectionItem {
+  client_uuid: string;
+  receipt_no: string;
+  customer_id: string;
+  customer_name: string;
+  customer_area: string;
+  worker_id: string | null;
+  worker_name: string;
+  collection_date: string;
+  collection_time: string;
+  gross_weight: number;
+  tare_weight: number;
+  total_net_weight: number;
+  rate_per_kg: number;
+  total_amount: number;
+  notes: string | null;
+  signature_base64: string | null;
+  photo_base64: string | null;
+  items: Array<{
+    category_id: string;
+    category_name: string;
+    weight: number;
+    rate: number;
+    amount: number;
+  }>;
+  status: 'pending_sync' | 'synced';
+  created_at: string;
+}
+
+const STORAGE_KEY_OFFLINE_SLIPS = 'shan_poultry_offline_slips';
+const STORAGE_KEY_CUSTOMERS_CACHE = 'shan_poultry_customers_cache';
+const STORAGE_KEY_CATEGORIES_CACHE = 'shan_poultry_categories_cache';
+const STORAGE_KEY_LOGGED_WORKER = 'shan_poultry_logged_worker';
+
+export const mobileStorage = {
+  // Offline Slips
+  getOfflineSlips(): OfflineCollectionItem[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_OFFLINE_SLIPS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveOfflineSlip(slip: OfflineCollectionItem): void {
+    const list = this.getOfflineSlips();
+    list.unshift(slip);
+    localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(list));
+  },
+
+  updateOfflineSlipStatus(client_uuid: string, status: 'synced'): void {
+    const list = this.getOfflineSlips();
+    const updated = list.map(item => item.client_uuid === client_uuid ? { ...item, status } : item);
+    localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(updated));
+  },
+
+  getPendingSyncCount(): number {
+    return this.getOfflineSlips().filter(s => s.status === 'pending_sync').length;
+  },
+
+  // Customers Cache
+  getCachedCustomers(): Customer[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_CUSTOMERS_CACHE);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setCachedCustomers(customers: Customer[]): void {
+    localStorage.setItem(STORAGE_KEY_CUSTOMERS_CACHE, JSON.stringify(customers));
+  },
+
+  // Categories Cache
+  getCachedCategories(): WeightCategory[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_CATEGORIES_CACHE);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setCachedCategories(categories: WeightCategory[]): void {
+    localStorage.setItem(STORAGE_KEY_CATEGORIES_CACHE, JSON.stringify(categories));
+  },
+
+  // Worker Session
+  getLoggedWorker(): any {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_LOGGED_WORKER);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  setLoggedWorker(worker: any): void {
+    localStorage.setItem(STORAGE_KEY_LOGGED_WORKER, JSON.stringify(worker));
+  },
+
+  clearSession(): void {
+    localStorage.removeItem(STORAGE_KEY_LOGGED_WORKER);
+  },
+
+  // Sync Engine: upload pending slips to Supabase
+  async syncAllPending(onProgress?: (current: number, total: number) => void): Promise<{ success: number; failed: number }> {
+    const slips = this.getOfflineSlips().filter(s => s.status === 'pending_sync');
+    if (slips.length === 0) return { success: 0, failed: 0 };
+
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < slips.length; i++) {
+      const slip = slips[i];
+      try {
+        // 1. Insert collection record
+        const { data: colData, error: colError } = await supabase
+          .from('collections')
+          .insert({
+            client_uuid: slip.client_uuid,
+            receipt_no: slip.receipt_no,
+            customer_id: slip.customer_id,
+            worker_id: slip.worker_id,
+            collection_date: slip.collection_date,
+            collection_time: slip.collection_time,
+            collection_timestamp: `${slip.collection_date}T${slip.collection_time}`,
+            gross_weight: slip.gross_weight,
+            tare_weight: slip.tare_weight,
+            total_net_weight: slip.total_net_weight,
+            rate_per_kg: slip.rate_per_kg,
+            total_amount: slip.total_amount,
+            notes: slip.notes,
+            signature_url: slip.signature_base64 ? slip.signature_base64.substring(0, 100) : null,
+            status: 'submitted',
+          })
+          .select()
+          .single();
+
+        if (colError && !colError.message.includes('unique constraint') && !colError.message.includes('duplicate key')) {
+          throw colError;
+        }
+
+        const collectionId = colData?.id;
+
+        // 2. Insert items if collection ID exists
+        if (collectionId && slip.items && slip.items.length > 0) {
+          const itemPayload = slip.items.map(item => ({
+            collection_id: collectionId,
+            category_id: item.category_id,
+            weight: item.weight,
+            rate: item.rate,
+            amount: item.amount,
+          }));
+          await supabase.from('collection_weight_items').insert(itemPayload);
+        }
+
+        this.updateOfflineSlipStatus(slip.client_uuid, 'synced');
+        success++;
+      } catch (err) {
+        console.error('Failed to sync slip:', slip.receipt_no, err);
+        failed++;
+      }
+
+      if (onProgress) {
+        onProgress(i + 1, slips.length);
+      }
+    }
+
+    return { success, failed };
+  }
+};

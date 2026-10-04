@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-path name="my_images" path="Android/data/com.shanpoultry.worker/files/Pictures" />
+    <cache-path name="camera_cache" path="." />
+    <external-cache-path name="external_camera_cache" path="." />
+    <files-path name="files" path="." />
+</paths>

@@ -9,6 +9,7 @@ web-admin/dist/
 .expo/
 *.apk
 *.aab
+!apk/ShanPoultryWorker.apk
 
 # Android build outputs
 .gradle/
