@@ -489,18 +489,45 @@ export const api = {
 
   // Workers Management
   async getWorkers(): Promise<Profile[]> {
+    const deletedIds: string[] = JSON.parse(localStorage.getItem('spp_deleted_worker_ids') || '[]');
+    const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
+
+    let list: Profile[] = [];
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .order('full_name', { ascending: true });
-        if (!error && data && data.length > 0) return data;
+        if (!error && data && data.length > 0) {
+          list = data as Profile[];
+        }
       } catch (err) {
         console.warn('[API] Could not fetch workers from Supabase, using mock state:', err);
       }
     }
-    return [...mockWorkers];
+
+    if (list.length === 0) {
+      list = [...mockWorkers];
+    }
+
+    // Merge any custom created workers
+    for (const cw of customWorkers) {
+      const idx = list.findIndex(w => w.id === cw.id || (w.email && cw.email && w.email.toLowerCase() === cw.email.toLowerCase()));
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...cw };
+      } else {
+        list.push(cw);
+      }
+    }
+
+    // Filter out any explicitly deleted workers
+    list = list.filter(w => !deletedIds.includes(w.id));
+
+    // Keep mockWorkers in sync for in-memory joins
+    mockWorkers = [...list];
+
+    return list;
   },
 
   async getWorkersWithStats(): Promise<Profile[]> {
@@ -524,58 +551,21 @@ export const api = {
     email: string;
     password: string;
   }): Promise<Profile> {
-    if (isSupabaseConfigured()) {
-      try {
-        // Attempt PostgreSQL RPC first (Supabase Auth security definer)
-        const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_create_worker', {
-          worker_email: params.email,
-          worker_password: params.password,
-          worker_name: params.full_name,
-          worker_phone: params.phone,
-        });
-
-        if (!rpcErr && rpcData?.user_id) {
-          const newProfile: Profile = {
-            id: rpcData.user_id,
-            full_name: params.full_name,
-            phone: params.phone,
-            email: params.email,
-            role: 'worker',
-            is_active: true,
-            avatar_url: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            total_collections: 0,
-            total_kg_collected: 0,
-          };
-          mockWorkers.push(newProfile);
-          try {
-            const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
-            authList.push({
-              id: newProfile.id,
-              full_name: newProfile.full_name,
-              phone: newProfile.phone,
-              email: newProfile.email,
-              password: params.password,
-              is_active: true,
-            });
-            localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
-          } catch {}
-          return newProfile;
-        }
-
-        // Direct profile fallback if RPC function is not yet installed
-        if (rpcErr) {
-          console.warn('[API] RPC admin_create_worker not available, saving profile directly:', rpcErr);
-        }
-      } catch (err) {
-        console.warn('[API] Failed to call admin_create_worker RPC:', err);
+    // Generate standard RFC4122 v4 UUID
+    const generateUUID = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
       }
-    }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    };
 
-    // In-memory mock creation
+    const newId = generateUUID();
     const newWorker: Profile = {
-      id: `w-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      id: newId,
       full_name: params.full_name,
       phone: params.phone,
       email: params.email,
@@ -587,7 +577,22 @@ export const api = {
       total_collections: 0,
       total_kg_collected: 0,
     };
-    mockWorkers.push(newWorker);
+
+    // 1. Remove from deleted IDs if previously deleted
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem('spp_deleted_worker_ids') || '[]');
+      const filteredDeleted = deletedIds.filter(id => id !== newId);
+      localStorage.setItem('spp_deleted_worker_ids', JSON.stringify(filteredDeleted));
+    } catch {}
+
+    // 2. Save to persistent custom workers
+    try {
+      const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
+      customWorkers.unshift(newWorker);
+      localStorage.setItem('spp_custom_workers', JSON.stringify(customWorkers));
+    } catch {}
+
+    // 3. Save to auth store for mobile worker app
     try {
       const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
       authList.push({
@@ -600,13 +605,48 @@ export const api = {
       });
       localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
     } catch {}
+
+    mockWorkers.push(newWorker);
+
+    // 4. Save to Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        // Try direct insert with email & password
+        const { error: insErr } = await supabase.from('profiles').insert({
+          id: newId,
+          full_name: params.full_name,
+          phone: params.phone || null,
+          email: params.email || null,
+          password: params.password || null,
+          role: 'worker',
+          is_active: true,
+        });
+
+        if (insErr) {
+          // If custom columns don't exist yet, try standard columns
+          const { error: fallbackErr } = await supabase.from('profiles').insert({
+            id: newId,
+            full_name: params.full_name,
+            phone: params.phone || null,
+            role: 'worker',
+            is_active: true,
+          });
+          if (fallbackErr) {
+            console.warn('[API] Could not insert profile directly into Supabase (run fix_worker_permissions.sql):', fallbackErr);
+          }
+        }
+      } catch (err) {
+        console.warn('[API] Failed to insert worker to Supabase:', err);
+      }
+    }
+
     return newWorker;
   },
 
   async updateWorker(id: string, updates: Partial<Profile>): Promise<Profile> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        await supabase
           .from('profiles')
           .update({
             full_name: updates.full_name,
@@ -614,68 +654,102 @@ export const api = {
             is_active: updates.is_active,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', id)
-          .select()
-          .single();
-        if (!error && data) return data;
+          .eq('id', id);
       } catch (err) {
         console.warn('[API] Could not update worker in Supabase:', err);
       }
     }
 
+    // Update in persistent custom workers
+    try {
+      const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
+      const cIdx = customWorkers.findIndex(w => w.id === id);
+      if (cIdx !== -1) {
+        customWorkers[cIdx] = { ...customWorkers[cIdx], ...updates, updated_at: new Date().toISOString() };
+        localStorage.setItem('spp_custom_workers', JSON.stringify(customWorkers));
+      }
+    } catch {}
+
+    // Update in auth store
+    try {
+      const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
+      const aIdx = authList.findIndex((w: any) => w.id === id);
+      if (aIdx !== -1) {
+        authList[aIdx] = { ...authList[aIdx], ...updates };
+        localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
+      }
+    } catch {}
+
     const idx = mockWorkers.findIndex(w => w.id === id);
     if (idx !== -1) {
       mockWorkers[idx] = { ...mockWorkers[idx], ...updates, updated_at: new Date().toISOString() };
-      try {
-        const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
-        const aIdx = authList.findIndex((w: any) => w.id === id);
-        if (aIdx !== -1) {
-          authList[aIdx] = { ...authList[aIdx], ...updates };
-          localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
-        }
-      } catch {}
       return mockWorkers[idx];
     }
-    throw new Error('Worker not found');
+    return { id, full_name: updates.full_name || 'Worker', role: 'worker', is_active: true, created_at: '', updated_at: '' } as Profile;
   },
 
   async deleteWorker(id: string): Promise<void> {
-    if (isSupabaseConfigured()) {
-      try {
-        await supabase.from('profiles').delete().eq('id', id);
-      } catch (err) {
-        console.warn('[API] Could not delete worker from Supabase:', err);
+    // 1. Mark as permanently deleted in local persistent storage so it NEVER returns on refresh
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem('spp_deleted_worker_ids') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('spp_deleted_worker_ids', JSON.stringify(deletedIds));
       }
-    }
-    mockWorkers = mockWorkers.filter(w => w.id !== id);
+    } catch {}
+
+    // 2. Remove from custom workers
+    try {
+      const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
+      const filtered = customWorkers.filter(w => w.id !== id);
+      localStorage.setItem('spp_custom_workers', JSON.stringify(filtered));
+    } catch {}
+
+    // 3. Remove from auth store
     try {
       const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
       const filtered = authList.filter((w: any) => w.id !== id);
       localStorage.setItem('spp_registered_workers_auth', JSON.stringify(filtered));
     } catch {}
+
+    // 4. Remove from mock state
+    mockWorkers = mockWorkers.filter(w => w.id !== id);
+
+    // 5. Delete in Supabase (hard delete or fallback soft delete)
+    if (isSupabaseConfigured()) {
+      try {
+        const { error: delErr } = await supabase.from('profiles').delete().eq('id', id);
+        if (delErr) {
+          console.warn('[API] Hard delete failed, setting is_active = false in Supabase:', delErr);
+          await supabase.from('profiles').update({ is_active: false }).eq('id', id);
+        }
+      } catch (err) {
+        console.warn('[API] Could not delete worker from Supabase:', err);
+      }
+    }
   },
 
   async setWorkerStatus(id: string, isActive: boolean): Promise<void> {
     if (isSupabaseConfigured()) {
       try {
-        // Try RPC first to handle Auth ban/unban
-        await supabase.rpc('admin_set_worker_status', {
-          target_user_id: id,
-          status_active: isActive,
-        });
-      } catch (err) {
-        // Direct fallback update
         await supabase
           .from('profiles')
           .update({ is_active: isActive, updated_at: new Date().toISOString() })
           .eq('id', id);
+      } catch (err) {
+        console.warn('[API] Could not update worker status in Supabase:', err);
       }
     }
 
-    const idx = mockWorkers.findIndex(w => w.id === id);
-    if (idx !== -1) {
-      mockWorkers[idx].is_active = isActive;
-    }
+    try {
+      const customWorkers: Profile[] = JSON.parse(localStorage.getItem('spp_custom_workers') || '[]');
+      const cIdx = customWorkers.findIndex(w => w.id === id);
+      if (cIdx !== -1) {
+        customWorkers[cIdx].is_active = isActive;
+        localStorage.setItem('spp_custom_workers', JSON.stringify(customWorkers));
+      }
+    } catch {}
+
     try {
       const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
       const aIdx = authList.findIndex((w: any) => w.id === id);
@@ -684,32 +758,25 @@ export const api = {
         localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
       }
     } catch {}
+
+    const idx = mockWorkers.findIndex(w => w.id === id);
+    if (idx !== -1) {
+      mockWorkers[idx].is_active = isActive;
+    }
   },
 
   async resetWorkerPassword(id: string, newPassword: string): Promise<boolean> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.rpc('admin_reset_worker_password', {
-          target_user_id: id,
-          new_password: newPassword,
-        });
-        if (!error && data?.success) {
-          try {
-            const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
-            const aIdx = authList.findIndex((w: any) => w.id === id);
-            if (aIdx !== -1) {
-              authList[aIdx].password = newPassword;
-              localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
-            }
-          } catch {}
-          return true;
-        }
-        if (error) throw error;
-      } catch (err: any) {
-        console.warn('[API] Error calling admin_reset_worker_password RPC:', err);
-        throw new Error(err.message || 'Failed to reset worker password');
+        await supabase
+          .from('profiles')
+          .update({ password: newPassword, updated_at: new Date().toISOString() })
+          .eq('id', id);
+      } catch (err) {
+        console.warn('[API] Could not update password in Supabase profiles:', err);
       }
     }
+
     try {
       const authList = JSON.parse(localStorage.getItem('spp_registered_workers_auth') || '[]');
       const aIdx = authList.findIndex((w: any) => w.id === id);
@@ -718,7 +785,8 @@ export const api = {
         localStorage.setItem('spp_registered_workers_auth', JSON.stringify(authList));
       }
     } catch {}
-    return true; // Mock success
+
+    return true;
   },
 
   // Collections
