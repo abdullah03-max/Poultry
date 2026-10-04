@@ -44,7 +44,16 @@ export const mobileStorage = {
   getOfflineSlips(): OfflineCollectionItem[] {
     try {
       const data = localStorage.getItem(STORAGE_KEY_OFFLINE_SLIPS);
-      return data ? JSON.parse(data) : [];
+      if (!data) return [];
+      const list: OfflineCollectionItem[] = JSON.parse(data);
+      // Clean out any old legacy mock slips that don't belong to a real worker
+      const cleaned = list.filter(
+        s => s.worker_id && s.worker_id.length > 20 && s.receipt_no !== 'SPP-202610-9732' && s.receipt_no !== 'SPP-202610-8222'
+      );
+      if (cleaned.length !== list.length) {
+        localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(cleaned));
+      }
+      return cleaned;
     } catch {
       return [];
     }
@@ -53,13 +62,39 @@ export const mobileStorage = {
   saveOfflineSlip(slip: OfflineCollectionItem): void {
     const list = this.getOfflineSlips();
     list.unshift(slip);
-    localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(list));
+    try {
+      localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(list));
+    } catch (quotaErr) {
+      console.warn('[mobileStorage] localStorage quota exceeded, pruning old photos and synced slips...', quotaErr);
+      try {
+        // Step 1: Strip heavy photo from older synced slips
+        const trimmed = list.map((item, idx) => {
+          if (idx > 0 && item.status === 'synced') {
+            return { ...item, photo_base64: null };
+          }
+          return item;
+        });
+        localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(trimmed));
+      } catch {
+        try {
+          // Step 2: Keep only 15 slips without synced photos
+          const minimal = list.slice(0, 15).map(item => item.status === 'synced' ? { ...item, photo_base64: null } : item);
+          localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(minimal));
+        } catch {
+          // Step 3: Keep only pending slips
+          const pendingOnly = list.filter(item => item.status === 'pending_sync');
+          localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(pendingOnly));
+        }
+      }
+    }
   },
 
   updateOfflineSlipStatus(client_uuid: string, status: 'synced'): void {
     const list = this.getOfflineSlips();
-    const updated = list.map(item => item.client_uuid === client_uuid ? { ...item, status } : item);
-    localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(updated));
+    const updated = list.map(item => item.client_uuid === client_uuid ? { ...item, status, photo_base64: null } : item);
+    try {
+      localStorage.setItem(STORAGE_KEY_OFFLINE_SLIPS, JSON.stringify(updated));
+    } catch {}
   },
 
   getPendingSyncCount(): number {

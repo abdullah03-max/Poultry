@@ -44,6 +44,55 @@ const defaultCategories: WeightCategory[] = [
   { id: 'fat', code: 'fat', name: 'Fat Weight', urdu_name: 'چربی وزن', unit: 'KG', default_rate: 55, is_active: true, display_order: 4, created_at: '', updated_at: '' },
 ];
 
+// Lightweight client-side image compression to prevent localStorage QuotaExceededError
+const compressImage = (file: File, maxDimension = 900, quality = 0.65): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 export const MobileApp: React.FC = () => {
   // Navigation
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -84,6 +133,7 @@ export const MobileApp: React.FC = () => {
   const [ratePerKg, setRatePerKg] = useState<string>('45');
   const [notes, setNotes] = useState<string>('');
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState<boolean>(false);
   const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
   const [isSavingCollection, setIsSavingCollection] = useState<boolean>(false);
 
@@ -113,12 +163,11 @@ export const MobileApp: React.FC = () => {
     const savedWorker = mobileStorage.getLoggedWorker();
     if (savedWorker) {
       setWorker(savedWorker);
+      loadData(savedWorker);
     } else {
       setWorker(null);
+      setOfflineSlips([]);
     }
-
-    // Load cached customers & slips
-    loadData();
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -126,11 +175,15 @@ export const MobileApp: React.FC = () => {
     };
   }, []);
 
-  const loadData = async () => {
-    // 1. Slips
-    const slips = mobileStorage.getOfflineSlips();
-    setOfflineSlips(slips);
-    setPendingCount(slips.filter(s => s.status === 'pending_sync').length);
+  const loadData = async (activeWorkerParam?: any) => {
+    const activeWorker = activeWorkerParam !== undefined ? activeWorkerParam : (worker || mobileStorage.getLoggedWorker());
+    const workerId = activeWorker?.id;
+
+    // 1. Initial Local Slips - filtered strictly by current worker
+    const allLocalSlips = mobileStorage.getOfflineSlips();
+    const workerLocalSlips = workerId ? allLocalSlips.filter(s => s.worker_id === workerId) : [];
+    setOfflineSlips(workerLocalSlips);
+    setPendingCount(workerLocalSlips.filter(s => s.status === 'pending_sync').length);
 
     // 2. Customers
     const cached = mobileStorage.getCachedCustomers();
@@ -138,7 +191,7 @@ export const MobileApp: React.FC = () => {
       setCustomers(cached);
     }
 
-    // Try fetching live customers if online
+    // Try fetching live customers & live worker collections if online
     if (navigator.onLine) {
       try {
         const { data, error } = await supabase
@@ -152,6 +205,63 @@ export const MobileApp: React.FC = () => {
         }
       } catch (err) {
         console.warn('Could not fetch live customers, using cache:', err);
+      }
+
+      // Fetch today's real collections from Supabase for this worker
+      if (workerId && workerId.length > 20) {
+        try {
+          const todayDate = new Date().toISOString().split('T')[0];
+          const { data: remoteData, error: colError } = await supabase
+            .from('collections')
+            .select(`
+              *,
+              customer:customers(*)
+            `)
+            .eq('worker_id', workerId)
+            .eq('collection_date', todayDate)
+            .order('collection_timestamp', { ascending: false });
+
+          if (!colError && remoteData) {
+            const mappedRemote: OfflineCollectionItem[] = remoteData.map((r: any) => ({
+              client_uuid: r.client_uuid || r.id,
+              receipt_no: r.receipt_no,
+              customer_id: r.customer_id,
+              customer_name: r.customer?.name || 'Customer',
+              customer_area: r.customer?.area || '',
+              worker_id: r.worker_id,
+              worker_name: activeWorker?.full_name || 'Field Collector',
+              collection_date: r.collection_date,
+              collection_time: r.collection_time || '00:00',
+              gross_weight: r.gross_weight,
+              tare_weight: r.tare_weight,
+              total_net_weight: r.total_net_weight,
+              rate_per_kg: r.rate_per_kg,
+              total_amount: r.total_amount,
+              notes: r.notes,
+              signature_base64: r.signature_url || null,
+              photo_base64: null,
+              items: [],
+              status: 'synced',
+              created_at: r.created_at || r.collection_timestamp,
+            }));
+
+            // Pending slips not yet synced
+            const pending = workerLocalSlips.filter(s => s.status === 'pending_sync');
+            const seenReceipts = new Set(pending.map(s => s.receipt_no));
+            const merged = [...pending];
+            for (const rem of mappedRemote) {
+              if (!seenReceipts.has(rem.receipt_no)) {
+                merged.push(rem);
+                seenReceipts.add(rem.receipt_no);
+              }
+            }
+
+            setOfflineSlips(merged);
+            setPendingCount(pending.length);
+          }
+        } catch (colErr) {
+          console.warn('Could not fetch worker collections from Supabase:', colErr);
+        }
       }
     }
   };
@@ -215,7 +325,7 @@ export const MobileApp: React.FC = () => {
             mobileStorage.saveRegisteredWorker(matched);
             mobileStorage.setLoggedWorker(loggedWorker);
             setWorker(loggedWorker);
-            loadData();
+            loadData(loggedWorker);
             setAuthLoading(false);
             return;
           }
@@ -229,7 +339,7 @@ export const MobileApp: React.FC = () => {
       if (authResult.success && authResult.worker) {
         mobileStorage.setLoggedWorker(authResult.worker);
         setWorker(authResult.worker);
-        loadData();
+        loadData(authResult.worker);
       } else {
         setAuthError(authResult.error || 'ایڈمن نے اس ای میل یا فون پر کوئی ورکر اکاؤنٹ رجسٹر نہیں کیا۔ / No worker account found.');
       }
@@ -254,15 +364,24 @@ export const MobileApp: React.FC = () => {
   const rateNum = parseFloat(ratePerKg) || (selectedCustomer?.rate_per_kg || 45);
   const totalAmount = Math.round(effectiveNetWeight * rateNum);
 
-  // Photo Capture
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Photo Capture with automatic downscaling & compression to prevent quota errors
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoBase64(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        setIsCompressingPhoto(true);
+        const compressedDataUrl = await compressImage(file, 900, 0.65);
+        setPhotoBase64(compressedDataUrl);
+      } catch (err) {
+        console.error('Failed to compress photo, falling back to original:', err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPhotoBase64(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setIsCompressingPhoto(false);
+      }
     }
   };
 
@@ -440,10 +559,12 @@ export const MobileApp: React.FC = () => {
         }
       }
 
-      // Save locally
+      // Save locally (strip photo from localStorage if already saved online to avoid storage quota)
+      if (savedOnline) {
+        newSlip.photo_base64 = null;
+      }
       mobileStorage.saveOfflineSlip(newSlip);
-      setOfflineSlips(mobileStorage.getOfflineSlips());
-      setPendingCount(mobileStorage.getPendingSyncCount());
+      await loadData(worker);
 
       // Show digital receipt popup
       setReceiptModalSlip(newSlip);
@@ -1073,7 +1194,13 @@ export const MobileApp: React.FC = () => {
                 <span className="text-[11px] text-slate-400 font-normal">کانٹے / رسید کی تصویر</span>
               </label>
 
-              {photoBase64 ? (
+              {isCompressingPhoto ? (
+                <div className="w-full py-8 border border-slate-200 rounded-xl flex flex-col items-center justify-center bg-slate-50 gap-2">
+                  <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
+                  <span className="text-xs font-bold text-slate-700">تصویر پروسیس اور کمپریس ہو رہی ہے...</span>
+                  <span className="text-[10px] text-slate-400">Compressing scale photo to save storage</span>
+                </div>
+              ) : photoBase64 ? (
                 <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
                   <img src={photoBase64} alt="Scale attachment" className="w-full h-40 object-cover" />
                   <button
@@ -1394,6 +1521,8 @@ export const MobileApp: React.FC = () => {
                 if (confirm('Log out from this worker account? You will need your assigned credentials to log back in.')) {
                   mobileStorage.clearSession();
                   setWorker(null);
+                  setOfflineSlips([]);
+                  setPendingCount(0);
                 }
               }}
               className="w-full py-3 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:bg-rose-100 transition"
