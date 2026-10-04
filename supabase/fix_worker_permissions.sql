@@ -32,8 +32,8 @@ CREATE POLICY "Public manage profiles" ON public.profiles
 INSERT INTO public.profiles (id, full_name, phone, email, password, role, is_active)
 VALUES
     ('a0000000-0000-0000-0000-000000000001', 'Haji Shan (Owner)', '+92 300 0000001', 'admin@shanpoultryprotein.com', 'shanadmin2026', 'admin', true),
-    ('w0000000-0000-0000-0000-000000000001', 'Rashid Khan (Collector)', '+92 300 0000002', 'rashid@shanpoultry.com', 'worker123', 'worker', true),
-    ('w0000000-0000-0000-0000-000000000002', 'Aslam Pervez (Collector)', '+92 300 0000003', 'aslam@shanpoultry.com', 'worker123', 'worker', true)
+    ('b0000000-0000-0000-0000-000000000001', 'Rashid Khan (Collector)', '+92 300 0000002', 'rashid@shanpoultry.com', 'worker123', 'worker', true),
+    ('b0000000-0000-0000-0000-000000000002', 'Aslam Pervez (Collector)', '+92 300 0000003', 'aslam@shanpoultry.com', 'worker123', 'worker', true)
 ON CONFLICT (id) DO UPDATE
 SET email = EXCLUDED.email,
     password = EXCLUDED.password;

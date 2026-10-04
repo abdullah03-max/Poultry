@@ -123,7 +123,7 @@ export const mobileStorage = {
     }
     const defaultWorkers = [
       {
-        id: 'w0000000-0000-0000-0000-000000000001',
+        id: 'b0000000-0000-0000-0000-000000000001',
         full_name: 'Rashid Khan (Worker)',
         email: 'rashid@shanpoultry.com',
         phone: '+92 300 0000002',
@@ -131,7 +131,7 @@ export const mobileStorage = {
         is_active: true,
       },
       {
-        id: 'worker-field-01',
+        id: 'b0000000-0000-0000-0000-000000000002',
         full_name: 'Tariq Mahmood (Field Collector)',
         email: 'tariq@shanpoultry.com',
         phone: '+92 301 5556677',

@@ -177,7 +177,7 @@ let mockSettings: BusinessSettings = {
 
 let mockWorkers: Profile[] = [
   {
-    id: 'w0000000-0000-0000-0000-000000000001',
+    id: 'b0000000-0000-0000-0000-000000000001',
     full_name: 'Rashid Khan (Collector)',
     phone: '+92 300 0000002',
     role: 'worker',
@@ -187,7 +187,7 @@ let mockWorkers: Profile[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'w0000000-0000-0000-0000-000000000002',
+    id: 'b0000000-0000-0000-0000-000000000002',
     full_name: 'Aslam Pervez (Collector)',
     phone: '+92 300 0000003',
     role: 'worker',

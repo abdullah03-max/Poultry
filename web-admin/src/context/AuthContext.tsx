@@ -34,7 +34,7 @@ const defaultAdminProfile: Profile = {
 };
 
 const defaultWorkerProfile: Profile = {
-  id: 'w0000000-0000-0000-0000-000000000001',
+  id: 'b0000000-0000-0000-0000-000000000001',
   full_name: 'Rashid Khan (Worker)',
   phone: '+92 300 0000002',
   role: 'worker',
