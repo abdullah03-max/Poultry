@@ -12,8 +12,10 @@ import {
   X,
   Smartphone,
   ExternalLink,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 export type NavigationTab =
   | 'dashboard'
@@ -39,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
 }) => {
   const { logout, profile } = useAuth();
+  const { isInstalled, triggerInstall } = usePWAInstall();
 
   const navItems: { id: NavigationTab; label: string; urdu: string; icon: any; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', urdu: 'ڈیش بورڈ', icon: LayoutDashboard },
@@ -156,6 +159,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <ExternalLink className="w-3.5 h-3.5 text-blue-400 group-hover:translate-x-0.5 transition-transform" />
             </a>
+          </div>
+
+          {/* Install Desktop App (PWA) */}
+          <div className="pt-1.5">
+            <button
+              onClick={triggerInstall}
+              type="button"
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 hover:text-white hover:bg-emerald-500/20 text-xs font-semibold transition group"
+              title="Install as a standalone Windows Desktop Application"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <Download className="w-4 h-4 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="truncate">{isInstalled ? 'Desktop App Installed' : 'Install Desktop App'}</span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono font-bold">
+                {isInstalled ? 'ACTIVE' : 'DESKTOP'}
+              </span>
+            </button>
           </div>
         </nav>
 

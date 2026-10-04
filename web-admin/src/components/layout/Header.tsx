@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Radio, Clock, Plus, Printer, Menu } from 'lucide-react';
+import { Radio, Clock, Plus, Printer, Menu, Download } from 'lucide-react';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { triggerPrint } from '../../utils/exportUtils';
 import { NotificationBell } from './NotificationBell';
 import { Collection } from '../../types/database';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface HeaderProps {
   title: string;
@@ -31,6 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleMobileSidebar,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
+  const { isInstalled, triggerInstall } = usePWAInstall();
 
   useEffect(() => {
     const updateTime = () => {
@@ -112,6 +114,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Notification Bell with Chime Sound */}
         <NotificationBell latestEvent={latestEvent} onViewCollection={onViewCollection} />
+
+        {/* Install Desktop App (PWA) Button */}
+        {!isInstalled && (
+          <button
+            onClick={triggerInstall}
+            className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200/80 shadow-sm transition"
+            title="Install Shan Poultry as a Windows Desktop App"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-600" />
+            <span>Install App</span>
+          </button>
+        )}
 
         {/* Print Button (hidden on mobile, print is desktop oriented) */}
         {showPrint && (
