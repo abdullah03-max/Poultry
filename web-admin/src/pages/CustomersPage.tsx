@@ -81,8 +81,23 @@ export const CustomersPage: React.FC = () => {
     if (!editingCustomer) return;
 
     try {
+      const charbiRate = editingCustomer.rate_charbi ?? 55.0;
+      const kacharaRate = editingCustomer.rate_kachara ?? (editingCustomer.rate_per_kg ?? 45.0);
+
+      const customerPayload = {
+        ...editingCustomer,
+        rate_charbi: charbiRate,
+        rate_kachara: kacharaRate,
+        rate_per_kg: kacharaRate,
+        category_rates: {
+          charbi: charbiRate,
+          kachara: kacharaRate,
+          ...(editingCustomer.category_rates || {}),
+        },
+      };
+
       if (editingCustomer.id) {
-        await api.updateCustomer(editingCustomer.id, editingCustomer);
+        await api.updateCustomer(editingCustomer.id, customerPayload);
       } else {
         await api.createCustomer({
           customer_code: editingCustomer.customer_code || `CUST-${String(customers.length + 1).padStart(3, '0')}`,
@@ -92,8 +107,13 @@ export const CustomersPage: React.FC = () => {
           alternate_phone: editingCustomer.alternate_phone || null,
           address: editingCustomer.address || null,
           area: editingCustomer.area || 'General',
-          rate_per_kg: editingCustomer.rate_per_kg || 45.0,
-          category_rates: {},
+          rate_per_kg: kacharaRate,
+          rate_charbi: charbiRate,
+          rate_kachara: kacharaRate,
+          category_rates: {
+            charbi: charbiRate,
+            kachara: kacharaRate,
+          },
           status: 'active',
           notes: editingCustomer.notes || null,
         });
@@ -138,6 +158,8 @@ export const CustomersPage: React.FC = () => {
                 contact_person: '',
                 phone: '+92 3',
                 area: 'Gaggoo Mandi',
+                rate_charbi: 55.0,
+                rate_kachara: 45.0,
                 rate_per_kg: 45.0,
                 status: 'active',
               });
@@ -233,9 +255,13 @@ export const CustomersPage: React.FC = () => {
                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span className="truncate">{cust.area} — {cust.address || 'Standard Address'}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-brand-700 font-semibold">
-                    <Scale className="w-3.5 h-3.5 shrink-0" />
-                    <span>Agreed Rate: {cust.rate_per_kg} PKR / KG</span>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs font-semibold">
+                    <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                      چربی: {cust.rate_charbi ?? 55} PKR/KG
+                    </span>
+                    <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-lg">
+                      کچرا: {cust.rate_kachara ?? (cust.rate_per_kg ?? 45)} PKR/KG
+                    </span>
                   </div>
                 </div>
               </div>
@@ -398,18 +424,41 @@ export const CustomersPage: React.FC = () => {
                 className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-600"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Rate (PKR / KG) *
+              <label className="block text-xs font-semibold text-emerald-800 uppercase tracking-wider mb-1">
+                Charbi Rate (چربی وزن) PKR/KG *
               </label>
               <input
                 type="number"
                 step="0.5"
                 min="0"
                 required
-                value={editingCustomer?.rate_per_kg ?? 45}
-                onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), rate_per_kg: parseFloat(e.target.value) || 0 }))}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-600"
+                value={editingCustomer?.rate_charbi ?? 55}
+                onChange={e => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setEditingCustomer(prev => ({ ...(prev || {}), rate_charbi: val }));
+                }}
+                className="w-full bg-emerald-50/40 border border-emerald-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-600"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-amber-800 uppercase tracking-wider mb-1">
+                Kachara Rate (کچرا وزن) PKR/KG *
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                required
+                value={editingCustomer?.rate_kachara ?? (editingCustomer?.rate_per_kg ?? 45)}
+                onChange={e => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setEditingCustomer(prev => ({ ...(prev || {}), rate_kachara: val, rate_per_kg: val }));
+                }}
+                className="w-full bg-amber-50/40 border border-amber-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>

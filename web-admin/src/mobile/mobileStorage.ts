@@ -11,6 +11,7 @@ export interface OfflineCollectionItem {
   customer_id: string;
   customer_name: string;
   customer_area: string;
+  customer_phone?: string;
   worker_id: string | null;
   worker_name: string;
   collection_date: string;
@@ -26,10 +27,26 @@ export interface OfflineCollectionItem {
   items: Array<{
     category_id: string;
     category_name: string;
+    category_code?: string;
+    gross_weight?: number;
+    tare_weight?: number;
     weight: number;
     rate: number;
     amount: number;
   }>;
+  // Dedicated Charbi & Kachara Breakdown
+  charbi_gross?: number;
+  charbi_tare?: number;
+  charbi_net?: number;
+  charbi_rate?: number;
+  charbi_total?: number;
+
+  kachara_gross?: number;
+  kachara_tare?: number;
+  kachara_net?: number;
+  kachara_rate?: number;
+  kachara_total?: number;
+
   status: 'pending_sync' | 'synced';
   created_at: string;
 }
@@ -283,6 +300,16 @@ export const mobileStorage = {
             total_amount: slip.total_amount,
             notes: slip.notes,
             signature_url: slip.signature_base64 || null,
+            charbi_gross: slip.charbi_gross ?? 0,
+            charbi_tare: slip.charbi_tare ?? 0,
+            charbi_net: slip.charbi_net ?? 0,
+            charbi_rate: slip.charbi_rate ?? 55,
+            charbi_total: slip.charbi_total ?? 0,
+            kachara_gross: slip.kachara_gross ?? 0,
+            kachara_tare: slip.kachara_tare ?? 0,
+            kachara_net: slip.kachara_net ?? 0,
+            kachara_rate: slip.kachara_rate ?? 45,
+            kachara_total: slip.kachara_total ?? 0,
             status: 'submitted',
           })
           .select()

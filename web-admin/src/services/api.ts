@@ -29,7 +29,9 @@ let mockCustomers: Customer[] = [
     address: 'Main Market, Shop #12',
     area: 'Gaggoo Mandi',
     rate_per_kg: 45.0,
-    category_rates: {},
+    rate_charbi: 55.0,
+    rate_kachara: 45.0,
+    category_rates: { charbi: 55.0, kachara: 45.0 },
     status: 'active',
     notes: 'Daily morning collection at 8:00 AM',
     is_deleted: false,
@@ -46,7 +48,9 @@ let mockCustomers: Customer[] = [
     address: 'College Road, Near Shell Pump',
     area: 'Burewala',
     rate_per_kg: 48.0,
-    category_rates: {},
+    rate_charbi: 58.0,
+    rate_kachara: 48.0,
+    category_rates: { charbi: 58.0, kachara: 48.0 },
     status: 'active',
     notes: 'High volume supplier',
     is_deleted: false,
@@ -63,7 +67,9 @@ let mockCustomers: Customer[] = [
     address: 'Railway Road, Stall #4',
     area: 'Vehari',
     rate_per_kg: 42.0,
-    category_rates: {},
+    rate_charbi: 52.0,
+    rate_kachara: 42.0,
+    category_rates: { charbi: 52.0, kachara: 42.0 },
     status: 'active',
     notes: 'Evening collection preferred',
     is_deleted: false,
@@ -80,7 +86,9 @@ let mockCustomers: Customer[] = [
     address: 'Grain Market Gate 2',
     area: 'Chichawatni',
     rate_per_kg: 46.5,
-    category_rates: {},
+    rate_charbi: 56.5,
+    rate_kachara: 46.5,
+    category_rates: { charbi: 56.5, kachara: 46.5 },
     status: 'active',
     notes: 'Specialized in broiler offal',
     is_deleted: false,
@@ -97,7 +105,9 @@ let mockCustomers: Customer[] = [
     address: 'Katchery Chowk',
     area: 'Sahiwal',
     rate_per_kg: 50.0,
-    category_rates: {},
+    rate_charbi: 60.0,
+    rate_kachara: 50.0,
+    category_rates: { charbi: 60.0, kachara: 50.0 },
     status: 'active',
     notes: 'Large slaughterhouse unit',
     is_deleted: false,
@@ -108,50 +118,26 @@ let mockCustomers: Customer[] = [
 
 let mockCategories: WeightCategory[] = [
   {
-    id: 'wc1',
-    code: 'cat_1',
-    name: 'Weight Category 1',
-    urdu_name: 'وزن کیٹیگری ۱',
+    id: 'wc_charbi',
+    code: 'charbi',
+    name: 'Charbi Weight',
+    urdu_name: 'چربی وزن',
     unit: 'KG',
-    default_rate: 45.0,
+    default_rate: 55.0,
     is_active: true,
     display_order: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'wc2',
-    code: 'cat_2',
-    name: 'Weight Category 2',
-    urdu_name: 'وزن کیٹیگری ۲',
+    id: 'wc_kachara',
+    code: 'kachara',
+    name: 'Kachara Weight',
+    urdu_name: 'کچرا وزن',
     unit: 'KG',
-    default_rate: 40.0,
+    default_rate: 45.0,
     is_active: true,
     display_order: 2,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'wc3',
-    code: 'waste',
-    name: 'Waste Weight',
-    urdu_name: 'فضلہ وزن',
-    unit: 'KG',
-    default_rate: 48.0,
-    is_active: true,
-    display_order: 3,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'wc4',
-    code: 'fat',
-    name: 'Fat Weight',
-    urdu_name: 'چربی وزن',
-    unit: 'KG',
-    default_rate: 55.0,
-    is_active: true,
-    display_order: 4,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -1075,6 +1061,18 @@ export const api = {
           status: updates.status || 'submitted',
           updated_at: new Date().toISOString(),
         };
+
+        if (updates.charbi_gross !== undefined) payload.charbi_gross = updates.charbi_gross;
+        if (updates.charbi_tare !== undefined) payload.charbi_tare = updates.charbi_tare;
+        if (updates.charbi_net !== undefined) payload.charbi_net = updates.charbi_net;
+        if (updates.charbi_rate !== undefined) payload.charbi_rate = updates.charbi_rate;
+        if (updates.charbi_total !== undefined) payload.charbi_total = updates.charbi_total;
+
+        if (updates.kachara_gross !== undefined) payload.kachara_gross = updates.kachara_gross;
+        if (updates.kachara_tare !== undefined) payload.kachara_tare = updates.kachara_tare;
+        if (updates.kachara_net !== undefined) payload.kachara_net = updates.kachara_net;
+        if (updates.kachara_rate !== undefined) payload.kachara_rate = updates.kachara_rate;
+        if (updates.kachara_total !== undefined) payload.kachara_total = updates.kachara_total;
 
         const { data, error } = await supabase
           .from('collections')

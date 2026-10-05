@@ -32,9 +32,15 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [collectionDate, setCollectionDate] = useState<string>('');
   const [collectionTime, setCollectionTime] = useState<string>('');
-  const [grossWeight, setGrossWeight] = useState<string>('');
-  const [tareWeight, setTareWeight] = useState<string>('0');
-  const [categoryWeights, setCategoryWeights] = useState<Record<string, string>>({});
+
+  const [charbiGross, setCharbiGross] = useState<string>('');
+  const [charbiTare, setCharbiTare] = useState<string>('0');
+  const [charbiRate, setCharbiRate] = useState<string>('55');
+
+  const [kacharaGross, setKacharaGross] = useState<string>('');
+  const [kacharaTare, setKacharaTare] = useState<string>('0');
+  const [kacharaRate, setKacharaRate] = useState<string>('45');
+
   const [notes, setNotes] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -64,20 +70,17 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
       setCollectionDate(defaultDate);
       setCollectionTime(defaultTime);
 
-      if (initialCustomerId) {
-        setSelectedCustomerId(initialCustomerId);
-      } else if (custList.length > 0) {
-        setSelectedCustomerId(custList[0].id);
+      const targetId = initialCustomerId || (custList.length > 0 ? custList[0].id : '');
+      setSelectedCustomerId(targetId);
+      const targetCust = custList.find(c => c.id === targetId);
+      if (targetCust) {
+        setCharbiRate((targetCust.rate_charbi || 55).toString());
+        setKacharaRate((targetCust.rate_kachara || targetCust.rate_per_kg || 45).toString());
       }
-
-      // Initialize category weights
-      const initialCatWeights: Record<string, string> = {};
-      catList.forEach(c => {
-        initialCatWeights[c.id] = '';
-      });
-      setCategoryWeights(initialCatWeights);
-      setGrossWeight('');
-      setTareWeight('0');
+      setCharbiGross('');
+      setCharbiTare('0');
+      setKacharaGross('');
+      setKacharaTare('0');
       setNotes('');
     } catch (err) {
       console.error('Failed to load form data:', err);
@@ -87,27 +90,34 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
     }
   };
 
+  const handleCustomerSelect = (id: string) => {
+    setSelectedCustomerId(id);
+    const cust = customers.find(c => c.id === id);
+    if (cust) {
+      setCharbiRate((cust.rate_charbi || 55).toString());
+      setKacharaRate((cust.rate_kachara || cust.rate_per_kg || 45).toString());
+    }
+  };
+
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
-  // Compute calculated weights
-  const grossNum = parseFloat(grossWeight) || 0;
-  const tareNum = parseFloat(tareWeight) || 0;
-  const calculatedNetWeight = Math.max(0, grossNum - tareNum);
+  // Compute calculated weights (Charbi & Kachara)
+  const cGross = parseFloat(charbiGross) || 0;
+  const cTare = parseFloat(charbiTare) || 0;
+  const cRate = parseFloat(charbiRate) || 0;
+  const cNet = Math.max(0, cGross - cTare);
+  const cTotal = Math.round(cNet * cRate);
 
-  // Sum of category weights
-  const sumCategoryWeights = Object.values(categoryWeights).reduce(
-    (acc, val) => acc + (parseFloat(val) || 0),
-    0
-  );
+  const kGross = parseFloat(kacharaGross) || 0;
+  const kTare = parseFloat(kacharaTare) || 0;
+  const kRate = parseFloat(kacharaRate) || 0;
+  const kNet = Math.max(0, kGross - kTare);
+  const kTotal = Math.round(kNet * kRate);
 
-  // If user entered category weights directly without gross/tare, suggest auto-filling gross
-  const effectiveNetWeight = calculatedNetWeight > 0 ? calculatedNetWeight : sumCategoryWeights;
-  const ratePerKg = selectedCustomer?.rate_per_kg || 0;
-  const totalAmount = Number((effectiveNetWeight * ratePerKg).toFixed(2));
-
-  const handleCategoryWeightChange = (catId: string, val: string) => {
-    setCategoryWeights(prev => ({ ...prev, [catId]: val }));
-  };
+  const totalGrossWeight = cGross + kGross;
+  const totalTareWeight = cTare + kTare;
+  const effectiveNetWeight = cNet + kNet;
+  const totalAmount = cTotal + kTotal;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,17 +145,20 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
           });
 
       // Build category item entries
-      const items = Object.entries(categoryWeights)
-        .filter(([_, w]) => parseFloat(w) > 0)
-        .map(([catId, w]) => {
-          const weightNum = parseFloat(w);
-          return {
-            category_id: catId,
-            weight: weightNum,
-            rate: ratePerKg,
-            amount: Number((weightNum * ratePerKg).toFixed(2)),
-          };
-        });
+      const items = [
+        ...(cNet > 0 ? [{
+          category_id: 'charbi',
+          weight: cNet,
+          rate: cRate,
+          amount: cTotal,
+        }] : []),
+        ...(kNet > 0 ? [{
+          category_id: 'kachara',
+          weight: kNet,
+          rate: kRate,
+          amount: kTotal,
+        }] : []),
+      ];
 
       const newSlip = await api.createCollection(
         {
@@ -153,13 +166,23 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
           worker_id: null,
           collection_date: collectionDate,
           collection_time: `${collectionTime}:00`,
-          gross_weight: grossNum > 0 ? grossNum : effectiveNetWeight,
-          tare_weight: tareNum,
+          gross_weight: totalGrossWeight > 0 ? totalGrossWeight : effectiveNetWeight,
+          tare_weight: totalTareWeight,
           total_net_weight: effectiveNetWeight,
-          rate_per_kg: ratePerKg,
+          rate_per_kg: kRate || cRate || 45,
           total_amount: totalAmount,
           notes: notes.trim() || null,
           client_uuid: clientUuid,
+          charbi_gross: cGross,
+          charbi_tare: cTare,
+          charbi_net: cNet,
+          charbi_rate: cRate,
+          charbi_total: cTotal,
+          kachara_gross: kGross,
+          kachara_tare: kTare,
+          kachara_net: kNet,
+          kachara_rate: kRate,
+          kachara_total: kTotal,
         },
         items
       );
@@ -203,13 +226,13 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
             </label>
             <select
               value={selectedCustomerId}
-              onChange={e => setSelectedCustomerId(e.target.value)}
+              onChange={e => handleCustomerSelect(e.target.value)}
               required
               className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 transition"
             >
               {customers.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.customer_code} — {c.name} ({c.area}) - Rate: {c.rate_per_kg} PKR/KG
+                  {c.customer_code} — {c.name} ({c.area}) - چربی: Rs. {c.rate_charbi || 55} | کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
                 </option>
               ))}
             </select>
@@ -243,70 +266,117 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
             </div>
           </div>
 
-          {/* Dynamic Weight Categories Input */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/90 space-y-3">
-            <span className="text-xs font-bold text-brand-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Scale className="w-3.5 h-3.5" /> Weight Categories (KG)
-            </span>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {categories.map(cat => (
-                <div key={cat.id}>
-                  <label className="block text-xs font-medium text-slate-700 mb-1 truncate">
-                    {cat.name}
-                    {cat.urdu_name && <span className="text-[10px] text-slate-400 ml-1 font-urdu">({cat.urdu_name})</span>}
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder="0.0"
-                    value={categoryWeights[cat.id] || ''}
-                    onChange={e => handleCategoryWeightChange(cat.id, e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600"
-                  />
-                </div>
-              ))}
+          {/* Charbi Weight Card */}
+          <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Scale className="w-3.5 h-3.5 text-emerald-600" /> چربی وزن (Charbi Weight)
+              </span>
+              <span className="text-xs font-bold text-emerald-800 font-mono">
+                خالص: {cNet.toFixed(1)} KG | رقم: Rs. {cTotal.toLocaleString()}
+              </span>
             </div>
 
-            {/* Gross / Tare Alternative */}
-            <div className="pt-3 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Scale Gross Weight</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="Optional Gross"
-                  value={grossWeight}
-                  onChange={e => setGrossWeight(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-brand-600"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Crate Tare Weight</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن KG)</label>
                 <input
                   type="number"
                   step="0.1"
                   min="0"
                   placeholder="0.0"
-                  value={tareWeight}
-                  onChange={e => setTareWeight(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-brand-600"
+                  value={charbiGross}
+                  onChange={e => setCharbiGross(e.target.value)}
+                  className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن KG)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="0.0"
+                  value={charbiTare}
+                  onChange={e => setCharbiTare(e.target.value)}
+                  className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate (ریٹ PKR/KG)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  placeholder="55"
+                  value={charbiRate}
+                  onChange={e => setCharbiRate(e.target.value)}
+                  className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Kachara Weight Card */}
+          <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Scale className="w-3.5 h-3.5 text-amber-600" /> کچرا وزن (Kachara Weight)
+              </span>
+              <span className="text-xs font-bold text-amber-800 font-mono">
+                خالص: {kNet.toFixed(1)} KG | رقم: Rs. {kTotal.toLocaleString()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن KG)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="0.0"
+                  value={kacharaGross}
+                  onChange={e => setKacharaGross(e.target.value)}
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن KG)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  placeholder="0.0"
+                  value={kacharaTare}
+                  onChange={e => setKacharaTare(e.target.value)}
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate (ریٹ PKR/KG)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  placeholder="45"
+                  value={kacharaRate}
+                  onChange={e => setKacharaRate(e.target.value)}
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
                 />
               </div>
             </div>
           </div>
 
           {/* Auto Computed Totals Badge */}
-          <div className="p-4 bg-brand-50/80 rounded-xl border border-brand-200 flex items-center justify-between">
+          <div className="p-4 bg-slate-900 text-white rounded-xl shadow-sm flex items-center justify-between font-mono">
             <div>
-              <p className="text-[10px] uppercase font-bold text-brand-700">Total Net Weight</p>
-              <p className="text-xl font-extrabold text-slate-900 font-mono mt-0.5">{formatWeight(effectiveNetWeight)}</p>
+              <p className="text-[10px] uppercase font-bold text-slate-400">TOTAL NET WEIGHT (کل خالص وزن)</p>
+              <p className="text-xl font-black text-blue-400 mt-0.5">{effectiveNetWeight.toFixed(1)} KG</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] uppercase font-bold text-slate-500">Total Value ({ratePerKg} PKR/KG)</p>
-              <p className="text-xl font-extrabold text-poultry-amber font-mono mt-0.5">{formatCurrency(totalAmount)}</p>
+              <p className="text-[10px] uppercase font-bold text-slate-400">TOTAL BILL (کل رقم)</p>
+              <p className="text-xl font-black text-amber-400 mt-0.5">Rs. {totalAmount.toLocaleString()}</p>
             </div>
           </div>
 

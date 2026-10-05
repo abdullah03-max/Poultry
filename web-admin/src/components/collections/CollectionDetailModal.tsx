@@ -6,7 +6,7 @@ import React from 'react';
 import { Collection } from '../../types/database';
 import { Modal } from '../common/Modal';
 import { formatDate, formatTime, formatWeight, formatCurrency } from '../../utils/formatters';
-import { Printer, Trash2, User, Phone, MapPin, Scale, Clock, FileText } from 'lucide-react';
+import { Printer, Trash2, User, Phone, MapPin, Scale, Clock, FileText, MessageSquare } from 'lucide-react';
 import { triggerPrint } from '../../utils/exportUtils';
 
 interface CollectionDetailModalProps {
@@ -23,6 +23,83 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
   onDelete,
 }) => {
   if (!collection) return null;
+
+  const hasBreakdown = (collection.charbi_net != null && collection.charbi_net > 0) ||
+                       (collection.kachara_net != null && collection.kachara_net > 0) ||
+                       (collection.charbi_gross != null && collection.charbi_gross > 0) ||
+                       (collection.kachara_gross != null && collection.kachara_gross > 0);
+
+  const openWhatsApp = () => {
+    const charbiGross = collection.charbi_gross ?? 0;
+    const charbiTare = collection.charbi_tare ?? 0;
+    const charbiNet = collection.charbi_net ?? 0;
+    const charbiRate = collection.charbi_rate ?? 55;
+    const charbiTotal = collection.charbi_total ?? Math.round(charbiNet * charbiRate);
+
+    const kacharaGross = collection.kachara_gross ?? 0;
+    const kacharaTare = collection.kachara_tare ?? 0;
+    const kacharaNet = collection.kachara_net ?? (collection.charbi_net ? 0 : collection.total_net_weight);
+    const kacharaRate = collection.kachara_rate ?? (collection.rate_per_kg || 45);
+    const kacharaTotal = collection.kachara_total ?? Math.round(kacharaNet * kacharaRate);
+
+    let text = `*🐔 SHAN POULTRY PROTEIN 🐔*\n`;
+    text += `*شان پولٹری پروٹین - وصولی رسید*\n`;
+    text += `────────────────────\n`;
+    text += `*رسید نمبر (Slip #):* ${collection.receipt_no}\n`;
+    text += `*دکان / گاہک (Shop):* ${collection.customer?.name || 'Customer'}\n`;
+    if (collection.customer?.area) text += `*علاقہ (Area):* ${collection.customer?.area}\n`;
+    text += `*تاریخ اور وقت:* ${formatDate(collection.collection_date)} ${formatTime(collection.collection_time)}\n`;
+    text += `*کلیکٹر (Collector):* ${collection.worker?.full_name || 'System / Admin'}\n`;
+    text += `────────────────────\n`;
+
+    if (charbiGross > 0 || charbiNet > 0) {
+      text += `*🟢 چربی وزن (Charbi Weight):*\n`;
+      text += `• کل وزن (Gross): ${charbiGross} KG\n`;
+      text += `• تار / برتن (Tare): ${charbiTare} KG\n`;
+      text += `• خالص وزن (Net): ${charbiNet} KG\n`;
+      text += `• ریٹ (Rate): Rs. ${charbiRate}/KG\n`;
+      text += `• چربی بل: Rs. ${charbiTotal.toLocaleString()}\n`;
+      text += `────────────────────\n`;
+    }
+
+    if (kacharaGross > 0 || kacharaNet > 0) {
+      text += `*🟠 کچرا وزن (Kachara Weight):*\n`;
+      text += `• کل وزن (Gross): ${kacharaGross} KG\n`;
+      text += `• تار / برتن (Tare): ${kacharaTare} KG\n`;
+      text += `• خالص وزن (Net): ${kacharaNet} KG\n`;
+      text += `• ریٹ (Rate): Rs. ${kacharaRate}/KG\n`;
+      text += `• کچرا بل: Rs. ${kacharaTotal.toLocaleString()}\n`;
+      text += `────────────────────\n`;
+    }
+
+    if (!charbiNet && !kacharaNet && collection.total_net_weight > 0) {
+      text += `*کل وزن (Gross):* ${collection.gross_weight} KG\n`;
+      text += `*تار / برتن (Tare):* ${collection.tare_weight} KG\n`;
+      text += `*خالص وزن (Net):* ${collection.total_net_weight} KG\n`;
+      text += `*ریٹ (Rate):* Rs. ${collection.rate_per_kg}/KG\n`;
+      text += `────────────────────\n`;
+    }
+
+    text += `*⚖️ کل خالص وزن (TOTAL NET):* ${collection.total_net_weight} KG\n`;
+    text += `*💰 کل بل (TOTAL BILL): Rs. ${collection.total_amount.toLocaleString()}*\n`;
+    text += `────────────────────\n`;
+    if (collection.notes) text += `*نوٹ (Note):* ${collection.notes}\n`;
+    text += `_شکریہ! شان پولٹری پروٹین_\n`;
+
+    let phone = (collection.customer?.phone || '').replace(/[^0-9]/g, '');
+    if (phone.startsWith('03')) {
+      phone = '92' + phone.substring(1);
+    } else if (phone.startsWith('3') && phone.length === 10) {
+      phone = '92' + phone;
+    }
+
+    const encoded = encodeURIComponent(text);
+    const url = phone.length >= 10
+      ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
+      : `https://api.whatsapp.com/send?text=${encoded}`;
+
+    window.open(url, '_blank');
+  };
 
   return (
     <Modal
@@ -77,27 +154,105 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
             <span className="text-xs text-slate-500 font-mono font-medium">Rate: {formatCurrency(collection.rate_per_kg)} / KG</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
-              <p className="text-[10px] text-slate-500 uppercase font-semibold">Gross Weight</p>
-              <p className="text-base font-bold text-slate-900 font-mono mt-1">{formatWeight(collection.gross_weight)}</p>
+          {hasBreakdown ? (
+            <div className="space-y-3">
+              {/* Charbi Card */}
+              <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                    چربی وزن (Charbi Weight)
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-700 font-mono">
+                    Rs. {collection.charbi_rate || 55}/KG
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="block text-[10px] text-slate-500 uppercase font-medium">Gross</span>
+                    <span className="font-bold text-slate-800 font-mono">{formatWeight(collection.charbi_gross || 0)}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="block text-[10px] text-slate-500 uppercase font-medium">Tare</span>
+                    <span className="font-bold text-rose-600 font-mono">-{formatWeight(collection.charbi_tare || 0)}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="block text-[10px] text-emerald-700 uppercase font-bold">Net</span>
+                    <span className="font-black text-emerald-800 font-mono">{formatWeight(collection.charbi_net || 0)}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="block text-[10px] text-emerald-700 uppercase font-bold">Subtotal</span>
+                    <span className="font-black text-emerald-800 font-mono">Rs. {(collection.charbi_total ?? Math.round((collection.charbi_net || 0) * (collection.charbi_rate || 55))).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Kachara Card */}
+              <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                    کچرا وزن (Kachara Weight)
+                  </span>
+                  <span className="text-xs font-semibold text-amber-700 font-mono">
+                    Rs. {collection.kachara_rate || 45}/KG
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  <div className="bg-white/80 p-2 rounded-lg border border-amber-100">
+                    <span className="block text-[10px] text-slate-500 uppercase font-medium">Gross</span>
+                    <span className="font-bold text-slate-800 font-mono">{formatWeight(collection.kachara_gross || 0)}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-amber-100">
+                    <span className="block text-[10px] text-slate-500 uppercase font-medium">Tare</span>
+                    <span className="font-bold text-rose-600 font-mono">-{formatWeight(collection.kachara_tare || 0)}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-amber-100">
+                    <span className="block text-[10px] text-amber-700 uppercase font-bold">Net</span>
+                    <span className="font-black text-amber-800 font-mono">{formatWeight(collection.kachara_net || 0)}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-amber-100">
+                    <span className="block text-[10px] text-amber-700 uppercase font-bold">Subtotal</span>
+                    <span className="font-black text-amber-800 font-mono">Rs. {(collection.kachara_total ?? Math.round((collection.kachara_net || 0) * (collection.kachara_rate || 45))).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Totals Banner */}
+              <div className="grid grid-cols-2 gap-3 text-center pt-1">
+                <div className="p-3 bg-brand-50 rounded-xl border border-brand-200">
+                  <p className="text-[10px] text-brand-700 uppercase font-bold">Total Net Weight</p>
+                  <p className="text-xl font-black text-brand-800 font-mono mt-0.5">{formatWeight(collection.total_net_weight)}</p>
+                </div>
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                  <p className="text-[10px] text-emerald-700 uppercase font-bold">Total Bill</p>
+                  <p className="text-xl font-black text-emerald-800 font-mono mt-0.5">{formatCurrency(collection.total_amount)}</p>
+                </div>
+              </div>
             </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
-              <p className="text-[10px] text-slate-500 uppercase font-semibold">Tare Weight</p>
-              <p className="text-base font-bold text-rose-600 font-mono mt-1">-{formatWeight(collection.tare_weight)}</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                <p className="text-[10px] text-slate-500 uppercase font-semibold">Gross Weight</p>
+                <p className="text-base font-bold text-slate-900 font-mono mt-1">{formatWeight(collection.gross_weight)}</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                <p className="text-[10px] text-slate-500 uppercase font-semibold">Tare Weight</p>
+                <p className="text-base font-bold text-rose-600 font-mono mt-1">-{formatWeight(collection.tare_weight)}</p>
+              </div>
+              <div className="p-3 bg-brand-50 rounded-xl border border-brand-200">
+                <p className="text-[10px] text-brand-700 uppercase font-bold">Net Weight</p>
+                <p className="text-lg font-black text-brand-700 font-mono mt-1">{formatWeight(collection.total_net_weight)}</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <p className="text-[10px] text-amber-700 uppercase font-bold">Total Amount</p>
+                <p className="text-lg font-black text-amber-700 font-mono mt-1">{formatCurrency(collection.total_amount)}</p>
+              </div>
             </div>
-            <div className="p-3 bg-brand-50 rounded-xl border border-brand-200">
-              <p className="text-[10px] text-brand-700 uppercase font-bold">Net Weight</p>
-              <p className="text-lg font-black text-brand-700 font-mono mt-1">{formatWeight(collection.total_net_weight)}</p>
-            </div>
-            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
-              <p className="text-[10px] text-amber-700 uppercase font-bold">Total Amount</p>
-              <p className="text-lg font-black text-amber-700 font-mono mt-1">{formatCurrency(collection.total_amount)}</p>
-            </div>
-          </div>
+          )}
 
           {/* Dynamic Weight Category Breakdown */}
-          {collection.items && collection.items.length > 0 && (
+          {collection.items && collection.items.length > 0 && !hasBreakdown && (
             <div className="mt-3 pt-3 border-t border-slate-100">
               <p className="text-xs font-semibold text-slate-700 mb-2">Category Breakdown:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -193,7 +348,15 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={openWhatsApp}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
+              title="Share receipt via WhatsApp"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>WhatsApp Receipt</span>
+            </button>
             <button
               onClick={triggerPrint}
               className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-sm transition"

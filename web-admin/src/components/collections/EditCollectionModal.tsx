@@ -1,6 +1,6 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Edit Collection Slip Modal
-// Allows Admin to modify weights, rate, customer, date/time, and notes
+// Allows Admin to modify Charbi and Kachara weights, rates, customer, date/time, status
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -31,9 +31,17 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
   const [customerId, setCustomerId] = useState<string>('');
   const [collectionDate, setCollectionDate] = useState<string>('');
   const [collectionTime, setCollectionTime] = useState<string>('');
-  const [grossWeight, setGrossWeight] = useState<string>('');
-  const [tareWeight, setTareWeight] = useState<string>('0');
-  const [ratePerKg, setRatePerKg] = useState<string>('45');
+
+  // Charbi
+  const [charbiGross, setCharbiGross] = useState<string>('');
+  const [charbiTare, setCharbiTare] = useState<string>('0');
+  const [charbiRate, setCharbiRate] = useState<string>('55');
+
+  // Kachara
+  const [kacharaGross, setKacharaGross] = useState<string>('');
+  const [kacharaTare, setKacharaTare] = useState<string>('0');
+  const [kacharaRate, setKacharaRate] = useState<string>('45');
+
   const [notes, setNotes] = useState<string>('');
   const [status, setStatus] = useState<'submitted' | 'verified' | 'cancelled'>('submitted');
 
@@ -62,9 +70,25 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
       setCustomerId(collection.customer_id);
       setCollectionDate(collection.collection_date);
       setCollectionTime(collection.collection_time || '08:00:00');
-      setGrossWeight(collection.gross_weight.toString());
-      setTareWeight(collection.tare_weight.toString());
-      setRatePerKg(collection.rate_per_kg.toString());
+
+      const isLegacy = collection.charbi_net == null && collection.kachara_net == null;
+
+      const cGross = collection.charbi_gross != null ? collection.charbi_gross : 0;
+      const cTare = collection.charbi_tare != null ? collection.charbi_tare : 0;
+      const cRate = collection.charbi_rate != null ? collection.charbi_rate : 55;
+
+      const kGross = collection.kachara_gross != null ? collection.kachara_gross : (isLegacy ? collection.gross_weight : 0);
+      const kTare = collection.kachara_tare != null ? collection.kachara_tare : (isLegacy ? collection.tare_weight : 0);
+      const kRate = collection.kachara_rate != null ? collection.kachara_rate : (isLegacy ? collection.rate_per_kg : 45);
+
+      setCharbiGross(cGross ? cGross.toString() : '');
+      setCharbiTare(cTare ? cTare.toString() : '0');
+      setCharbiRate(cRate.toString());
+
+      setKacharaGross(kGross ? kGross.toString() : '');
+      setKacharaTare(kTare ? kTare.toString() : '0');
+      setKacharaRate(kRate.toString());
+
       setNotes(collection.notes || '');
       setStatus((collection.status as any) || 'submitted');
     } catch (err: any) {
@@ -74,23 +98,33 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
     }
   };
 
-  const selectedCustomer = customers.find(c => c.id === customerId);
-
-  // Auto-fill customer agreed rate when changing customer
+  // Auto-fill customer agreed rates when changing customer
   const handleCustomerChange = (id: string) => {
     setCustomerId(id);
     const cust = customers.find(c => c.id === id);
     if (cust) {
-      setRatePerKg(cust.rate_per_kg.toString());
+      setCharbiRate((cust.rate_charbi || 55).toString());
+      setKacharaRate((cust.rate_kachara || cust.rate_per_kg || 45).toString());
     }
   };
 
   // Calculations
-  const grossNum = parseFloat(grossWeight) || 0;
-  const tareNum = parseFloat(tareWeight) || 0;
-  const netWeight = Math.max(0, Number((grossNum - tareNum).toFixed(2)));
-  const rateNum = parseFloat(ratePerKg) || 0;
-  const totalAmount = Math.round(netWeight * rateNum);
+  const cG = parseFloat(charbiGross) || 0;
+  const cT = parseFloat(charbiTare) || 0;
+  const cR = parseFloat(charbiRate) || 0;
+  const cNet = Math.max(0, Number((cG - cT).toFixed(2)));
+  const cTotal = Math.round(cNet * cR);
+
+  const kG = parseFloat(kacharaGross) || 0;
+  const kT = parseFloat(kacharaTare) || 0;
+  const kR = parseFloat(kacharaRate) || 0;
+  const kNet = Math.max(0, Number((kG - kT).toFixed(2)));
+  const kTotal = Math.round(kNet * kR);
+
+  const totalGross = Number((cG + kG).toFixed(2));
+  const totalTare = Number((cT + kT).toFixed(2));
+  const totalNet = Number((cNet + kNet).toFixed(2));
+  const totalAmount = cTotal + kTotal;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,8 +134,8 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
       setErrorMsg('Please select a customer.');
       return;
     }
-    if (netWeight <= 0) {
-      setErrorMsg('Net weight must be greater than 0 KG.');
+    if (totalNet <= 0) {
+      setErrorMsg('Total net weight must be greater than 0 KG.');
       return;
     }
 
@@ -113,13 +147,23 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
         customer_id: customerId,
         collection_date: collectionDate,
         collection_time: collectionTime,
-        gross_weight: grossNum,
-        tare_weight: tareNum,
-        total_net_weight: netWeight,
-        rate_per_kg: rateNum,
+        gross_weight: totalGross > 0 ? totalGross : totalNet,
+        tare_weight: totalTare,
+        total_net_weight: totalNet,
+        rate_per_kg: kR || cR || 45,
         total_amount: totalAmount,
         notes: notes.trim() || null,
         status,
+        charbi_gross: cG,
+        charbi_tare: cT,
+        charbi_net: cNet,
+        charbi_rate: cR,
+        charbi_total: cTotal,
+        kachara_gross: kG,
+        kachara_tare: kT,
+        kachara_net: kNet,
+        kachara_rate: kR,
+        kachara_total: kTotal,
       });
 
       onSaved();
@@ -138,12 +182,12 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Edit Collection Slip: ${collection.receipt_no}`}
-      subtitle="Modify weight measurements, customer rate, date, and status"
-      maxWidth="lg"
+      subtitle="Modify Charbi & Kachara measurements, rates, date, and status"
+      maxWidth="2xl"
     >
       {loadingInitial ? (
         <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
           <p className="text-xs">Loading collection details...</p>
         </div>
       ) : (
@@ -165,11 +209,11 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 required
                 value={customerId}
                 onChange={e => handleCustomerChange(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-600"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-600"
               >
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.customer_code} — {c.name} ({c.area}) [Rate: Rs. {c.rate_per_kg}]
+                    {c.customer_code} — {c.name} ({c.area}) [Charbi: Rs. {c.rate_charbi || 55} | Kachara: Rs. {c.rate_kachara || c.rate_per_kg || 45}]
                   </option>
                 ))}
               </select>
@@ -182,7 +226,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
               <select
                 value={status}
                 onChange={e => setStatus(e.target.value as any)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-600 font-semibold"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-600 font-semibold"
               >
                 <option value="submitted">Submitted</option>
                 <option value="verified">Verified</option>
@@ -202,7 +246,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 required
                 value={collectionDate}
                 onChange={e => setCollectionDate(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-600 font-mono"
               />
             </div>
             <div>
@@ -213,67 +257,114 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 type="time"
                 value={collectionTime}
                 onChange={e => setCollectionTime(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-600 font-mono"
               />
             </div>
           </div>
 
-          {/* Weight & Billing Form */}
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-            <div className="flex items-center gap-2 font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-              <Scale className="w-4 h-4 text-blue-600" />
-              <span>Weight & Rate Calculation</span>
+          {/* 1. Charbi Card */}
+          <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-emerald-800 uppercase tracking-wider text-xs flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                چربی وزن (Charbi Weight)
+              </span>
+              <span className="text-xs font-bold text-emerald-700 font-mono">
+                Net: {cNet.toFixed(2)} KG | Subtotal: Rs. {cTotal.toLocaleString()}
+              </span>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Gross Weight (KG) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="0.00"
-                  value={grossWeight}
-                  onChange={e => setGrossWeight(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Tare / Crates Deduction (KG)</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
-                  value={tareWeight}
-                  onChange={e => setTareWeight(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-blue-600"
+                  value={charbiGross}
+                  onChange={e => setCharbiGross(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-600"
                 />
               </div>
-
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Rate per KG (PKR) *</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن)</label>
                 <input
                   type="number"
                   step="0.01"
-                  required
-                  value={ratePerKg}
-                  onChange={e => setRatePerKg(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-blue-600"
+                  placeholder="0.00"
+                  value={charbiTare}
+                  onChange={e => setCharbiTare(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate / KG (Rs.)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={charbiRate}
+                  onChange={e => setCharbiRate(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-600"
                 />
               </div>
             </div>
+          </div>
 
-            {/* Live Calculation Summary Banner */}
-            <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between font-mono">
+          {/* 2. Kachara Card */}
+          <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-amber-800 uppercase tracking-wider text-xs flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span>
+                کچرا وزن (Kachara Weight)
+              </span>
+              <span className="text-xs font-bold text-amber-700 font-mono">
+                Net: {kNet.toFixed(2)} KG | Subtotal: Rs. {kTotal.toLocaleString()}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">Calculated Net Weight</span>
-                <span className="text-base font-black text-blue-600">{netWeight.toFixed(2)} KG</span>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={kacharaGross}
+                  onChange={e => setKacharaGross(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-600"
+                />
               </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">Calculated Total Amount</span>
-                <span className="text-base font-black text-amber-600">Rs. {totalAmount.toLocaleString()}</span>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={kacharaTare}
+                  onChange={e => setKacharaTare(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-600"
+                />
               </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate / KG (Rs.)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={kacharaRate}
+                  onChange={e => setKacharaRate(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-600"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Live Calculation Summary Banner */}
+          <div className="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between font-mono">
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Net Weight</span>
+              <span className="text-lg font-black text-emerald-400">{totalNet.toFixed(2)} KG</span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Amount</span>
+              <span className="text-lg font-black text-amber-400">Rs. {totalAmount.toLocaleString()}</span>
             </div>
           </div>
 
@@ -287,7 +378,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
               placeholder="e.g. Crate deposit adjusted, weight verified with shop owner..."
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-600"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-600"
             />
           </div>
 
@@ -303,7 +394,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
             <button
               type="submit"
               disabled={submitting}
-              className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
+              className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               <span>{submitting ? 'Updating Slip...' : 'Save Slip Changes'}</span>

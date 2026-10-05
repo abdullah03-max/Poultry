@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Customer, WeightCategory } from '../types/database';
 import { mobileStorage, OfflineCollectionItem } from './mobileStorage';
+import appIcon from '../assets/app_icon.png';
 import {
   Home,
   PlusCircle,
@@ -33,17 +34,18 @@ import {
   MapPin,
   Calendar,
   AlertTriangle,
-  Edit2
+  Edit2,
+  Share2,
+  MessageSquare
 } from 'lucide-react';
 
 type Tab = 'home' | 'new_collection' | 'collections' | 'customers' | 'profile';
 
 const defaultCategories: WeightCategory[] = [
-  { id: 'cat_1', code: 'cat_1', name: 'Weight Category 1', urdu_name: 'وزن کیٹیگری ۱', unit: 'KG', default_rate: 45, is_active: true, display_order: 1, created_at: '', updated_at: '' },
-  { id: 'cat_2', code: 'cat_2', name: 'Weight Category 2', urdu_name: 'وزن کیٹیگری ۲', unit: 'KG', default_rate: 40, is_active: true, display_order: 2, created_at: '', updated_at: '' },
-  { id: 'waste', code: 'waste', name: 'Waste Weight', urdu_name: 'فضلہ وزن', unit: 'KG', default_rate: 48, is_active: true, display_order: 3, created_at: '', updated_at: '' },
-  { id: 'fat', code: 'fat', name: 'Fat Weight', urdu_name: 'چربی وزن', unit: 'KG', default_rate: 55, is_active: true, display_order: 4, created_at: '', updated_at: '' },
+  { id: 'charbi', code: 'charbi', name: 'Charbi Weight', urdu_name: 'چربی وزن', unit: 'KG', default_rate: 55, is_active: true, display_order: 1, created_at: '', updated_at: '' },
+  { id: 'kachara', code: 'kachara', name: 'Kachara Weight', urdu_name: 'کچرا وزن', unit: 'KG', default_rate: 45, is_active: true, display_order: 2, created_at: '', updated_at: '' },
 ];
+
 
 // Lightweight client-side image compression to prevent localStorage QuotaExceededError
 const compressImage = (file: File, maxDimension = 900, quality = 0.65): Promise<string> => {
@@ -94,6 +96,83 @@ const compressImage = (file: File, maxDimension = 900, quality = 0.65): Promise<
   });
 };
 
+const generateWhatsAppReceiptText = (slip: OfflineCollectionItem): string => {
+  const charbiGross = slip.charbi_gross ?? 0;
+  const charbiTare = slip.charbi_tare ?? 0;
+  const charbiNet = slip.charbi_net ?? 0;
+  const charbiRate = slip.charbi_rate ?? 55;
+  const charbiTotal = slip.charbi_total ?? Math.round(charbiNet * charbiRate);
+
+  const kacharaGross = slip.kachara_gross ?? 0;
+  const kacharaTare = slip.kachara_tare ?? 0;
+  const kacharaNet = slip.kachara_net ?? 0;
+  const kacharaRate = slip.kachara_rate ?? (slip.rate_per_kg || 45);
+  const kacharaTotal = slip.kachara_total ?? Math.round(kacharaNet * kacharaRate);
+
+  let text = `*🐔 SHAN POULTRY PROTEIN 🐔*\n`;
+  text += `*شان پولٹری پروٹین - وصولی رسید*\n`;
+  text += `────────────────────\n`;
+  text += `*رسید نمبر (Slip #):* ${slip.receipt_no}\n`;
+  text += `*دکان / گاہک (Shop):* ${slip.customer_name}\n`;
+  if (slip.customer_area) text += `*علاقہ (Area):* ${slip.customer_area}\n`;
+  text += `*تاریخ اور وقت:* ${slip.collection_date} ${slip.collection_time?.substring(0, 5) || ''}\n`;
+  text += `*کلیکٹر (Collector):* ${slip.worker_name}\n`;
+  text += `────────────────────\n`;
+
+  if (charbiGross > 0 || charbiNet > 0) {
+    text += `*🟢 چربی وزن (Charbi Weight):*\n`;
+    text += `• کل وزن (Gross): ${charbiGross} KG\n`;
+    text += `• تار / برتن (Tare): ${charbiTare} KG\n`;
+    text += `• خالص وزن (Net): ${charbiNet} KG\n`;
+    text += `• ریٹ (Rate): Rs. ${charbiRate}/KG\n`;
+    text += `• چربی بل: Rs. ${charbiTotal.toLocaleString()}\n`;
+    text += `────────────────────\n`;
+  }
+
+  if (kacharaGross > 0 || kacharaNet > 0) {
+    text += `*🟠 کچرا وزن (Kachara Weight):*\n`;
+    text += `• کل وزن (Gross): ${kacharaGross} KG\n`;
+    text += `• تار / برتن (Tare): ${kacharaTare} KG\n`;
+    text += `• خالص وزن (Net): ${kacharaNet} KG\n`;
+    text += `• ریٹ (Rate): Rs. ${kacharaRate}/KG\n`;
+    text += `• کچرا بل: Rs. ${kacharaTotal.toLocaleString()}\n`;
+    text += `────────────────────\n`;
+  }
+
+  if (charbiNet === 0 && kacharaNet === 0 && slip.total_net_weight > 0) {
+    text += `*کل وزن (Gross):* ${slip.gross_weight} KG\n`;
+    text += `*تار / برتن (Tare):* ${slip.tare_weight} KG\n`;
+    text += `*خالص وزن (Net):* ${slip.total_net_weight} KG\n`;
+    text += `*ریٹ (Rate):* Rs. ${slip.rate_per_kg}/KG\n`;
+    text += `────────────────────\n`;
+  }
+
+  text += `*⚖️ کل خالص وزن (TOTAL NET):* ${slip.total_net_weight} KG\n`;
+  text += `*💰 کل بل (TOTAL BILL): Rs. ${slip.total_amount.toLocaleString()}*\n`;
+  text += `────────────────────\n`;
+  if (slip.notes) text += `*نوٹ (Note):* ${slip.notes}\n`;
+  text += `_شکریہ! شان پولٹری پروٹین_\n`;
+
+  return text;
+};
+
+const openWhatsAppReceipt = (slip: OfflineCollectionItem): void => {
+  const text = generateWhatsAppReceiptText(slip);
+  let phone = (slip.customer_phone || '').replace(/[^0-9]/g, '');
+  if (phone.startsWith('03')) {
+    phone = '92' + phone.substring(1);
+  } else if (phone.startsWith('3') && phone.length === 10) {
+    phone = '92' + phone;
+  }
+
+  const encoded = encodeURIComponent(text);
+  const url = phone.length >= 10
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
+    : `https://api.whatsapp.com/send?text=${encoded}`;
+
+  window.open(url, '_blank');
+};
+
 export const MobileApp: React.FC = () => {
   // Navigation
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -114,17 +193,19 @@ export const MobileApp: React.FC = () => {
   const [offlineSlips, setOfflineSlips] = useState<OfflineCollectionItem[]>([]);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
-  // Refresh & Scope State
+  // Refresh State
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [todayScope, setTodayScope] = useState<'all' | 'mine'>('all');
-  const [allSlipsScope, setAllSlipsScope] = useState<'all' | 'mine'>('all');
 
   // Edit Slip Modal State
   const [editingSlip, setEditingSlip] = useState<OfflineCollectionItem | null>(null);
   const [editCustomerId, setEditCustomerId] = useState<string>('');
-  const [editGross, setEditGross] = useState<string>('');
-  const [editTare, setEditTare] = useState<string>('0');
-  const [editRate, setEditRate] = useState<string>('45');
+  const [editCharbiGross, setEditCharbiGross] = useState<string>('');
+  const [editCharbiTare, setEditCharbiTare] = useState<string>('0');
+  const [editCharbiRate, setEditCharbiRate] = useState<string>('55');
+  const [editKacharaGross, setEditKacharaGross] = useState<string>('');
+  const [editKacharaTare, setEditKacharaTare] = useState<string>('0');
+  const [editKacharaRate, setEditKacharaRate] = useState<string>('45');
   const [editNotes, setEditNotes] = useState<string>('');
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
@@ -134,18 +215,16 @@ export const MobileApp: React.FC = () => {
   const [addCustomerModalOpen, setAddCustomerModalOpen] = useState<boolean>(false);
   const [receiptModalSlip, setReceiptModalSlip] = useState<OfflineCollectionItem | null>(null);
 
-  // New Collection Form State
+  // New Collection Form State (Charbi & Kachara)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [grossWeight, setGrossWeight] = useState<string>('');
-  const [tareWeight, setTareWeight] = useState<string>('0');
-  const [categoryWeights, setCategoryWeights] = useState<Record<string, string>>({
-    cat_1: '',
-    cat_2: '',
-    waste: '',
-    fat: '',
-  });
-  const [showCategories, setShowCategories] = useState<boolean>(false);
-  const [ratePerKg, setRatePerKg] = useState<string>('45');
+  const [charbiGross, setCharbiGross] = useState<string>('');
+  const [charbiTare, setCharbiTare] = useState<string>('0');
+  const [charbiRate, setCharbiRate] = useState<string>('55');
+
+  const [kacharaGross, setKacharaGross] = useState<string>('');
+  const [kacharaTare, setKacharaTare] = useState<string>('0');
+  const [kacharaRate, setKacharaRate] = useState<string>('45');
+
   const [notes, setNotes] = useState<string>('');
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [isCompressingPhoto, setIsCompressingPhoto] = useState<boolean>(false);
@@ -157,7 +236,9 @@ export const MobileApp: React.FC = () => {
   const [newCustContact, setNewCustContact] = useState<string>('');
   const [newCustPhone, setNewCustPhone] = useState<string>('');
   const [newCustArea, setNewCustArea] = useState<string>('Gaggoo Mandi');
-  const [newCustRate, setNewCustRate] = useState<string>('45');
+  const [newCustCharbiRate, setNewCustCharbiRate] = useState<string>('55');
+  const [newCustKacharaRate, setNewCustKacharaRate] = useState<string>('45');
+
 
   // Sync Progress State
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -275,6 +356,7 @@ export const MobileApp: React.FC = () => {
             customer_id: r.customer_id,
             customer_name: r.customer?.name || 'Customer',
             customer_area: r.customer?.area || '',
+            customer_phone: r.customer?.phone || '',
             worker_id: r.worker_id,
             worker_name: r.worker?.full_name || (r.worker_id === workerId ? (activeWorker?.full_name || 'Field Collector') : 'Field Collector'),
             collection_date: r.collection_date,
@@ -288,6 +370,16 @@ export const MobileApp: React.FC = () => {
             signature_base64: r.signature_url || null,
             photo_base64: null,
             items: [],
+            charbi_gross: r.charbi_gross ?? 0,
+            charbi_tare: r.charbi_tare ?? 0,
+            charbi_net: r.charbi_net ?? 0,
+            charbi_rate: r.charbi_rate ?? 55,
+            charbi_total: r.charbi_total ?? 0,
+            kachara_gross: r.kachara_gross ?? 0,
+            kachara_tare: r.kachara_tare ?? 0,
+            kachara_net: r.kachara_net ?? 0,
+            kachara_rate: r.kachara_rate ?? (r.rate_per_kg || 45),
+            kachara_total: r.kachara_total ?? 0,
             status: 'synced',
             created_at: r.created_at || r.collection_timestamp,
           }));
@@ -329,30 +421,42 @@ export const MobileApp: React.FC = () => {
   const startEditingSlip = (slip: OfflineCollectionItem) => {
     setEditingSlip(slip);
     setEditCustomerId(slip.customer_id);
-    setEditGross(slip.gross_weight.toString());
-    setEditTare(slip.tare_weight.toString());
-    setEditRate(slip.rate_per_kg.toString());
+    setEditCharbiGross(slip.charbi_gross !== undefined && slip.charbi_gross > 0 ? slip.charbi_gross.toString() : '');
+    setEditCharbiTare(slip.charbi_tare !== undefined ? slip.charbi_tare.toString() : '0');
+    setEditCharbiRate(slip.charbi_rate ? slip.charbi_rate.toString() : '55');
+
+    setEditKacharaGross(slip.kachara_gross !== undefined && slip.kachara_gross > 0 ? slip.kachara_gross.toString() : (slip.charbi_gross ? '' : slip.gross_weight.toString()));
+    setEditKacharaTare(slip.kachara_tare !== undefined ? slip.kachara_tare.toString() : (slip.charbi_gross ? '0' : slip.tare_weight.toString()));
+    setEditKacharaRate(slip.kachara_rate ? slip.kachara_rate.toString() : (slip.rate_per_kg ? slip.rate_per_kg.toString() : '45'));
+
     setEditNotes(slip.notes || '');
   };
 
   const handleSaveEdit = async () => {
     if (!editingSlip) return;
 
-    const gross = parseFloat(editGross) || 0;
-    const tare = parseFloat(editTare) || 0;
-    const rate = parseFloat(editRate) || 0;
+    const cGross = parseFloat(editCharbiGross) || 0;
+    const cTare = parseFloat(editCharbiTare) || 0;
+    const cRate = parseFloat(editCharbiRate) || 0;
+    const cNet = Math.max(0, cGross - cTare);
+    const cTotal = Math.round(cNet * cRate);
 
-    if (gross <= 0) {
-      alert('Please enter a valid gross weight greater than 0 KG.');
+    const kGross = parseFloat(editKacharaGross) || 0;
+    const kTare = parseFloat(editKacharaTare) || 0;
+    const kRate = parseFloat(editKacharaRate) || 0;
+    const kNet = Math.max(0, kGross - kTare);
+    const kTotal = Math.round(kNet * kRate);
+
+    const totalNet = cNet + kNet;
+    const totalAmount = cTotal + kTotal;
+    const totalGross = cGross + kGross;
+    const totalTare = cTare + kTare;
+
+    if (totalNet <= 0 && totalGross <= 0) {
+      alert('Please enter at least Charbi or Kachara weight.');
       return;
     }
-    if (gross < tare) {
-      alert('Gross weight cannot be less than tare weight.');
-      return;
-    }
 
-    const net = Math.max(0, gross - tare);
-    const amount = Math.round(net * rate);
     const selectedCust = customers.find(c => c.id === editCustomerId);
 
     setIsSavingEdit(true);
@@ -362,12 +466,23 @@ export const MobileApp: React.FC = () => {
       customer_id: editCustomerId,
       customer_name: selectedCust?.name || editingSlip.customer_name,
       customer_area: selectedCust?.area || editingSlip.customer_area,
-      gross_weight: gross,
-      tare_weight: tare,
-      total_net_weight: net,
-      rate_per_kg: rate,
-      total_amount: amount,
+      customer_phone: selectedCust?.phone || editingSlip.customer_phone,
+      gross_weight: totalGross > 0 ? totalGross : totalNet,
+      tare_weight: totalTare,
+      total_net_weight: totalNet,
+      rate_per_kg: kRate || cRate || editingSlip.rate_per_kg,
+      total_amount: totalAmount,
       notes: editNotes.trim() || null,
+      charbi_gross: cGross,
+      charbi_tare: cTare,
+      charbi_net: cNet,
+      charbi_rate: cRate,
+      charbi_total: cTotal,
+      kachara_gross: kGross,
+      kachara_tare: kTare,
+      kachara_net: kNet,
+      kachara_rate: kRate,
+      kachara_total: kTotal,
     };
 
     try {
@@ -378,12 +493,22 @@ export const MobileApp: React.FC = () => {
             .from('collections')
             .update({
               customer_id: editCustomerId,
-              gross_weight: gross,
-              tare_weight: tare,
-              total_net_weight: net,
-              rate_per_kg: rate,
-              total_amount: amount,
+              gross_weight: updatedSlip.gross_weight,
+              tare_weight: updatedSlip.tare_weight,
+              total_net_weight: updatedSlip.total_net_weight,
+              rate_per_kg: updatedSlip.rate_per_kg,
+              total_amount: updatedSlip.total_amount,
               notes: editNotes.trim() || null,
+              charbi_gross: cGross,
+              charbi_tare: cTare,
+              charbi_net: cNet,
+              charbi_rate: cRate,
+              charbi_total: cTotal,
+              kachara_gross: kGross,
+              kachara_tare: kTare,
+              kachara_net: kNet,
+              kachara_rate: kRate,
+              kachara_total: kTotal,
             })
             .or(`client_uuid.eq.${editingSlip.client_uuid},receipt_no.eq.${editingSlip.receipt_no}`);
         } catch (supErr) {
@@ -497,19 +622,23 @@ export const MobileApp: React.FC = () => {
     }
   };
 
-  // Calculations for New Collection
-  const grossNum = parseFloat(grossWeight) || 0;
-  const tareNum = parseFloat(tareWeight) || 0;
-  const scaleNet = Math.max(0, grossNum - tareNum);
+  // Calculations for New Collection (Charbi & Kachara)
+  const cGross = parseFloat(charbiGross) || 0;
+  const cTare = parseFloat(charbiTare) || 0;
+  const cRate = parseFloat(charbiRate) || 0;
+  const cNet = Math.max(0, cGross - cTare);
+  const cTotal = Math.round(cNet * cRate);
 
-  const sumCategories = Object.values(categoryWeights).reduce(
-    (acc, val) => acc + (parseFloat(val) || 0),
-    0
-  );
+  const kGross = parseFloat(kacharaGross) || 0;
+  const kTare = parseFloat(kacharaTare) || 0;
+  const kRate = parseFloat(kacharaRate) || 0;
+  const kNet = Math.max(0, kGross - kTare);
+  const kTotal = Math.round(kNet * kRate);
 
-  const effectiveNetWeight = scaleNet > 0 ? scaleNet : sumCategories;
-  const rateNum = parseFloat(ratePerKg) || (selectedCustomer?.rate_per_kg || 45);
-  const totalAmount = Math.round(effectiveNetWeight * rateNum);
+  const totalGrossWeight = cGross + kGross;
+  const totalTareWeight = cTare + kTare;
+  const effectiveNetWeight = cNet + kNet;
+  const totalAmount = cTotal + kTotal;
 
   // Photo Capture with automatic downscaling & compression to prevent quota errors
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -589,11 +718,11 @@ export const MobileApp: React.FC = () => {
   // Submit New Collection Slip
   const handleSaveCollection = async () => {
     if (!selectedCustomer) {
-      alert('Please select a customer / shop.');
+      alert('Please select a customer / shop. / گاہک یا دکان منتخب کریں');
       return;
     }
     if (effectiveNetWeight <= 0) {
-      alert('Please enter a valid weight greater than 0 KG.');
+      alert('Please enter a valid weight greater than 0 KG. / کم از کم ایک وزن درج کریں');
       return;
     }
 
@@ -611,18 +740,28 @@ export const MobileApp: React.FC = () => {
         return v.toString(16);
       });
 
-      const items = defaultCategories
-        .filter(c => parseFloat(categoryWeights[c.id]) > 0)
-        .map(c => {
-          const w = parseFloat(categoryWeights[c.id]);
-          return {
-            category_id: c.id,
-            category_name: c.name,
-            weight: w,
-            rate: rateNum,
-            amount: Math.round(w * rateNum),
-          };
-        });
+      const items = [
+        ...(cNet > 0 ? [{
+          category_id: 'charbi',
+          category_name: 'Charbi Weight',
+          category_code: 'charbi',
+          gross_weight: cGross,
+          tare_weight: cTare,
+          weight: cNet,
+          rate: cRate,
+          amount: cTotal,
+        }] : []),
+        ...(kNet > 0 ? [{
+          category_id: 'kachara',
+          category_name: 'Kachara Weight',
+          category_code: 'kachara',
+          gross_weight: kGross,
+          tare_weight: kTare,
+          weight: kNet,
+          rate: kRate,
+          amount: kTotal,
+        }] : []),
+      ];
 
       const newSlip: OfflineCollectionItem = {
         client_uuid: clientUuid,
@@ -630,19 +769,30 @@ export const MobileApp: React.FC = () => {
         customer_id: selectedCustomer.id,
         customer_name: selectedCustomer.name,
         customer_area: selectedCustomer.area,
+        customer_phone: selectedCustomer.phone,
         worker_id: worker?.id || null,
         worker_name: worker?.full_name || 'Field Collector',
         collection_date: dateStr,
         collection_time: timeStr,
-        gross_weight: grossNum > 0 ? grossNum : effectiveNetWeight,
-        tare_weight: tareNum,
+        gross_weight: totalGrossWeight > 0 ? totalGrossWeight : effectiveNetWeight,
+        tare_weight: totalTareWeight,
         total_net_weight: effectiveNetWeight,
-        rate_per_kg: rateNum,
+        rate_per_kg: kRate || cRate || 45,
         total_amount: totalAmount,
         notes: notes.trim() || null,
         signature_base64: signatureBase64,
         photo_base64: photoBase64,
         items,
+        charbi_gross: cGross,
+        charbi_tare: cTare,
+        charbi_net: cNet,
+        charbi_rate: cRate,
+        charbi_total: cTotal,
+        kachara_gross: kGross,
+        kachara_tare: kTare,
+        kachara_net: kNet,
+        kachara_rate: kRate,
+        kachara_total: kTotal,
         status: 'pending_sync',
         created_at: now.toISOString(),
       };
@@ -668,6 +818,16 @@ export const MobileApp: React.FC = () => {
               total_amount: newSlip.total_amount,
               notes: newSlip.notes,
               signature_url: newSlip.signature_base64 || null,
+              charbi_gross: cGross,
+              charbi_tare: cTare,
+              charbi_net: cNet,
+              charbi_rate: cRate,
+              charbi_total: cTotal,
+              kachara_gross: kGross,
+              kachara_tare: kTare,
+              kachara_net: kNet,
+              kachara_rate: kRate,
+              kachara_total: kTotal,
               status: 'submitted',
             })
             .select()
@@ -676,18 +836,6 @@ export const MobileApp: React.FC = () => {
           if (!colError && colData) {
             savedOnline = true;
             newSlip.status = 'synced';
-
-            // Insert weight categories breakdown
-            if (items && items.length > 0) {
-              const weightItems = items.map(it => ({
-                collection_id: colData.id,
-                category_id: it.category_id,
-                weight: it.weight,
-                rate: it.rate,
-                amount: it.amount,
-              }));
-              await supabase.from('collection_weight_items').insert(weightItems);
-            }
 
             // Insert scale photo attachment if captured
             if (photoBase64) {
@@ -718,9 +866,10 @@ export const MobileApp: React.FC = () => {
 
       // Reset form
       setSelectedCustomer(null);
-      setGrossWeight('');
-      setTareWeight('0');
-      setCategoryWeights({ cat_1: '', cat_2: '', waste: '', fat: '' });
+      setCharbiGross('');
+      setCharbiTare('0');
+      setKacharaGross('');
+      setKacharaTare('0');
       setNotes('');
       setPhotoBase64(null);
       setSignatureBase64(null);
@@ -735,11 +884,12 @@ export const MobileApp: React.FC = () => {
   // Add Customer Quick Action
   const handleAddCustomer = async () => {
     if (!newCustName.trim()) {
-      alert('Customer / Shop Name is required.');
+      alert('Customer / Shop Name is required. / دکان کا نام درج کریں');
       return;
     }
 
-    const rate = parseFloat(newCustRate) || 45;
+    const cRate = parseFloat(newCustCharbiRate) || 55;
+    const kRate = parseFloat(newCustKacharaRate) || 45;
     const newCustomerObj: Customer = {
       id: 'cust-' + Date.now(),
       customer_code: 'CUST-' + Math.floor(100 + Math.random() * 900),
@@ -749,8 +899,13 @@ export const MobileApp: React.FC = () => {
       alternate_phone: null,
       address: null,
       area: newCustArea.trim() || 'Gaggoo Mandi',
-      rate_per_kg: rate,
-      category_rates: {},
+      rate_per_kg: kRate,
+      rate_charbi: cRate,
+      rate_kachara: kRate,
+      category_rates: {
+        charbi: cRate,
+        kachara: kRate,
+      },
       status: 'active',
       notes: null,
       is_deleted: false,
@@ -767,6 +922,9 @@ export const MobileApp: React.FC = () => {
           phone: newCustomerObj.phone,
           area: newCustomerObj.area,
           rate_per_kg: newCustomerObj.rate_per_kg,
+          rate_charbi: newCustomerObj.rate_charbi,
+          rate_kachara: newCustomerObj.rate_kachara,
+          category_rates: newCustomerObj.category_rates,
           status: 'active',
         }).select().single();
 
@@ -782,7 +940,8 @@ export const MobileApp: React.FC = () => {
     setCustomers(updated);
     mobileStorage.setCachedCustomers(updated);
     setSelectedCustomer(newCustomerObj);
-    setRatePerKg(rate.toString());
+    setCharbiRate(cRate.toString());
+    setKacharaRate(kRate.toString());
 
     setAddCustomerModalOpen(false);
     setNewCustName('');
@@ -825,9 +984,9 @@ export const MobileApp: React.FC = () => {
   // Today's scope filtered list
   const displayedTodaySlips = todayScope === 'mine' ? myTodaySlips : todaySlips;
 
-  // All Slips scope filtered list
+  // All Slips scope filtered list - strictly worker's own slips for the Slips section!
   const myAllSlips = offlineSlips.filter(s => s.worker_id === worker?.id);
-  const displayedAllSlips = allSlipsScope === 'mine' ? myAllSlips : offlineSlips;
+  const displayedAllSlips = myAllSlips;
 
   // Filtered Customers for Modal
   const filteredCustomers = customers.filter(c =>
@@ -843,14 +1002,11 @@ export const MobileApp: React.FC = () => {
         <div className="w-full max-w-sm space-y-6">
           {/* Logo & Branding */}
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-2xl mx-auto shadow-xl shadow-blue-500/25 border border-blue-400/20 overflow-hidden flex items-center justify-center bg-blue-600">
+            <div className="w-16 h-16 rounded-2xl mx-auto shadow-xl shadow-blue-500/25 border border-slate-700 overflow-hidden flex items-center justify-center bg-white p-1">
               <img
-                src="/app_icon.png"
+                src={appIcon}
                 alt="Shan Poultry"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = 'none';
-                }}
+                className="w-full h-full object-contain"
               />
             </div>
             <h1 className="text-xl font-black tracking-tight text-white">
@@ -976,14 +1132,13 @@ export const MobileApp: React.FC = () => {
       ========================================================================= */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 shrink-0 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-3">
-          <img
-            src="/app_icon.png"
-            alt="Shan Poultry"
-            className="w-10 h-10 rounded-xl object-cover shadow-md shadow-blue-500/20 border border-slate-200"
-            onError={(e) => {
-              (e.currentTarget as HTMLElement).style.display = 'none';
-            }}
-          />
+          <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white p-0.5 flex items-center justify-center shrink-0">
+            <img
+              src={appIcon}
+              alt="Shan Poultry"
+              className="w-full h-full object-contain"
+            />
+          </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-sm tracking-wide text-slate-900">SHAN POULTRY</span>
@@ -1272,12 +1427,14 @@ export const MobileApp: React.FC = () => {
                 >
                   <div>
                     <div className="font-black text-sm text-slate-900">{selectedCustomer.name}</div>
-                    <div className="text-xs text-slate-600 mt-0.5">
-                      {selectedCustomer.area} • ریٹ: <span className="font-bold text-blue-700">Rs. {selectedCustomer.rate_per_kg}/KG</span>
+                    <div className="text-xs text-slate-600 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                      <span>{selectedCustomer.area}</span>
+                      <span className="font-bold text-emerald-700">چربی: Rs. {selectedCustomer.rate_charbi || 55}/KG</span>
+                      <span className="font-bold text-amber-700">کچرا: Rs. {selectedCustomer.rate_kachara || selectedCustomer.rate_per_kg || 45}/KG</span>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-blue-600 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs">
-                    تبدیل کریں (Change)
+                  <span className="text-xs font-bold text-blue-600 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs shrink-0 ml-2">
+                    تبدیل کریں
                   </span>
                 </div>
               ) : (
@@ -1292,133 +1449,223 @@ export const MobileApp: React.FC = () => {
               )}
             </div>
 
-            {/* STEP 2: WEIGHT ENTRY */}
+            {/* STEP 2: WEIGHT ENTRY (CHARBI & KACHARA) */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-4">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
-                Step 2: وزن کی تفصیلات (Weight Details KG) *
+                Step 2: وزن کی تفصیلات (Weight & Rates) *
               </label>
 
-              <div className="grid grid-cols-2 gap-3">
-                {/* Gross Weight */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between mb-1">
-                    <span>Gross (KG)</span>
-                    <span className="text-blue-600 text-[11px]">کل وزن</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    inputMode="decimal"
-                    placeholder="0.0"
-                    value={grossWeight}
-                    onChange={e => setGrossWeight(e.target.value)}
-                    className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-lg font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
-                  />
-                  {/* Quick increment buttons */}
-                  <div className="flex gap-1 mt-1.5">
-                    {['+5', '+10', '+25'].map(val => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => {
-                          const current = parseFloat(grossWeight) || 0;
-                          setGrossWeight((current + parseInt(val.replace('+', ''))).toString());
-                        }}
-                        className="flex-1 py-1 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-bold active:bg-slate-200"
-                      >
-                        {val}
-                      </button>
-                    ))}
+              {/* CARD 1: CHARBI WEIGHT */}
+              <div className="p-3.5 bg-emerald-50/40 border border-emerald-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span className="font-black text-sm text-emerald-950">چربی وزن (Charbi Weight)</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-lg font-mono">
+                    خالص: {cNet.toFixed(1)} KG
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Charbi Gross */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 flex justify-between mb-1">
+                      <span>Gross (KG)</span>
+                      <span className="text-emerald-700 text-[11px]">کل وزن</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      inputMode="decimal"
+                      placeholder="0.0"
+                      value={charbiGross}
+                      onChange={e => setCharbiGross(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl font-mono text-base font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="flex gap-1 mt-1">
+                      {['+5', '+10', '+25'].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => {
+                            const cur = parseFloat(charbiGross) || 0;
+                            setCharbiGross((cur + parseInt(val.replace('+', ''))).toString());
+                          }}
+                          className="flex-1 py-0.5 bg-emerald-100/70 text-emerald-800 rounded-md text-[10px] font-bold active:bg-emerald-200"
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Charbi Tare */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 flex justify-between mb-1">
+                      <span>Tare (KG)</span>
+                      <span className="text-slate-500 text-[11px]">تار / برتن وزن</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      inputMode="decimal"
+                      placeholder="0.0"
+                      value={charbiTare}
+                      onChange={e => setCharbiTare(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl font-mono text-base font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="flex gap-1 mt-1">
+                      {['0', '2.5', '5.0'].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setCharbiTare(val)}
+                          className="flex-1 py-0.5 bg-emerald-100/70 text-emerald-800 rounded-md text-[10px] font-bold active:bg-emerald-200"
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* Tare Weight */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between mb-1">
-                    <span>Tare (KG)</span>
-                    <span className="text-slate-500 text-[11px]">کریٹ / کٹوتی</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    inputMode="decimal"
-                    placeholder="0.0"
-                    value={tareWeight}
-                    onChange={e => setTareWeight(e.target.value)}
-                    className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-lg font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
-                  />
-                  <div className="flex gap-1 mt-1.5">
-                    {['0', '2.5', '5.0'].map(val => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setTareWeight(val)}
-                        className="flex-1 py-1 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-bold active:bg-slate-200"
-                      >
-                        {val}
-                      </button>
-                    ))}
+                {/* Charbi Rate */}
+                <div className="grid grid-cols-2 gap-2.5 items-center pt-1 border-t border-emerald-200/60">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-0.5">
+                      ریٹ فی کلو (Price / KG)
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="55"
+                      value={charbiRate}
+                      onChange={e => setCharbiRate(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-xl font-mono text-sm font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 block">چربی ٹوٹل بل</span>
+                    <span className="font-mono font-black text-sm text-emerald-950">Rs. {cTotal.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Rate per KG */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 flex items-center justify-between mb-1">
-                  <span>Rate per KG (PKR)</span>
-                  <span className="text-blue-600 text-[11px]">ریٹ فی کلو</span>
-                </label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="45"
-                  value={ratePerKg}
-                  onChange={e => setRatePerKg(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-base font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
-                />
-              </div>
-
-              {/* Optional Category Breakdown Toggle */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowCategories(!showCategories)}
-                  className="text-xs font-bold text-blue-600 flex items-center gap-1"
-                >
-                  {showCategories ? '▼ کیٹیگری اوزان چھپائیں' : '▶ کیٹیگری کے الگ اوزان درج کریں (اختیاری)'}
-                </button>
-
-                {showCategories && (
-                  <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
-                    {defaultCategories.map(cat => (
-                      <div key={cat.id}>
-                        <label className="text-[11px] font-bold text-slate-600 block mb-0.5">
-                          {cat.urdu_name} ({cat.name})
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          inputMode="decimal"
-                          placeholder="0.0 KG"
-                          value={categoryWeights[cat.id]}
-                          onChange={e => setCategoryWeights(prev => ({ ...prev, [cat.id]: e.target.value }))}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-sm font-bold text-slate-900"
-                        />
-                      </div>
-                    ))}
+              {/* CARD 2: KACHARA WEIGHT */}
+              <div className="p-3.5 bg-amber-50/40 border border-amber-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <span className="font-black text-sm text-amber-950">کچرا وزن (Kachara Weight)</span>
                   </div>
-                )}
+                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-lg font-mono">
+                    خالص: {kNet.toFixed(1)} KG
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Kachara Gross */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 flex justify-between mb-1">
+                      <span>Gross (KG)</span>
+                      <span className="text-amber-700 text-[11px]">کل وزن</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      inputMode="decimal"
+                      placeholder="0.0"
+                      value={kacharaGross}
+                      onChange={e => setKacharaGross(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl font-mono text-base font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    />
+                    <div className="flex gap-1 mt-1">
+                      {['+5', '+10', '+25'].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => {
+                            const cur = parseFloat(kacharaGross) || 0;
+                            setKacharaGross((cur + parseInt(val.replace('+', ''))).toString());
+                          }}
+                          className="flex-1 py-0.5 bg-amber-100/70 text-amber-800 rounded-md text-[10px] font-bold active:bg-amber-200"
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Kachara Tare */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 flex justify-between mb-1">
+                      <span>Tare (KG)</span>
+                      <span className="text-slate-500 text-[11px]">تار / برتن وزن</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      inputMode="decimal"
+                      placeholder="0.0"
+                      value={kacharaTare}
+                      onChange={e => setKacharaTare(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl font-mono text-base font-black text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    />
+                    <div className="flex gap-1 mt-1">
+                      {['0', '2.5', '5.0'].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setKacharaTare(val)}
+                          className="flex-1 py-0.5 bg-amber-100/70 text-amber-800 rounded-md text-[10px] font-bold active:bg-amber-200"
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kachara Rate */}
+                <div className="grid grid-cols-2 gap-2.5 items-center pt-1 border-t border-amber-200/60">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-0.5">
+                      ریٹ فی کلو (Price / KG)
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="45"
+                      value={kacharaRate}
+                      onChange={e => setKacharaRate(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-xl font-mono text-sm font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-amber-700 block">کچرا ٹوٹل بل</span>
+                    <span className="font-mono font-black text-sm text-amber-950">Rs. {kTotal.toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Net Weight & Total Amount Summary Bar */}
-              <div className="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between">
+              {/* SUMMARY BAR: TOTAL NET WEIGHT & TOTAL BILL */}
+              <div className="p-4 bg-slate-900 text-white rounded-2xl flex items-center justify-between shadow-md">
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">خالص وزن (Net Weight)</span>
-                  <span className="text-xl font-black font-mono text-blue-400">{effectiveNetWeight.toFixed(1)} KG</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                    TOTAL NET WEIGHT (کل خالص وزن)
+                  </span>
+                  <span className="text-2xl font-black font-mono text-blue-400">
+                    {effectiveNetWeight.toFixed(1)} <span className="text-sm font-bold text-slate-400">KG</span>
+                  </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">کل رقم (Total Bill)</span>
-                  <span className="text-xl font-black font-mono text-amber-400">Rs. {totalAmount.toLocaleString()}</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                    TOTAL BILL (کل بل رقم)
+                  </span>
+                  <span className="text-2xl font-black font-mono text-amber-400">
+                    Rs. {totalAmount.toLocaleString()}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1545,13 +1792,13 @@ export const MobileApp: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: COLLECTIONS HISTORY */}
+        {/* TAB 3: COLLECTIONS HISTORY (STRICTLY WORKER'S OWN SLIPS) */}
         {activeTab === 'collections' && (
           <div className="space-y-4 max-w-lg mx-auto">
             <div className="flex items-center justify-between pb-1">
               <div>
-                <h2 className="text-lg font-black text-slate-900">رسیدوں کا ریکارڈ (All Slips)</h2>
-                <p className="text-xs text-slate-500">{displayedAllSlips.length} slips shown</p>
+                <h2 className="text-lg font-black text-slate-900">میری رسیدیں (My Slips)</h2>
+                <p className="text-xs text-slate-500">{displayedAllSlips.length} slips recorded by you</p>
               </div>
               {pendingCount > 0 && (
                 <button
@@ -1564,33 +1811,11 @@ export const MobileApp: React.FC = () => {
               )}
             </div>
 
-            {/* Scope Toggle: All Workers vs My Slips */}
-            <div className="flex items-center bg-slate-200/80 p-1 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setAllSlipsScope('all')}
-                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition text-center ${
-                  allSlipsScope === 'all' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                تمام ورکرز ({offlineSlips.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setAllSlipsScope('mine')}
-                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition text-center ${
-                  allSlipsScope === 'mine' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                میری رسیدیں ({myAllSlips.length})
-              </button>
-            </div>
-
             {displayedAllSlips.length === 0 ? (
               <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-10 text-center">
                 <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <div className="text-sm font-bold text-slate-700">
-                  {allSlipsScope === 'mine' ? 'آپ کے پاس کوئی رسید موجود نہیں' : 'کوئی وصولی رسید موجود نہیں'}
+                  آپ کے پاس کوئی رسید موجود نہیں (No slips recorded yet)
                 </div>
                 <div className="text-xs text-slate-400 mt-1">Recorded weigh-in slips will appear here.</div>
               </div>
@@ -1701,8 +1926,15 @@ export const MobileApp: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 text-xs">
-                    <span className="font-bold text-slate-500">Standard Rate:</span>
-                    <span className="font-mono font-bold text-blue-600">Rs. {c.rate_per_kg} / KG</span>
+                    <span className="font-bold text-slate-500">Agreed Rates:</span>
+                    <div className="flex gap-2">
+                      <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                        چربی: Rs. {c.rate_charbi || 55}
+                      </span>
+                      <span className="font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+                        کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1908,7 +2140,8 @@ export const MobileApp: React.FC = () => {
                   key={c.id}
                   onClick={() => {
                     setSelectedCustomer(c);
-                    setRatePerKg(c.rate_per_kg.toString());
+                    setCharbiRate(c.rate_charbi ? c.rate_charbi.toString() : '55');
+                    setKacharaRate(c.rate_kachara ? c.rate_kachara.toString() : (c.rate_per_kg ? c.rate_per_kg.toString() : '45'));
                     setCustomerModalOpen(false);
                   }}
                   className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 cursor-pointer flex items-center justify-between transition"
@@ -1920,8 +2153,8 @@ export const MobileApp: React.FC = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="font-mono font-bold text-xs text-blue-600 block">Rs. {c.rate_per_kg}</span>
-                    <span className="text-[10px] text-slate-400">per KG</span>
+                    <span className="font-mono font-bold text-xs text-emerald-700 block">چربی: Rs. {c.rate_charbi || 55}</span>
+                    <span className="font-mono font-bold text-xs text-amber-700 block">کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}</span>
                   </div>
                 </div>
               ))}
@@ -1935,7 +2168,7 @@ export const MobileApp: React.FC = () => {
                 }}
                 className="w-full py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 shadow-2xs active:bg-slate-100"
               >
-                + Add Shop Not In List
+                + نئی دکان درج کریں / Add Shop
               </button>
             </div>
           </div>
@@ -1943,13 +2176,16 @@ export const MobileApp: React.FC = () => {
       )}
 
       {/* =========================================================================
-          MODAL 2: ADD NEW CUSTOMER
+          MODAL 2: ADD NEW CUSTOMER WITH CHARBI & KACHARA RATES
       ========================================================================= */}
       {addCustomerModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-5 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-black text-base text-slate-900">Add New Poultry Shop</h3>
+              <div>
+                <h3 className="font-black text-base text-slate-900">نئی دکان درج کریں</h3>
+                <p className="text-xs text-slate-500">Add New Poultry Shop & Agreed Rates</p>
+              </div>
               <button onClick={() => setAddCustomerModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
@@ -1957,10 +2193,10 @@ export const MobileApp: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Shop / Business Name *</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">دکان / کاروبار کا نام (Shop Name) *</label>
                 <input
                   type="text"
-                  placeholder="e.g. Al-Madina Chicken Shop"
+                  placeholder="مثلاً: المدینہ چکن شاپ"
                   value={newCustName}
                   onChange={e => setNewCustName(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
@@ -1968,10 +2204,10 @@ export const MobileApp: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Contact Person</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">مالک / رابطہ کار (Contact Person)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Haji Rashid"
+                  placeholder="مثلاً: حاجی راشد"
                   value={newCustContact}
                   onChange={e => setNewCustContact(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
@@ -1979,35 +2215,53 @@ export const MobileApp: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Phone Number</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">فون نمبر (Phone for WhatsApp) *</label>
                 <input
                   type="tel"
-                  placeholder="+92 300 1234567"
+                  placeholder="03001234567"
                   value={newCustPhone}
                   onChange={e => setNewCustPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">علاقہ / منڈی (Area / Town)</label>
+                <input
+                  type="text"
+                  placeholder="گگو منڈی / Gaggoo Mandi"
+                  value={newCustArea}
+                  onChange={e => setNewCustArea(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              {/* Two Agreed Rates: Charbi & Kachara */}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Area / Mandi</label>
+                  <label className="text-xs font-bold text-emerald-800 block mb-1">
+                    چربی ریٹ (Charbi / KG)
+                  </label>
                   <input
-                    type="text"
-                    placeholder="Gaggoo Mandi"
-                    value={newCustArea}
-                    onChange={e => setNewCustArea(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                    type="number"
+                    step="0.5"
+                    placeholder="55"
+                    value={newCustCharbiRate}
+                    onChange={e => setNewCustCharbiRate(e.target.value)}
+                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-sm font-bold font-mono text-emerald-950"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Rate (PKR/KG)</label>
+                  <label className="text-xs font-bold text-amber-800 block mb-1">
+                    کچرا ریٹ (Kachara / KG)
+                  </label>
                   <input
                     type="number"
+                    step="0.5"
                     placeholder="45"
-                    value={newCustRate}
-                    onChange={e => setNewCustRate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold font-mono"
+                    value={newCustKacharaRate}
+                    onChange={e => setNewCustKacharaRate(e.target.value)}
+                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-sm font-bold font-mono text-amber-950"
                   />
                 </div>
               </div>
@@ -2019,14 +2273,14 @@ export const MobileApp: React.FC = () => {
                 onClick={() => setAddCustomerModalOpen(false)}
                 className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold"
               >
-                Cancel
+                منسوخ (Cancel)
               </button>
               <button
                 type="button"
                 onClick={handleAddCustomer}
                 className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm"
               >
-                Save Shop
+                محفوظ کریں (Save)
               </button>
             </div>
           </div>
@@ -2034,25 +2288,23 @@ export const MobileApp: React.FC = () => {
       )}
 
       {/* =========================================================================
-          MODAL 3: DIGITAL SLIP RECEIPT
+          MODAL 3: DIGITAL SLIP RECEIPT WITH LOGO, CHARBI/KACHARA & WHATSAPP
       ========================================================================= */}
       {receiptModalSlip && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-5 space-y-4 animate-scaleUp">
-            {/* Receipt Header */}
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-5 space-y-3.5 animate-scaleUp max-h-[95vh] overflow-y-auto">
+            {/* Prominent Header with Logo & Business Name */}
             <div className="text-center pb-3 border-b border-dashed border-slate-200">
-              <div className="w-12 h-12 rounded-xl mx-auto mb-1.5 shadow-md shadow-blue-500/20 border border-slate-200 overflow-hidden flex items-center justify-center bg-blue-600">
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-2 shadow-sm border border-slate-200 overflow-hidden flex items-center justify-center bg-white p-1">
                 <img
-                  src="/app_icon.png"
-                  alt="Shan Poultry"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLElement).style.display = 'none';
-                  }}
+                  src={appIcon}
+                  alt="Shan Poultry Protein"
+                  className="w-full h-full object-contain"
                 />
               </div>
-              <div className="font-extrabold text-base text-slate-900 tracking-wide">SHAN POULTRY PROTEIN</div>
-              <div className="text-[11px] text-slate-500 font-medium">آفیشل وصولی رسید (Official Collection Slip)</div>
+              <div className="font-black text-lg text-slate-900 tracking-wide uppercase">SHAN POULTRY PROTEIN</div>
+              <div className="text-xs text-blue-700 font-bold">شان پولٹری پروٹین</div>
+              <div className="text-[11px] text-slate-500 font-medium mt-0.5">آفیشل وصولی رسید (Official Collection Slip)</div>
               <div className="font-mono font-black text-sm text-blue-600 mt-1">{receiptModalSlip.receipt_no}</div>
             </div>
 
@@ -2077,26 +2329,89 @@ export const MobileApp: React.FC = () => {
                 <span className="font-medium text-slate-700">{receiptModalSlip.worker_name}</span>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 my-2 font-mono">
-                <div className="flex justify-between text-slate-600">
-                  <span>کل وزن (Gross):</span>
-                  <span>{receiptModalSlip.gross_weight} KG</span>
+              {/* Itemized Charbi Breakdown */}
+              {(receiptModalSlip.charbi_net || 0) > 0 || (receiptModalSlip.charbi_gross || 0) > 0 ? (
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1 font-mono text-xs">
+                  <div className="font-bold text-emerald-950 font-sans flex items-center justify-between pb-1 border-b border-emerald-200/60">
+                    <span>🟢 چربی وزن (Charbi Weight)</span>
+                    <span className="font-bold text-emerald-800">Rs. {receiptModalSlip.charbi_rate || 55}/KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>کل وزن (Gross):</span>
+                    <span>{receiptModalSlip.charbi_gross || 0} KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>تار / برتن (Tare):</span>
+                    <span>-{receiptModalSlip.charbi_tare || 0} KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-900 font-bold">
+                    <span>خالص چربی (Net):</span>
+                    <span className="text-emerald-700">{receiptModalSlip.charbi_net || 0} KG</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-950 font-black pt-1 border-t border-emerald-200/60">
+                    <span>چربی بل:</span>
+                    <span>Rs. {(receiptModalSlip.charbi_total || Math.round((receiptModalSlip.charbi_net || 0) * (receiptModalSlip.charbi_rate || 55))).toLocaleString()}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>کٹوتی / خالی (Tare):</span>
-                  <span>-{receiptModalSlip.tare_weight} KG</span>
+              ) : null}
+
+              {/* Itemized Kachara Breakdown */}
+              {(receiptModalSlip.kachara_net || 0) > 0 || (receiptModalSlip.kachara_gross || 0) > 0 ? (
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1 font-mono text-xs">
+                  <div className="font-bold text-amber-950 font-sans flex items-center justify-between pb-1 border-b border-amber-200/60">
+                    <span>🟠 کچرا وزن (Kachara Weight)</span>
+                    <span className="font-bold text-amber-800">Rs. {receiptModalSlip.kachara_rate || receiptModalSlip.rate_per_kg || 45}/KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>کل وزن (Gross):</span>
+                    <span>{receiptModalSlip.kachara_gross || 0} KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>تار / برتن (Tare):</span>
+                    <span>-{receiptModalSlip.kachara_tare || 0} KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-900 font-bold">
+                    <span>خالص کچرا (Net):</span>
+                    <span className="text-amber-700">{receiptModalSlip.kachara_net || 0} KG</span>
+                  </div>
+                  <div className="flex justify-between text-amber-950 font-black pt-1 border-t border-amber-200/60">
+                    <span>کچرا بل:</span>
+                    <span>Rs. {(receiptModalSlip.kachara_total || Math.round((receiptModalSlip.kachara_net || 0) * (receiptModalSlip.kachara_rate || receiptModalSlip.rate_per_kg || 45))).toLocaleString()}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-slate-900 font-black pt-1 border-t border-slate-200 text-sm">
-                  <span>خالص وزن (Net):</span>
-                  <span className="text-blue-600">{receiptModalSlip.total_net_weight} KG</span>
+              ) : null}
+
+              {/* Legacy slip fallback if neither is explicitly populated */}
+              {!((receiptModalSlip.charbi_net || 0) > 0 || (receiptModalSlip.kachara_net || 0) > 0) && (
+                <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 my-2 font-mono">
+                  <div className="flex justify-between text-slate-600">
+                    <span>کل وزن (Gross):</span>
+                    <span>{receiptModalSlip.gross_weight} KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>کٹوتی / خالی (Tare):</span>
+                    <span>-{receiptModalSlip.tare_weight} KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-900 font-black pt-1 border-t border-slate-200 text-sm">
+                    <span>خالص وزن (Net):</span>
+                    <span className="text-blue-600">{receiptModalSlip.total_net_weight} KG</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 text-xs">
+                    <span>ریٹ (Rate):</span>
+                    <span>Rs. {receiptModalSlip.rate_per_kg} / KG</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-slate-600 text-xs">
-                  <span>ریٹ (Rate):</span>
-                  <span>Rs. {receiptModalSlip.rate_per_kg} / KG</span>
+              )}
+
+              {/* Total Net Weight & Total Bill Grand Summary */}
+              <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-1.5 font-mono">
+                <div className="flex justify-between items-center text-xs text-slate-400">
+                  <span>TOTAL NET WEIGHT (کل خالص وزن):</span>
+                  <span className="text-blue-400 font-black text-sm">{receiptModalSlip.total_net_weight} KG</span>
                 </div>
-                <div className="flex justify-between text-slate-900 font-black text-base pt-1 border-t border-slate-200">
-                  <span>کل رقم (Total):</span>
-                  <span className="text-amber-600 font-bold">Rs. {receiptModalSlip.total_amount.toLocaleString()}</span>
+                <div className="flex justify-between items-center pt-1.5 border-t border-slate-800 text-sm font-black">
+                  <span className="text-white">TOTAL BILL (کل رقم):</span>
+                  <span className="text-amber-400 text-base">Rs. {receiptModalSlip.total_amount.toLocaleString()}</span>
                 </div>
               </div>
 
@@ -2114,7 +2429,7 @@ export const MobileApp: React.FC = () => {
               )}
 
               {/* Status */}
-              <div className="flex justify-between items-center pt-2">
+              <div className="flex justify-between items-center pt-1">
                 <span className="text-slate-500">حالت (Status):</span>
                 {receiptModalSlip.status === 'synced' ? (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
@@ -2128,34 +2443,50 @@ export const MobileApp: React.FC = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="pt-2 flex gap-2">
+            {/* Action Buttons: WhatsApp Send + Edit + Complete */}
+            <div className="space-y-2 pt-1">
+              {/* Primary Dedicated WhatsApp Share Button */}
               <button
                 type="button"
-                onClick={() => {
-                  const slipToEdit = receiptModalSlip;
-                  setReceiptModalSlip(null);
-                  startEditingSlip(slipToEdit);
-                }}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-black shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition"
+                onClick={() => openWhatsAppReceipt(receiptModalSlip)}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 transition"
               >
-                <Edit2 className="w-4 h-4" />
-                <span>ایڈٹ کریں (Edit)</span>
+                <MessageSquare className="w-4 h-4" />
+                <span>واٹس ایپ پر رسید بھیجیں (WhatsApp Receipt)</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setReceiptModalSlip(null)}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/20"
-              >
-                مکمل (Done)
-              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const slipToEdit = receiptModalSlip;
+                    setReceiptModalSlip(null);
+                    startEditingSlip(slipToEdit);
+                  }}
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center justify-center gap-1.5 transition"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  <span>ایڈٹ کریں (Edit)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openWhatsAppReceipt(receiptModalSlip);
+                    setReceiptModalSlip(null);
+                  }}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black shadow-sm flex items-center justify-center gap-1.5 transition"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>مکمل (Done)</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* =========================================================================
-          MODAL 4: EDIT COLLECTION SLIP
+          MODAL 4: EDIT COLLECTION SLIP (CHARBI & KACHARA)
       ========================================================================= */}
       {editingSlip && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -2186,77 +2517,124 @@ export const MobileApp: React.FC = () => {
                     setEditCustomerId(e.target.value);
                     const selected = customers.find(c => c.id === e.target.value);
                     if (selected) {
-                      setEditRate(selected.rate_per_kg.toString());
+                      setEditCharbiRate(selected.rate_charbi ? selected.rate_charbi.toString() : '55');
+                      setEditKacharaRate(selected.rate_kachara ? selected.rate_kachara.toString() : (selected.rate_per_kg ? selected.rate_per_kg.toString() : '45'));
                     }
                   }}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900"
                 >
                   {customers.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.area}) - Rs. {c.rate_per_kg}
+                      {c.name} ({c.area})
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Gross Weight */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    کل وزن (Gross KG)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={editGross}
-                    onChange={(e) => setEditGross(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900"
-                  />
+              {/* Charbi Weight Inputs */}
+              <div className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-2">
+                <span className="font-bold text-emerald-950 block">🟢 چربی وزن (Charbi)</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-0.5">کل وزن (Gross KG)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="0.0"
+                      value={editCharbiGross}
+                      onChange={e => setEditCharbiGross(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-0.5">تار وزن (Tare KG)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="0.0"
+                      value={editCharbiTare}
+                      onChange={e => setEditCharbiTare(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    کٹوتی (Tare KG)
-                  </label>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-0.5">چربی ریٹ (Rate / KG)</label>
                   <input
                     type="number"
-                    step="0.1"
-                    value={editTare}
-                    onChange={(e) => setEditTare(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900"
+                    step="0.5"
+                    value={editCharbiRate}
+                    onChange={e => setEditCharbiRate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold"
                   />
                 </div>
               </div>
 
-              {/* Rate */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  ریٹ فی کلو (Rate PKR / KG)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={editRate}
-                  onChange={(e) => setEditRate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900"
-                />
+              {/* Kachara Weight Inputs */}
+              <div className="p-3 bg-amber-50/50 border border-amber-200 rounded-xl space-y-2">
+                <span className="font-bold text-amber-950 block">🟠 کچرا وزن (Kachara)</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-0.5">کل وزن (Gross KG)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="0.0"
+                      value={editKacharaGross}
+                      onChange={e => setEditKacharaGross(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-0.5">تار وزن (Tare KG)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="0.0"
+                      value={editKacharaTare}
+                      onChange={e => setEditKacharaTare(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-0.5">کچرا ریٹ (Rate / KG)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={editKacharaRate}
+                    onChange={e => setEditKacharaRate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold"
+                  />
+                </div>
               </div>
 
               {/* Calculated Summary Box */}
               {(() => {
-                const g = parseFloat(editGross) || 0;
-                const t = parseFloat(editTare) || 0;
-                const r = parseFloat(editRate) || 0;
-                const n = Math.max(0, g - t);
-                const tot = Math.round(n * r);
+                const cg = parseFloat(editCharbiGross) || 0;
+                const ct = parseFloat(editCharbiTare) || 0;
+                const cr = parseFloat(editCharbiRate) || 0;
+                const cn = Math.max(0, cg - ct);
+                const ctot = Math.round(cn * cr);
+
+                const kg = parseFloat(editKacharaGross) || 0;
+                const kt = parseFloat(editKacharaTare) || 0;
+                const kr = parseFloat(editKacharaRate) || 0;
+                const kn = Math.max(0, kg - kt);
+                const ktot = Math.round(kn * kr);
+
+                const totNet = cn + kn;
+                const totAmt = ctot + ktot;
+
                 return (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-1 font-mono">
-                    <div className="flex justify-between text-blue-900 font-bold">
-                      <span>خالص وزن (Net Weight):</span>
-                      <span>{n.toFixed(1)} KG</span>
+                  <div className="p-3 bg-slate-900 text-white rounded-xl space-y-1 font-mono text-xs">
+                    <div className="flex justify-between text-blue-300 font-bold">
+                      <span>خالص وزن (Total Net):</span>
+                      <span>{totNet.toFixed(1)} KG</span>
                     </div>
-                    <div className="flex justify-between text-blue-950 font-black text-sm pt-1 border-t border-blue-200">
+                    <div className="flex justify-between text-amber-300 font-black text-sm pt-1 border-t border-slate-700">
                       <span>کل رقم (Total Billed):</span>
-                      <span className="text-blue-700">Rs. {tot.toLocaleString()}</span>
+                      <span>Rs. {totAmt.toLocaleString()}</span>
                     </div>
                   </div>
                 );

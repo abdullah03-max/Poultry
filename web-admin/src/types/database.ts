@@ -29,6 +29,8 @@ export interface Customer {
   address: string | null;
   area: string;
   rate_per_kg: number;
+  rate_charbi?: number; // Price per KG for Charbi (چربی وزن)
+  rate_kachara?: number; // Price per KG for Kachara (کچرا وزن)
   category_rates: Record<string, number>;
   status: 'active' | 'inactive';
   notes: string | null;
@@ -55,6 +57,9 @@ export interface CollectionWeightItem {
   id: string;
   collection_id: string;
   category_id: string;
+  category_code?: string;
+  gross_weight?: number;
+  tare_weight?: number;
   weight: number;
   rate: number;
   amount: number;
@@ -96,6 +101,19 @@ export interface Collection {
   status: 'draft' | 'submitted' | 'verified' | 'cancelled';
   created_at: string;
   updated_at: string;
+
+  // Dedicated Charbi & Kachara Fields
+  charbi_gross?: number;
+  charbi_tare?: number;
+  charbi_net?: number;
+  charbi_rate?: number;
+  charbi_total?: number;
+
+  kachara_gross?: number;
+  kachara_tare?: number;
+  kachara_net?: number;
+  kachara_rate?: number;
+  kachara_total?: number;
   
   // Joined relation fields
   customer?: Customer;
