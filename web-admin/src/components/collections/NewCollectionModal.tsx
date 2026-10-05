@@ -144,16 +144,20 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
             return v.toString(16);
           });
 
-      // Build category item entries
+      // Find category UUIDs dynamically from loaded categories
+      const charbiCat = categories.find(c => c.code === 'charbi' || c.code === 'fat');
+      const kacharaCat = categories.find(c => c.code === 'kachara' || c.code === 'waste');
+
+      // Build category item entries with valid UUID category_id
       const items = [
-        ...(cNet > 0 ? [{
-          category_id: 'charbi',
+        ...(cNet > 0 && charbiCat ? [{
+          category_id: charbiCat.id,
           weight: cNet,
           rate: cRate,
           amount: cTotal,
         }] : []),
-        ...(kNet > 0 ? [{
-          category_id: 'kachara',
+        ...(kNet > 0 && kacharaCat ? [{
+          category_id: kacharaCat.id,
           weight: kNet,
           rate: kRate,
           amount: kTotal,

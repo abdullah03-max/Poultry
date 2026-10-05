@@ -323,14 +323,18 @@ export const mobileStorage = {
 
         // 2. Insert items if collection ID exists
         if (collectionId && slip.items && slip.items.length > 0) {
-          const itemPayload = slip.items.map(item => ({
-            collection_id: collectionId,
-            category_id: item.category_id,
-            weight: item.weight,
-            rate: item.rate,
-            amount: item.amount,
-          }));
-          await supabase.from('collection_weight_items').insert(itemPayload);
+          const itemPayload = slip.items
+            .filter(item => item.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.category_id))
+            .map(item => ({
+              collection_id: collectionId,
+              category_id: item.category_id,
+              weight: item.weight,
+              rate: item.rate,
+              amount: item.amount,
+            }));
+          if (itemPayload.length > 0) {
+            await supabase.from('collection_weight_items').insert(itemPayload);
+          }
         }
 
         // 3. Insert scale photo attachment if present

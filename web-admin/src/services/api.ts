@@ -962,16 +962,20 @@ export const api = {
 
         if (colData) {
           if (items.length > 0) {
-            const weightItems = items.map(it => ({
-              collection_id: colData.id,
-              category_id: it.category_id,
-              weight: it.weight,
-              rate: it.rate,
-              amount: it.amount,
-            }));
-            const { error: itemErr } = await supabase.from('collection_weight_items').insert(weightItems);
-            if (itemErr) {
-              console.warn('[API] Warning inserting collection items:', itemErr);
+            const weightItems = items
+              .filter(it => it.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.category_id))
+              .map(it => ({
+                collection_id: colData.id,
+                category_id: it.category_id,
+                weight: it.weight,
+                rate: it.rate,
+                amount: it.amount,
+              }));
+            if (weightItems.length > 0) {
+              const { error: itemErr } = await supabase.from('collection_weight_items').insert(weightItems);
+              if (itemErr) {
+                console.warn('[API] Warning inserting collection items:', itemErr);
+              }
             }
           }
 
@@ -1084,14 +1088,18 @@ export const api = {
         if (!error && data) {
           if (items && items.length > 0) {
             await supabase.from('collection_weight_items').delete().eq('collection_id', id);
-            const weightItems = items.map(it => ({
-              collection_id: id,
-              category_id: it.category_id,
-              weight: it.weight,
-              rate: it.rate,
-              amount: it.amount,
-            }));
-            await supabase.from('collection_weight_items').insert(weightItems);
+            const weightItems = items
+              .filter(it => it.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.category_id))
+              .map(it => ({
+                collection_id: id,
+                category_id: it.category_id,
+                weight: it.weight,
+                rate: it.rate,
+                amount: it.amount,
+              }));
+            if (weightItems.length > 0) {
+              await supabase.from('collection_weight_items').insert(weightItems);
+            }
           }
 
           const { data: fullRecord } = await supabase
