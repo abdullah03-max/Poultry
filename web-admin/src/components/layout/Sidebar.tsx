@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import appIcon from '../../assets/app_icon.png';
 
 export type NavigationTab =
   | 'dashboard'
@@ -82,12 +83,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-4 sm:p-5 border-b border-slate-800/80 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/app_icon.png"
+              src={appIcon}
               alt="Shan Poultry"
-              className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-brand-600/30 border border-slate-700 shrink-0"
-              onError={(e) => {
-                (e.currentTarget as HTMLElement).style.display = 'none';
-              }}
+              className="w-10 h-10 rounded-xl object-contain bg-white p-0.5 shadow-lg shadow-brand-600/30 border border-slate-700 shrink-0"
             />
             <div className="min-w-0">
               <h1 className="font-bold text-sm tracking-wide text-white truncate">SHAN POULTRY</h1>

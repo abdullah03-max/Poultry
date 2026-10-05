@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "build": "npm --prefix web-admin run build",
-    "dev": "npm --prefix web-admin run dev"
+    "dev": "npm --prefix web-admin run dev",
+    "desktop": "npm --prefix web-admin run electron:start",
+    "desktop:dev": "npm --prefix web-admin run electron:dev"
   }
 }

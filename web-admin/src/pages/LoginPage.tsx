@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Lock, Mail, ArrowRight, AlertCircle, Loader2, Eye, EyeOff, Sparkles, ShieldCheck } from 'lucide-react';
+import appIcon from '../assets/app_icon.png';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -37,14 +38,11 @@ export const LoginPage: React.FC = () => {
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-5 sm:p-8 shadow-card space-y-6">
         {/* Brand Banner */}
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/25 overflow-hidden border border-slate-200 bg-blue-600">
+          <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/25 overflow-hidden border border-slate-200 bg-white p-1">
             <img
-              src="/app_icon.png"
+              src={appIcon}
               alt="Shan Poultry"
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.currentTarget as HTMLElement).style.display = 'none';
-              }}
+              className="w-full h-full object-contain"
             />
           </div>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">SHAN POULTRY PROTEIN</h1>
