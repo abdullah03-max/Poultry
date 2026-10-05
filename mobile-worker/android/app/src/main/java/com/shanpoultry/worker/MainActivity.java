@@ -218,6 +218,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // Register Android JavaScript Bridge for Native WhatsApp Image Sharing & Direct Download
+        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
+
         // Load the local Daylight worker app via WebViewAssetLoader
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
     }
@@ -312,5 +315,161 @@ public class MainActivity extends AppCompatActivity {
             webView.destroy();
         }
         super.onDestroy();
+    }
+
+    public class AndroidBridge {
+
+        @android.webkit.JavascriptInterface
+        public boolean isNativeApp() {
+            return true;
+        }
+
+        @android.webkit.JavascriptInterface
+        public void shareReceiptImage(final String base64Data, final String filename, final String phone, final String caption) {
+            runOnUiThread(() -> {
+                try {
+                    String cleanBase64 = base64Data;
+                    if (cleanBase64.contains(",")) {
+                        cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+                    }
+                    byte[] decodedBytes = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT);
+
+                    // Save to cache receipts directory
+                    File receiptsDir = new File(getCacheDir(), "receipts");
+                    if (!receiptsDir.exists()) {
+                        receiptsDir.mkdirs();
+                    }
+                    String safeFilename = (filename != null && !filename.isEmpty()) ? filename : "Receipt_" + System.currentTimeMillis() + ".png";
+                    File imageFile = new File(receiptsDir, safeFilename);
+                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(imageFile)) {
+                        fos.write(decodedBytes);
+                        fos.flush();
+                    }
+
+                    Uri contentUri = FileProvider.getUriForFile(
+                            MainActivity.this,
+                            getPackageName() + ".fileprovider",
+                            imageFile
+                    );
+
+                    // Normalize phone number (e.g. 923001234567)
+                    String cleanPhone = phone != null ? phone.replaceAll("[^0-9]", "") : "";
+                    if (cleanPhone.startsWith("03")) {
+                        cleanPhone = "92" + cleanPhone.substring(1);
+                    } else if (cleanPhone.startsWith("3") && cleanPhone.length() == 10) {
+                        cleanPhone = "92" + cleanPhone;
+                    }
+
+                    Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                    shareIntent.setType("image/png");
+                    shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                    if (caption != null && !caption.isEmpty()) {
+                        shareIntent.putExtra(Intent.EXTRA_TEXT, caption);
+                    }
+                    shareIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
+                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                    boolean sentDirect = false;
+                    if (cleanPhone.length() >= 10) {
+                        // Check if standard WhatsApp is installed and launch targeted intent
+                        try {
+                            Intent waIntent = new Intent(Intent.ACTION_SEND);
+                            waIntent.setType("image/png");
+                            waIntent.setPackage("com.whatsapp");
+                            waIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                            waIntent.putExtra("jid", cleanPhone + "@s.whatsapp.net");
+                            if (caption != null && !caption.isEmpty()) {
+                                waIntent.putExtra(Intent.EXTRA_TEXT, caption);
+                            }
+                            waIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
+                            waIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            try {
+                                grantUriPermission("com.whatsapp", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            } catch (Exception ignored) {}
+                            startActivity(waIntent);
+                            sentDirect = true;
+                        } catch (Exception e1) {
+                            // Try WhatsApp Business
+                            try {
+                                Intent waBizIntent = new Intent(Intent.ACTION_SEND);
+                                waBizIntent.setType("image/png");
+                                waBizIntent.setPackage("com.whatsapp.w4b");
+                                waBizIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                                waBizIntent.putExtra("jid", cleanPhone + "@s.whatsapp.net");
+                                if (caption != null && !caption.isEmpty()) {
+                                    waBizIntent.putExtra(Intent.EXTRA_TEXT, caption);
+                                }
+                                waBizIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
+                                waBizIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                try {
+                                    grantUriPermission("com.whatsapp.w4b", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                } catch (Exception ignored) {}
+                                startActivity(waBizIntent);
+                                sentDirect = true;
+                            } catch (Exception e2) {
+                                sentDirect = false;
+                            }
+                        }
+                    }
+
+                    if (!sentDirect) {
+                        Intent chooser = Intent.createChooser(shareIntent, "واٹس ایپ پر رسید تصویر بھیجیں (Share Receipt Image)");
+                        startActivity(chooser);
+                    }
+
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Error sharing receipt image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void downloadReceiptImage(final String base64Data, final String filename) {
+            runOnUiThread(() -> {
+                try {
+                    String cleanBase64 = base64Data;
+                    if (cleanBase64.contains(",")) {
+                        cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+                    }
+                    byte[] decodedBytes = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT);
+                    String safeFilename = (filename != null && !filename.isEmpty()) ? filename : "Receipt_" + System.currentTimeMillis() + ".png";
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        android.content.ContentValues values = new android.content.ContentValues();
+                        values.put(MediaStore.Images.Media.DISPLAY_NAME, safeFilename);
+                        values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                        values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/ShanPoultry");
+                        Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                        if (uri != null) {
+                            try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+                                if (out != null) {
+                                    out.write(decodedBytes);
+                                    out.flush();
+                                }
+                            }
+                        }
+                    } else {
+                        File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+                        File sppDir = new File(picturesDir, "ShanPoultry");
+                        if (!sppDir.exists()) sppDir.mkdirs();
+                        File destFile = new File(sppDir, safeFilename);
+                        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(destFile)) {
+                            fos.write(decodedBytes);
+                            fos.flush();
+                        }
+                        android.media.MediaScannerConnection.scanFile(
+                                MainActivity.this,
+                                new String[]{destFile.getAbsolutePath()},
+                                new String[]{"image/png"},
+                                null
+                        );
+                    }
+
+                    Toast.makeText(MainActivity.this, "رسید تصویر گیلری میں محفوظ ہو گئی!\nSaved to Pictures/ShanPoultry", Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Failed to save image: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 }

@@ -472,11 +472,13 @@ export async function generateReceiptImageBlob(rawSlip: OfflineCollectionItem | 
 /**
  * Shares the actual receipt image to WhatsApp (using Web Share API on mobile, or download + chat fallback)
  */
-export async function shareReceiptImage(rawSlip: OfflineCollectionItem | Collection | any, existingBlob?: Blob): Promise<{ success: boolean; method: 'web_share' | 'download_and_whatsapp' }> {
+export async function shareReceiptImage(
+  rawSlip: OfflineCollectionItem | Collection | any,
+  existingBlob?: Blob
+): Promise<{ success: boolean; method: string }> {
   const slip = normalizeSlipData(rawSlip);
   const blob = existingBlob || await generateReceiptImageBlob(slip);
   const filename = `Receipt_${slip.receipt_no}.png`;
-  const file = new File([blob], filename, { type: 'image/png' });
 
   // Clean phone number
   let phone = (slip.customer_phone || '').replace(/[^0-9]/g, '');
@@ -486,25 +488,46 @@ export async function shareReceiptImage(rawSlip: OfflineCollectionItem | Collect
     phone = '92' + phone;
   }
 
-  // Method 1: Web Share API with Files (Android WebView & Mobile Browsers)
+  const caption = `*🐔 SHAN POULTRY PROTEIN - رسید 🐔*\nرسید نمبر: ${slip.receipt_no}\nگاہک: ${slip.customer_name}\nخالص وزن: ${slip.total_net_weight} KG\nٹوٹل بل: Rs. ${slip.total_amount.toLocaleString()}`;
+
+  // PRIORITY 1: Native Android Bridge (Inside Android APK WebView)
+  if (
+    typeof (window as any).AndroidBridge !== 'undefined' &&
+    typeof (window as any).AndroidBridge.shareReceiptImage === 'function'
+  ) {
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      (window as any).AndroidBridge.shareReceiptImage(base64Data, filename, phone, caption);
+      return { success: true, method: 'android_bridge' };
+    } catch (err) {
+      console.warn('AndroidBridge.shareReceiptImage failed, falling back:', err);
+    }
+  }
+
+  // PRIORITY 2: Modern Mobile Browser Web Share API with Files
+  const file = new File([blob], filename, { type: 'image/png' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         files: [file],
         title: `Shan Poultry Slip ${slip.receipt_no}`,
-        text: `*🐔 SHAN POULTRY PROTEIN 🐔*\nرسید نمبر: ${slip.receipt_no}\nگاہک: ${slip.customer_name}\nکل خالص وزن: ${slip.total_net_weight} KG\nکل بل: Rs. ${slip.total_amount.toLocaleString()}`,
+        text: caption,
       });
       return { success: true, method: 'web_share' };
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        // User cancelled share sheet
         return { success: true, method: 'web_share' };
       }
       console.warn('navigator.share failed, using fallback:', err);
     }
   }
 
-  // Method 2: Fallback — Auto-download PNG and open WhatsApp chat
+  // PRIORITY 3: Fallback for Desktop Browsers (Download image + Open WhatsApp Web)
   try {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -519,12 +542,12 @@ export async function shareReceiptImage(rawSlip: OfflineCollectionItem | Collect
   }
 
   // Open customer WhatsApp chat
-  const caption = encodeURIComponent(
-    `*🐔 SHAN POULTRY PROTEIN - رسید 🐔*\nرسید نمبر: ${slip.receipt_no}\nگاہک: ${slip.customer_name}\nخالص وزن: ${slip.total_net_weight} KG\nٹوٹل بل: Rs. ${slip.total_amount.toLocaleString()}\n(رسید کی تصویر محفوظ کر کے بھیج دی گئی ہے)`
+  const encodedCaption = encodeURIComponent(
+    `${caption}\n(رسید کی تصویر محفوظ کر کے بھیج دی گئی ہے)`
   );
   const waUrl = phone.length >= 10
-    ? `https://api.whatsapp.com/send?phone=${phone}&text=${caption}`
-    : `https://api.whatsapp.com/send?text=${caption}`;
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedCaption}`
+    : `https://api.whatsapp.com/send?text=${encodedCaption}`;
 
   window.open(waUrl, '_blank');
   return { success: true, method: 'download_and_whatsapp' };
@@ -533,10 +556,34 @@ export async function shareReceiptImage(rawSlip: OfflineCollectionItem | Collect
 /**
  * Direct file download helper
  */
-export async function downloadReceiptImage(rawSlip: OfflineCollectionItem | Collection | any, existingBlob?: Blob): Promise<void> {
+export async function downloadReceiptImage(
+  rawSlip: OfflineCollectionItem | Collection | any,
+  existingBlob?: Blob
+): Promise<void> {
   const slip = normalizeSlipData(rawSlip);
   const blob = existingBlob || await generateReceiptImageBlob(slip);
   const filename = `Receipt_${slip.receipt_no}.png`;
+
+  // PRIORITY 1: Native Android Bridge (Direct Save to Public Pictures Gallery)
+  if (
+    typeof (window as any).AndroidBridge !== 'undefined' &&
+    typeof (window as any).AndroidBridge.downloadReceiptImage === 'function'
+  ) {
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      (window as any).AndroidBridge.downloadReceiptImage(base64Data, filename);
+      return;
+    } catch (err) {
+      console.warn('AndroidBridge.downloadReceiptImage failed, falling back:', err);
+    }
+  }
+
+  // PRIORITY 2: Browser standard download
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

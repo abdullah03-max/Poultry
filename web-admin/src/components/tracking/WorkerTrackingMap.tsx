@@ -23,11 +23,12 @@ import {
 
 interface WorkerTrackingMapProps {
   onSelectWorker?: (worker: Profile) => void;
+  selectedWorkerId?: string | null;
 }
 
-export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWorker }) => {
+export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWorker, selectedWorkerId: propWorkerId }) => {
   const [workers, setWorkers] = useState<Profile[]>([]);
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(propWorkerId || null);
   const [loading, setLoading] = useState<boolean>(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
@@ -127,6 +128,9 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 300);
     }
 
     return () => {
@@ -136,6 +140,17 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       }
     };
   }, []);
+
+  // Sync propWorkerId if changed from parent
+  useEffect(() => {
+    if (propWorkerId) {
+      setSelectedWorkerId(propWorkerId);
+      const target = workers.find(w => w.id === propWorkerId);
+      if (target) {
+        handleFocusWorker(target);
+      }
+    }
+  }, [propWorkerId, workers]);
 
   // Update Markers on Worker Location Change
   useEffect(() => {
