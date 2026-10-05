@@ -194,104 +194,31 @@ let mockWorkers: Profile[] = [
   },
 ];
 
-// Helper to generate realistic historical collections for current month
-const generateMockCollections = (): Collection[] => {
-  const list: Collection[] = [];
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const currentDay = now.getDate();
+// In-Memory Collections Store (Starts fresh, populated by real database collections or worker submissions)
+const generateMockCollections = (): Collection[] => [];
 
-  // Create collections for the past days of this month
-  for (let d = 1; d <= currentDay; d++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    
-    // Day 1 to currentDay: each customer might have collection or 'X' (skip)
-    mockCustomers.forEach((cust, index) => {
-      // Create pattern: some days have collection, some days empty ('X')
-      if ((d + index) % 3 !== 0) {
-        const netWeight = 40 + ((d * 7 + index * 11) % 65);
-        const grossWeight = netWeight + 3.5;
-        const tareWeight = 3.5;
-        const totalAmount = Math.round(netWeight * cust.rate_per_kg);
-        const receiptNo = `SPP-${year}${String(month + 1).padStart(2, '0')}-${String(list.length + 1001).padStart(5, '0')}`;
-        const worker = mockWorkers[index % mockWorkers.length];
-
-        list.push({
-          id: `col-${year}-${month + 1}-${d}-${cust.id}`,
-          receipt_no: receiptNo,
-          client_uuid: `client-uuid-${year}-${month + 1}-${d}-${cust.id}`,
-          customer_id: cust.id,
-          worker_id: worker.id,
-          collection_date: dateStr,
-          collection_time: `${String(8 + (index % 4)).padStart(2, '0')}:${String((d * 12) % 60).padStart(2, '0')}:00`,
-          collection_timestamp: `${dateStr}T${String(8 + (index % 4)).padStart(2, '0')}:30:00+05:00`,
-          gross_weight: grossWeight,
-          tare_weight: tareWeight,
-          total_net_weight: netWeight,
-          rate_per_kg: cust.rate_per_kg,
-          total_amount: totalAmount,
-          notes: d % 2 === 0 ? 'Standard clean collection' : null,
-          signature_url: 'https://images.unsplash.com/photo-1596524430615-b46475ddff6e?auto=format&fit=crop&w=300&q=80',
-          signature_timestamp: `${dateStr}T${String(8 + (index % 4)).padStart(2, '0')}:31:00+05:00`,
-          signee_name: cust.contact_person,
-          status: 'submitted',
-          created_at: `${dateStr}T${String(8 + (index % 4)).padStart(2, '0')}:32:00+05:00`,
-          updated_at: `${dateStr}T${String(8 + (index % 4)).padStart(2, '0')}:32:00+05:00`,
-          customer: cust,
-          worker: worker,
-          items: [
-            {
-              id: `item-1-${d}-${cust.id}`,
-              collection_id: `col-${year}-${month + 1}-${d}-${cust.id}`,
-              category_id: mockCategories[0].id,
-              weight: Math.round(netWeight * 0.65),
-              rate: cust.rate_per_kg,
-              amount: Math.round(netWeight * 0.65 * cust.rate_per_kg),
-              created_at: `${dateStr}T08:30:00+05:00`,
-              category: mockCategories[0],
-            },
-            {
-              id: `item-2-${d}-${cust.id}`,
-              collection_id: `col-${year}-${month + 1}-${d}-${cust.id}`,
-              category_id: mockCategories[3].id,
-              weight: Math.round(netWeight * 0.35),
-              rate: cust.rate_per_kg,
-              amount: Math.round(netWeight * 0.35 * cust.rate_per_kg),
-              created_at: `${dateStr}T08:30:00+05:00`,
-              category: mockCategories[3],
-            },
-          ],
-        });
-      }
-    });
-  }
-
-  return list;
-};
-
-let mockCollections: Collection[] = generateMockCollections();
+let mockCollections: Collection[] = [];
 
 let mockAuditLogs: AuditLog[] = [
   {
     id: 'log-1',
-    user_id: mockWorkers[2].id,
+    user_id: mockWorkers[2]?.id || 'admin',
     action: 'SETTINGS_UPDATE',
     table_name: 'business_settings',
     record_id: 'bs-1',
     old_data: { monthly_register_empty_symbol: '-' },
     new_data: { monthly_register_empty_symbol: 'X' },
     created_at: new Date(Date.now() - 3600000).toISOString(),
-    profile: mockWorkers[2],
+    profile: mockWorkers[2] || mockWorkers[0],
   },
   {
     id: 'log-2',
-    user_id: mockWorkers[0].id,
+    user_id: mockWorkers[0]?.id || 'worker',
     action: 'INSERT',
     table_name: 'collections',
-    record_id: mockCollections[mockCollections.length - 1]?.id || 'col-new',
+    record_id: 'col-seed-init',
     old_data: null,
-    new_data: { receipt_no: mockCollections[mockCollections.length - 1]?.receipt_no, total_net_weight: 75.5 },
+    new_data: { receipt_no: 'SPP-INIT', total_net_weight: 0 },
     created_at: new Date(Date.now() - 1800000).toISOString(),
     profile: mockWorkers[0],
   },
