@@ -17,12 +17,16 @@ import {
   Sparkles,
   MapPin,
   CheckCircle,
+  AlertTriangle,
+  Phone,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { Collection, Customer, WeightCategory } from '../types/database';
 import { api } from '../services/api';
 import { formatWeight, formatCurrency, formatDate, formatTime } from '../utils/formatters';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
+import { WorkerTrackingMap } from '../components/tracking/WorkerTrackingMap';
+import { useCollectionScheduleAlerts } from '../hooks/useCollectionScheduleAlerts';
 
 interface DashboardPageProps {
   collections: Collection[];
@@ -38,6 +42,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [categories, setCategories] = useState<WeightCategory[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+
+  // Realtime Collection Schedule Alerts for overdue customer visits today
+  const { alerts: scheduleAlerts } = useCollectionScheduleAlerts(collections);
 
   useEffect(() => {
     Promise.all([api.getCustomers(), api.getWeightCategories()]).then(([c, w]) => {
@@ -113,6 +120,64 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Scheduled Collection Overdue Alerts Banner */}
+      {scheduleAlerts.length > 0 && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm sm:text-base text-rose-950">
+                  وقت وصولی الرٹ (Schedule Collection Alerts) — {scheduleAlerts.length} دکانیں مقررہ وقت سے تاخیر کا شکار
+                </h3>
+                <p className="text-xs text-rose-700">
+                  Following shops have passed their scheduled collection deadline without any recorded collection today:
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigateTab('customers')}
+              className="text-xs font-bold text-rose-800 bg-rose-100 hover:bg-rose-200 px-3 py-1.5 rounded-xl transition"
+            >
+              Manage Schedule →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+            {scheduleAlerts.map(alert => (
+              <div
+                key={alert.id}
+                className="bg-white border border-rose-200 rounded-xl p-3 shadow-2xs flex flex-col justify-between space-y-2"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-900 truncate">{alert.customer_name}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-mono">
+                      Deadline: {alert.end_time}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{alert.customer_area}</div>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                  <span className="text-[11px] text-slate-400">Scheduled: {alert.start_time} – {alert.end_time}</span>
+                  {alert.customer_phone && (
+                    <a
+                      href={`tel:${alert.customer_phone}`}
+                      className="text-blue-600 hover:text-blue-800 font-bold text-[11px] flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3" />
+                      Call Shop
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Stat Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -296,6 +361,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* LIVE WORKER GPS TRACKING */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-card space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-emerald-600" /> لائیو ورکر GPS ٹریکنگ (Live Worker GPS Tracking)
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Realtime map tracking of field collectors across Burewala, Gaggoo Mandi, and Vehari
+            </p>
+          </div>
+          <span className="text-[11px] font-bold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            Live GPS Stream
+          </span>
+        </div>
+
+        <WorkerTrackingMap />
       </div>
 
       {/* Recent Live Collections Feed */}

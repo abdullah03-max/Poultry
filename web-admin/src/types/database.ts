@@ -14,6 +14,12 @@ export interface Profile {
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
+  // Live GPS tracking
+  current_latitude?: number | null;
+  current_longitude?: number | null;
+  location_accuracy?: number | null;
+  last_location_updated_at?: string | null;
+  is_online?: boolean;
   // Computed statistics for worker management
   total_collections?: number;
   total_kg_collected?: number;
@@ -31,6 +37,8 @@ export interface Customer {
   rate_per_kg: number;
   rate_charbi?: number; // Price per KG for Charbi (چربی وزن)
   rate_kachara?: number; // Price per KG for Kachara (کچرا وزن)
+  collection_start_time?: string | null; // e.g. "10:00:00"
+  collection_end_time?: string | null; // e.g. "12:00:00"
   category_rates: Record<string, number>;
   status: 'active' | 'inactive';
   notes: string | null;
@@ -38,6 +46,19 @@ export interface Customer {
   created_by?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkerLocation {
+  id: string;
+  worker_id: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  speed?: number | null;
+  heading?: number | null;
+  is_online?: boolean;
+  created_at: string;
+  worker?: Profile;
 }
 
 export interface WeightCategory {

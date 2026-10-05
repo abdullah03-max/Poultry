@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Customer, Collection } from '../types/database';
 import { formatWeight, formatCurrency, formatDate } from '../utils/formatters';
-import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2, Trash2 } from 'lucide-react';
+import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2, Trash2, Clock } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 
 export const CustomersPage: React.FC = () => {
@@ -89,6 +89,8 @@ export const CustomersPage: React.FC = () => {
         rate_charbi: charbiRate,
         rate_kachara: kacharaRate,
         rate_per_kg: kacharaRate,
+        collection_start_time: editingCustomer.collection_start_time || null,
+        collection_end_time: editingCustomer.collection_end_time || null,
         category_rates: {
           charbi: charbiRate,
           kachara: kacharaRate,
@@ -110,6 +112,8 @@ export const CustomersPage: React.FC = () => {
           rate_per_kg: kacharaRate,
           rate_charbi: charbiRate,
           rate_kachara: kacharaRate,
+          collection_start_time: editingCustomer.collection_start_time || null,
+          collection_end_time: editingCustomer.collection_end_time || null,
           category_rates: {
             charbi: charbiRate,
             kachara: kacharaRate,
@@ -263,6 +267,14 @@ export const CustomersPage: React.FC = () => {
                       کچرا: {cust.rate_kachara ?? (cust.rate_per_kg ?? 45)} PKR/KG
                     </span>
                   </div>
+                  {cust.collection_end_time && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50/80 border border-blue-200/80 px-2 py-0.5 rounded-lg w-fit mt-1">
+                      <Clock className="w-3 h-3 text-blue-600 shrink-0" />
+                      <span>
+                        وقت وصولی: {cust.collection_start_time?.substring(0, 5) || '08:00'} – {cust.collection_end_time.substring(0, 5)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -531,6 +543,44 @@ export const CustomersPage: React.FC = () => {
               onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), address: e.target.value }))}
               className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-brand-600"
             />
+          </div>
+
+          {/* Collection Time Schedule & Alerts */}
+          <div className="p-3.5 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                وقت وصولی شیڈول (Collection Time Window)
+              </span>
+              <span className="text-[10px] text-blue-600 font-medium">Automatic Alerts</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  شروع وقت (Start Time)
+                </label>
+                <input
+                  type="time"
+                  value={editingCustomer?.collection_start_time || ''}
+                  onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), collection_start_time: e.target.value }))}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  آخری وقت (End Time / Deadline)
+                </label>
+                <input
+                  type="time"
+                  value={editingCustomer?.collection_end_time || ''}
+                  onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), collection_end_time: e.target.value }))}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 pt-0.5">
+              اگر اس مقررہ وقت تک دکان سے وصولی نہ ہو تو ایڈمن پینل میں خودکار وارننگ الرٹ ظاہر ہو جائے گا۔
+            </p>
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-100">

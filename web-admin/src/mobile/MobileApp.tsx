@@ -36,8 +36,15 @@ import {
   AlertTriangle,
   Edit2,
   Share2,
-  MessageSquare
+  MessageSquare,
+  Download,
+  Navigation
 } from 'lucide-react';
+import {
+  generateReceiptImageBlob,
+  shareReceiptImage,
+  downloadReceiptImage
+} from '../utils/receiptImageGenerator';
 
 type Tab = 'home' | 'new_collection' | 'collections' | 'customers' | 'profile';
 
@@ -247,6 +254,79 @@ export const MobileApp: React.FC = () => {
   // Signature Canvas Ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
+
+  // GPS Tracking State
+  const [gpsActive, setGpsActive] = useState<boolean>(false);
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const lastGpsUpdateRef = useRef<number>(0);
+
+  // Sharing image state
+  const [isSharingImage, setIsSharingImage] = useState<boolean>(false);
+
+  // Live Worker GPS Tracking Watcher
+  useEffect(() => {
+    if (!worker?.id || !navigator.geolocation) {
+      setGpsActive(false);
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const accuracy = pos.coords.accuracy;
+
+        setGpsCoords({ lat, lng, accuracy });
+        setGpsActive(true);
+        setGpsError(null);
+
+        const now = Date.now();
+        // Update Supabase if at least 15 seconds passed
+        if (now - lastGpsUpdateRef.current > 15000) {
+          lastGpsUpdateRef.current = now;
+          try {
+            await supabase
+              .from('profiles')
+              .update({
+                current_latitude: lat,
+                current_longitude: lng,
+                location_accuracy: accuracy,
+                last_location_updated_at: new Date().toISOString(),
+                is_online: true,
+              })
+              .eq('id', worker.id);
+
+            await supabase
+              .from('worker_locations')
+              .insert({
+                worker_id: worker.id,
+                latitude: lat,
+                longitude: lng,
+                accuracy: accuracy,
+                recorded_at: new Date().toISOString(),
+              });
+          } catch (e) {
+            console.warn('GPS location sync warning:', e);
+          }
+        }
+      },
+      (err) => {
+        console.warn('Geolocation watch error:', err.message);
+        setGpsActive(false);
+        setGpsError(err.message);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 10000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [worker?.id]);
 
   // Online / Offline Listeners
   useEffect(() => {
@@ -864,6 +944,13 @@ export const MobileApp: React.FC = () => {
       // Show digital receipt popup
       setReceiptModalSlip(newSlip);
 
+      // Automatically trigger receipt image generation & sharing to customer's WhatsApp
+      try {
+        shareReceiptImage(newSlip).catch(e => console.warn('Auto-share receipt image notice:', e));
+      } catch (e) {
+        console.warn('Auto-share receipt error:', e);
+      }
+
       // Reset form
       setSelectedCustomer(null);
       setCharbiGross('');
@@ -1162,6 +1249,23 @@ export const MobileApp: React.FC = () => {
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : 'text-slate-600'}`} />
             <span className="text-[11px] font-bold">تازہ کریں</span>
           </button>
+
+          {/* GPS Live Indicator Badge */}
+          {gpsActive ? (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold" title="Live GPS Active">
+              <Navigation className="w-2.5 h-2.5 text-emerald-600 animate-pulse" />
+              <span>GPS LIVE</span>
+            </div>
+          ) : gpsError ? (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-bold" title={gpsError}>
+              <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
+              <span>NO GPS</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-bold">
+              <span>GPS...</span>
+            </div>
+          )}
 
           {isOnline ? (
             <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
@@ -1851,6 +1955,18 @@ export const MobileApp: React.FC = () => {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            shareReceiptImage(s);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-1 transition ml-1"
+                          title="واٹس ایپ پر رسید تصویر بھیجیں / Send Receipt Image"
+                        >
+                          <Share2 className="w-3 h-3 text-emerald-600" />
+                          <span>تصویر</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             startEditingSlip(s);
                           }}
                           className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-xs font-bold flex items-center gap-1 transition ml-1"
@@ -2028,12 +2144,18 @@ export const MobileApp: React.FC = () => {
 
             {/* Sign Out / Switch Worker */}
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (confirm('Log out from this worker account? You will need your assigned credentials to log back in.')) {
+                  if (worker?.id) {
+                    try {
+                      await supabase.from('profiles').update({ is_online: false }).eq('id', worker.id);
+                    } catch (e) {}
+                  }
                   mobileStorage.clearSession();
                   setWorker(null);
                   setOfflineSlips([]);
                   setPendingCount(0);
+                  setGpsActive(false);
                 }
               }}
               className="w-full py-3 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:bg-rose-100 transition"
@@ -2443,19 +2565,53 @@ export const MobileApp: React.FC = () => {
               </div>
             </div>
 
-            {/* Action Buttons: WhatsApp Send + Edit + Complete */}
+            {/* Action Buttons: WhatsApp Image Share + Download + Text + Edit + Complete */}
             <div className="space-y-2 pt-1">
-              {/* Primary Dedicated WhatsApp Share Button */}
+              {/* Primary Dedicated WhatsApp IMAGE Share Button */}
               <button
                 type="button"
-                onClick={() => openWhatsAppReceipt(receiptModalSlip)}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 transition"
+                disabled={isSharingImage}
+                onClick={async () => {
+                  setIsSharingImage(true);
+                  try {
+                    await shareReceiptImage(receiptModalSlip);
+                  } catch (e) {
+                    console.warn('Share image error, fallback to text:', e);
+                    openWhatsAppReceipt(receiptModalSlip);
+                  } finally {
+                    setIsSharingImage(false);
+                  }
+                }}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 transition disabled:opacity-60"
               >
-                <MessageSquare className="w-4 h-4" />
-                <span>واٹس ایپ پر رسید بھیجیں (WhatsApp Receipt)</span>
+                {isSharingImage ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Share2 className="w-4 h-4" />
+                )}
+                <span>واٹس ایپ پر رسید تصویر بھیجیں (Send Receipt Image)</span>
               </button>
 
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadReceiptImage(receiptModalSlip)}
+                  className="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  <span>تصویر محفوظ (Download)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openWhatsAppReceipt(receiptModalSlip)}
+                  className="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-slate-600" />
+                  <span>ٹیکسٹ میسج (Text)</span>
+                </button>
+              </div>
+
+              <div className="flex gap-2 pt-0.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -2471,7 +2627,6 @@ export const MobileApp: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    openWhatsAppReceipt(receiptModalSlip);
                     setReceiptModalSlip(null);
                   }}
                   className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-black shadow-sm flex items-center justify-center gap-1.5 transition"
