@@ -81,6 +81,11 @@ ALTER TABLE public.factories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.factory_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow authenticated full access to factories" ON public.factories FOR ALL USING (true);
-CREATE POLICY "Allow authenticated full access to factory_transactions" ON public.factory_transactions FOR ALL USING (true);
-CREATE POLICY "Allow authenticated full access to expenses" ON public.expenses FOR ALL USING (true);
+DROP POLICY IF EXISTS "Allow all full access to factories" ON public.factories;
+CREATE POLICY "Allow all full access to factories" ON public.factories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all full access to factory_transactions" ON public.factory_transactions;
+CREATE POLICY "Allow all full access to factory_transactions" ON public.factory_transactions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all full access to expenses" ON public.expenses;
+CREATE POLICY "Allow all full access to expenses" ON public.expenses FOR ALL USING (true) WITH CHECK (true);
