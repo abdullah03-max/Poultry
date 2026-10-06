@@ -12,6 +12,9 @@ import {
   Profile,
   AuditLog,
   MonthlyRegisterCustomerRow,
+  Factory,
+  FactoryTransaction,
+  Expense,
 } from '../types/database';
 import { getDaysInMonth } from '../utils/formatters';
 
@@ -152,6 +155,7 @@ let mockCategories: WeightCategory[] = [
 let mockSettings: BusinessSettings = {
   id: 'bs-1',
   business_name: 'SHAN POULTRY PROTEIN',
+  business_name_urdu: 'شان پولٹری پروٹین',
   business_phone: '+92 300 1234567',
   business_email: 'info@shanpoultryprotein.com',
   business_address: 'Main Multan Road, Sahiwal / Gaggoo Mandi, Punjab, Pakistan',
@@ -163,6 +167,10 @@ let mockSettings: BusinessSettings = {
   monthly_register_empty_symbol: 'X',
   enable_rates: true,
   allow_worker_edit_hours: 2,
+  common_collection_start_time: '08:00',
+  common_collection_end_time: '14:00',
+  locked_sections: [],
+  section_lock_pin: '1234',
   updated_at: new Date().toISOString(),
   updated_by: null,
 };
@@ -227,6 +235,162 @@ let mockAuditLogs: AuditLog[] = [
     new_data: { receipt_no: 'SPP-INIT', total_net_weight: 0 },
     created_at: new Date(Date.now() - 1800000).toISOString(),
     profile: mockWorkers[0],
+  },
+];
+
+let mockFactories: Factory[] = [
+  {
+    id: 'fac-10000000-0000-0000-0000-000000000001',
+    factory_code: 'FAC-001',
+    name: 'Chenab Feeds & Protein Industries',
+    contact_person: 'Mian Tariq Mehmood',
+    phone: '+92 300 7788991',
+    whatsapp_no: '923007788991',
+    address: 'Plot 45, Phase II, Industrial Estate',
+    area: 'Multan',
+    rate_charbi: 68.0,
+    rate_kachara: 52.0,
+    status: 'active',
+    notes: 'Major buyer for poultry meal and oil processing',
+    is_deleted: false,
+    created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'fac-10000000-0000-0000-0000-000000000002',
+    factory_code: 'FAC-002',
+    name: 'Al-Madina Bio-Products & Processing Plant',
+    contact_person: 'Sheikh Farooq Ahmed',
+    phone: '+92 301 6655443',
+    whatsapp_no: '923016655443',
+    address: 'Near National Highway Bypass',
+    area: 'Sahiwal',
+    rate_charbi: 66.0,
+    rate_kachara: 50.0,
+    status: 'active',
+    notes: 'Weekly payment settlement after delivery weight slip',
+    is_deleted: false,
+    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'fac-10000000-0000-0000-0000-000000000003',
+    factory_code: 'FAC-003',
+    name: 'Punjab Feather & Offal Recycling Mill',
+    contact_person: 'Haji Asif Gujjar',
+    phone: '+92 304 9988776',
+    whatsapp_no: '923049988776',
+    address: 'Chunian / Raiwind Road',
+    area: 'Lahore',
+    rate_charbi: 70.0,
+    rate_kachara: 54.0,
+    status: 'active',
+    notes: 'Advance paying factory for high-fat charbi loads',
+    is_deleted: false,
+    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+let mockFactoryTransactions: FactoryTransaction[] = [
+  {
+    id: 'tx-10000000-0000-0000-0000-000000000001',
+    invoice_no: 'FAC-INV-001',
+    factory_id: 'fac-10000000-0000-0000-0000-000000000001',
+    transaction_date: new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0],
+    charbi_weight: 420.0,
+    charbi_rate: 68.0,
+    charbi_total: 28560.0,
+    kachara_weight: 850.0,
+    kachara_rate: 52.0,
+    kachara_total: 44200.0,
+    total_weight: 1270.0,
+    total_amount: 72760.0,
+    advance_amount: 30000.0,
+    received_amount: 72760.0,
+    remaining_balance: 0.0,
+    payment_status: 'paid',
+    vehicle_no: 'SL-8840 (Shehzore)',
+    driver_name: 'Muhammad Akram',
+    notes: 'Cleared via Bank Alfalah online transfer',
+    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+  {
+    id: 'tx-10000000-0000-0000-0000-000000000002',
+    invoice_no: 'FAC-INV-002',
+    factory_id: 'fac-10000000-0000-0000-0000-000000000002',
+    transaction_date: new Date(Date.now() - 1 * 86400000).toISOString().split('T')[0],
+    charbi_weight: 380.0,
+    charbi_rate: 66.0,
+    charbi_total: 25080.0,
+    kachara_weight: 920.0,
+    kachara_rate: 50.0,
+    kachara_total: 46000.0,
+    total_weight: 1300.0,
+    total_amount: 71080.0,
+    advance_amount: 25000.0,
+    received_amount: 45000.0,
+    remaining_balance: 26080.0,
+    payment_status: 'partial',
+    vehicle_no: 'MN-3214 (Mazda)',
+    driver_name: 'Liaqat Ali',
+    notes: 'Balance Rs. 26,080 committed for next delivery',
+    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
+  },
+];
+
+let mockExpenses: Expense[] = [
+  {
+    id: 'exp-10000000-0000-0000-0000-000000000001',
+    expense_code: 'EXP-001',
+    category: 'fuel',
+    category_name_urdu: 'ڈیزل و پٹرول (Fuel)',
+    description: 'Vehicle Mazda MN-3214 Diesel for Gaggoo to Multan supply trip',
+    amount: 6500.0,
+    expense_date: new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0],
+    person_name: 'Driver Liaqat',
+    payment_method: 'cash',
+    notes: 'Full tank from PSO pump',
+    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+  {
+    id: 'exp-10000000-0000-0000-0000-000000000002',
+    expense_code: 'EXP-002',
+    category: 'worker',
+    category_name_urdu: 'ورکرز یومیہ / وظیفہ (Worker Daily)',
+    description: 'Daily collection field allowances for Rashid & Aslam',
+    amount: 2400.0,
+    expense_date: new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0],
+    person_name: 'Rashid Khan & Aslam',
+    payment_method: 'cash',
+    notes: 'Rs 1200 each daily per-diem',
+    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+  },
+  {
+    id: 'exp-10000000-0000-0000-0000-000000000003',
+    expense_code: 'EXP-003',
+    category: 'loading',
+    category_name_urdu: 'لوڈنگ و ان لوڈنگ (Loading / Unloading)',
+    description: 'Bags offloading and weighbridge loading labor at collection center',
+    amount: 1800.0,
+    expense_date: new Date(Date.now() - 1 * 86400000).toISOString().split('T')[0],
+    person_name: 'Local Labor Group',
+    payment_method: 'cash',
+    notes: 'Rs 5 per bag labor charges',
+    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
+  },
+  {
+    id: 'exp-10000000-0000-0000-0000-000000000004',
+    expense_code: 'EXP-004',
+    category: 'maintenance',
+    category_name_urdu: 'گاڑی / وزن کانٹا مرمت (Maintenance)',
+    description: 'Electronic digital platform scale battery replacement & calibration',
+    amount: 2200.0,
+    expense_date: new Date().toISOString().split('T')[0],
+    person_name: 'Star Weighbridge Workshop',
+    payment_method: 'cash',
+    notes: 'Scale tested with 50kg standard weight',
+    created_at: new Date().toISOString(),
   },
 ];
 
@@ -412,6 +576,273 @@ export const api = {
       }
     }
     mockCustomers = mockCustomers.filter(c => c.id !== id);
+  },
+
+  // ---------------------------------------------------------------------------
+  // Factories Management
+  // ---------------------------------------------------------------------------
+  async getFactories(includeDeleted = false): Promise<Factory[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('factories')
+          .select('*')
+          .order('name', { ascending: true });
+        if (!error && data) {
+          return (data as Factory[]).filter(f => includeDeleted || !f.is_deleted);
+        }
+      } catch (err) {
+        console.warn('[API] Could not fetch factories from Supabase, using mock state:', err);
+      }
+    }
+    return mockFactories.filter(f => includeDeleted || !f.is_deleted);
+  },
+
+  async getFactoryById(id: string): Promise<Factory | null> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('factories').select('*').eq('id', id).single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not fetch factory by id from Supabase:', err);
+      }
+    }
+    return mockFactories.find(f => f.id === id) || null;
+  },
+
+  async createFactory(factory: Omit<Factory, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>): Promise<Factory> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('factories').insert([factory]).select().single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not create factory in Supabase, saving to mock state:', err);
+      }
+    }
+    const newFac: Factory = {
+      ...factory,
+      id: `fac-${Date.now()}`,
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    mockFactories.push(newFac);
+    return newFac;
+  },
+
+  async updateFactory(id: string, updates: Partial<Factory>): Promise<Factory> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('factories')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not update factory in Supabase:', err);
+      }
+    }
+    const idx = mockFactories.findIndex(f => f.id === id);
+    if (idx !== -1) {
+      mockFactories[idx] = { ...mockFactories[idx], ...updates, updated_at: new Date().toISOString() };
+      return mockFactories[idx];
+    }
+    throw new Error('Factory not found');
+  },
+
+  async deleteFactory(id: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('factories').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[API] Could not delete factory from Supabase:', err);
+      }
+    }
+    mockFactories = mockFactories.filter(f => f.id !== id);
+  },
+
+  // ---------------------------------------------------------------------------
+  // Factory Transactions (Supplies & Payments)
+  // ---------------------------------------------------------------------------
+  async getFactoryTransactions(factoryId?: string): Promise<FactoryTransaction[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase.from('factory_transactions').select('*, factory:factories(*)').order('transaction_date', { ascending: false });
+        if (factoryId) query = query.eq('factory_id', factoryId);
+        const { data, error } = await query;
+        if (!error && data) return data as FactoryTransaction[];
+      } catch (err) {
+        console.warn('[API] Could not fetch factory transactions from Supabase:', err);
+      }
+    }
+    return mockFactoryTransactions
+      .filter(tx => !factoryId || tx.factory_id === factoryId)
+      .map(tx => ({
+        ...tx,
+        factory: mockFactories.find(f => f.id === tx.factory_id),
+      }))
+      .sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
+  },
+
+  async createFactoryTransaction(data: Partial<FactoryTransaction>): Promise<FactoryTransaction> {
+    const charbi_weight = Number(data.charbi_weight || 0);
+    const charbi_rate = Number(data.charbi_rate || 0);
+    const charbi_total = Number((charbi_weight * charbi_rate).toFixed(2));
+
+    const kachara_weight = Number(data.kachara_weight || 0);
+    const kachara_rate = Number(data.kachara_rate || 0);
+    const kachara_total = Number((kachara_weight * kachara_rate).toFixed(2));
+
+    const total_weight = Number((charbi_weight + kachara_weight).toFixed(2));
+    const total_amount = Number((charbi_total + kachara_total).toFixed(2));
+    const advance_amount = Number(data.advance_amount || 0);
+    const received_amount = Number(data.received_amount || advance_amount);
+    const remaining_balance = Number((total_amount - received_amount).toFixed(2));
+
+    let payment_status: 'paid' | 'partial' | 'unpaid' = 'unpaid';
+    if (received_amount >= total_amount && total_amount > 0) {
+      payment_status = 'paid';
+    } else if (received_amount > 0) {
+      payment_status = 'partial';
+    }
+
+    const payload: FactoryTransaction = {
+      id: `tx-${Date.now()}`,
+      invoice_no: data.invoice_no || `FAC-INV-${String(mockFactoryTransactions.length + 1).padStart(3, '0')}`,
+      factory_id: data.factory_id || '',
+      transaction_date: data.transaction_date || new Date().toISOString().split('T')[0],
+      charbi_weight,
+      charbi_rate,
+      charbi_total,
+      kachara_weight,
+      kachara_rate,
+      kachara_total,
+      total_weight,
+      total_amount,
+      advance_amount,
+      received_amount,
+      remaining_balance,
+      payment_status,
+      vehicle_no: data.vehicle_no || null,
+      driver_name: data.driver_name || null,
+      notes: data.notes || null,
+      created_at: new Date().toISOString(),
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: dbData, error } = await supabase.from('factory_transactions').insert([payload]).select().single();
+        if (!error && dbData) return dbData;
+      } catch (err) {
+        console.warn('[API] Could not insert factory transaction in Supabase:', err);
+      }
+    }
+
+    mockFactoryTransactions.unshift(payload);
+    return payload;
+  },
+
+  async updateFactoryTransaction(id: string, updates: Partial<FactoryTransaction>): Promise<FactoryTransaction> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('factory_transactions').update(updates).eq('id', id).select().single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not update factory transaction in Supabase:', err);
+      }
+    }
+    const idx = mockFactoryTransactions.findIndex(t => t.id === id);
+    if (idx !== -1) {
+      mockFactoryTransactions[idx] = { ...mockFactoryTransactions[idx], ...updates };
+      return mockFactoryTransactions[idx];
+    }
+    throw new Error('Transaction not found');
+  },
+
+  async deleteFactoryTransaction(id: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('factory_transactions').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[API] Could not delete factory transaction in Supabase:', err);
+      }
+    }
+    mockFactoryTransactions = mockFactoryTransactions.filter(t => t.id !== id);
+  },
+
+  // ---------------------------------------------------------------------------
+  // Expense Tracking & Management
+  // ---------------------------------------------------------------------------
+  async getExpenses(startDate?: string, endDate?: string, category?: string): Promise<Expense[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase.from('expenses').select('*').order('expense_date', { ascending: false });
+        if (startDate) query = query.gte('expense_date', startDate);
+        if (endDate) query = query.lte('expense_date', endDate);
+        if (category && category !== 'all') query = query.eq('category', category);
+        const { data, error } = await query;
+        if (!error && data) return data as Expense[];
+      } catch (err) {
+        console.warn('[API] Could not fetch expenses from Supabase:', err);
+      }
+    }
+
+    return mockExpenses.filter(e => {
+      const matchStart = !startDate || e.expense_date >= startDate;
+      const matchEnd = !endDate || e.expense_date <= endDate;
+      const matchCat = !category || category === 'all' || e.category === category;
+      return matchStart && matchEnd && matchCat;
+    }).sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime());
+  },
+
+  async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<Expense> {
+    const payload: Expense = {
+      ...expense,
+      id: `exp-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('expenses').insert([payload]).select().single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not create expense in Supabase:', err);
+      }
+    }
+
+    mockExpenses.unshift(payload);
+    return payload;
+  },
+
+  async updateExpense(id: string, updates: Partial<Expense>): Promise<Expense> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('expenses').update(updates).eq('id', id).select().single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('[API] Could not update expense in Supabase:', err);
+      }
+    }
+    const idx = mockExpenses.findIndex(e => e.id === id);
+    if (idx !== -1) {
+      mockExpenses[idx] = { ...mockExpenses[idx], ...updates };
+      return mockExpenses[idx];
+    }
+    throw new Error('Expense not found');
+  },
+
+  async deleteExpense(id: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('expenses').delete().eq('id', id);
+      } catch (err) {
+        console.warn('[API] Could not delete expense from Supabase:', err);
+      }
+    }
+    mockExpenses = mockExpenses.filter(e => e.id !== id);
   },
 
   // Workers Management
@@ -1120,12 +1551,35 @@ export const api = {
         }
       }
 
+      let totalCharbiWeight = 0;
+      let totalKacharaWeight = 0;
+      let totalCharbiAmount = 0;
+      let totalKacharaAmount = 0;
+
+      custCollections.forEach(c => {
+        const cNet = Number(c.charbi_net || 0);
+        const kNet = Number(c.kachara_net || (cNet === 0 ? c.total_net_weight : 0));
+        totalCharbiWeight += cNet;
+        totalKacharaWeight += kNet;
+        totalCharbiAmount += Number(c.charbi_total || (cNet * (c.charbi_rate || cust.rate_charbi || 55)));
+        totalKacharaAmount += Number(c.kachara_total || (kNet * (c.kachara_rate || cust.rate_kachara || 45)));
+      });
+
+      const charbiRate = cust.rate_charbi || 55;
+      const kacharaRate = cust.rate_kachara || (cust.rate_per_kg || 45);
+
       return {
         customer: cust,
         dailyWeights,
         totalWeight: Number(totalWeight.toFixed(2)),
         collectionDaysCount,
         totalAmount: Number(totalAmount.toFixed(2)),
+        totalCharbiWeight: Number(totalCharbiWeight.toFixed(2)),
+        totalKacharaWeight: Number(totalKacharaWeight.toFixed(2)),
+        charbiRate,
+        kacharaRate,
+        totalCharbiAmount: Number(totalCharbiAmount.toFixed(2)),
+        totalKacharaAmount: Number(totalKacharaAmount.toFixed(2)),
       };
     });
 

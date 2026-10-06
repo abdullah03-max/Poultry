@@ -261,8 +261,9 @@ export const MobileApp: React.FC = () => {
   const [gpsError, setGpsError] = useState<string | null>(null);
   const lastGpsUpdateRef = useRef<number>(0);
 
-  // Sharing image state
+  // Sharing & downloading image state
   const [isSharingImage, setIsSharingImage] = useState<boolean>(false);
+  const [isDownloadingImage, setIsDownloadingImage] = useState<boolean>(false);
 
   // Live Worker GPS Tracking Watcher
   useEffect(() => {
@@ -941,15 +942,8 @@ export const MobileApp: React.FC = () => {
       mobileStorage.saveOfflineSlip(newSlip);
       await loadData(worker);
 
-      // Show digital receipt popup
+      // Show digital receipt popup (worker stays inside app, does not auto-redirect)
       setReceiptModalSlip(newSlip);
-
-      // Automatically trigger receipt image generation & sharing to customer's WhatsApp
-      try {
-        shareReceiptImage(newSlip).catch(e => console.warn('Auto-share receipt image notice:', e));
-      } catch (e) {
-        console.warn('Auto-share receipt error:', e);
-      }
 
       // Reset form
       setSelectedCustomer(null);
@@ -1097,7 +1091,7 @@ export const MobileApp: React.FC = () => {
               />
             </div>
             <h1 className="text-xl font-black tracking-tight text-white">
-              شن پولٹری پروٹین
+              شان پولٹری پروٹین
             </h1>
             <p className="text-xs text-blue-400 font-semibold uppercase tracking-wider">
               SHAN POULTRY PROTEIN
@@ -2595,10 +2589,25 @@ export const MobileApp: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => downloadReceiptImage(receiptModalSlip)}
-                  className="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
+                  disabled={isDownloadingImage}
+                  onClick={async () => {
+                    setIsDownloadingImage(true);
+                    try {
+                      await downloadReceiptImage(receiptModalSlip);
+                      alert('رسید تصویر کامیابی سے محفوظ ہو گئی (Receipt image downloaded/saved)');
+                    } catch (e: any) {
+                      alert('ڈاؤنلوڈ میں خرابی: ' + (e?.message || 'Error saving receipt'));
+                    } finally {
+                      setIsDownloadingImage(false);
+                    }
+                  }}
+                  className="py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50"
                 >
-                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  {isDownloadingImage ? (
+                    <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                  )}
                   <span>تصویر محفوظ (Download)</span>
                 </button>
                 <button

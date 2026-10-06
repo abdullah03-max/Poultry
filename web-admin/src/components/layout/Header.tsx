@@ -10,6 +10,7 @@ interface HeaderProps {
   title: string;
   subtitle?: string;
   realtimeActive?: boolean;
+  collections?: Collection[];
   onOpenNewCollection?: () => void;
   showPrint?: boolean;
   latestEvent?: {
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   title,
   subtitle,
   realtimeActive = false,
+  collections = [],
   onOpenNewCollection,
   showPrint = false,
   latestEvent,
@@ -113,7 +115,11 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Notification Bell with Chime Sound */}
-        <NotificationBell latestEvent={latestEvent} onViewCollection={onViewCollection} />
+        <NotificationBell
+          latestEvent={latestEvent}
+          onViewCollection={onViewCollection}
+          collections={collections}
+        />
 
         {/* Install Desktop App (PWA) Button */}
         {!isInstalled && (

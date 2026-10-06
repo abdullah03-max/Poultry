@@ -4,9 +4,10 @@
 // =============================================================================
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, Trash2, ExternalLink, Scale, User, Clock } from 'lucide-react';
+import { Bell, Check, Trash2, ExternalLink, Scale, User, Clock, AlertTriangle } from 'lucide-react';
 import { Collection } from '../../types/database';
 import { playNotificationChime } from '../../utils/audio';
+import { useCollectionScheduleAlerts } from '../../hooks/useCollectionScheduleAlerts';
 
 export interface AdminNotification {
   id: string;
@@ -21,6 +22,7 @@ export interface AdminNotification {
 }
 
 interface NotificationBellProps {
+  collections?: Collection[];
   latestEvent?: {
     type: 'INSERT' | 'UPDATE' | 'DELETE';
     collection?: Collection;
@@ -30,9 +32,11 @@ interface NotificationBellProps {
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({
+  collections = [],
   latestEvent,
   onViewCollection,
 }) => {
+  const { alerts: scheduleAlerts } = useCollectionScheduleAlerts(collections);
   const [notifications, setNotifications] = useState<AdminNotification[]>(() => {
     try {
       const saved = localStorage.getItem('spp_admin_notifications');
@@ -99,6 +103,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  const totalAlertsCount = unreadCount + scheduleAlerts.length;
 
   const markAllAsRead = () => {
     const updated = notifications.map(n => ({ ...n, read: true }));
@@ -143,25 +148,22 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       <button
         onClick={() => {
           setIsOpen(!isOpen);
-          if (!isOpen && unreadCount > 0) {
-            // Can leave unread until explicitly viewed or marked
-          }
         }}
         className={`relative p-2.5 rounded-xl border transition-all flex items-center justify-center ${
-          isRinging
-            ? 'bg-amber-100 border-amber-400 text-amber-700 animate-bounce shadow-md shadow-amber-300/40'
-            : unreadCount > 0
+          isRinging || scheduleAlerts.length > 0
+            ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse shadow-md shadow-rose-300/30'
+            : totalAlertsCount > 0
             ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100'
             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
         }`}
-        title="Collection Notifications"
+        title="Collection Notifications & Schedule Alerts"
       >
         <Bell className={`w-4 h-4 ${isRinging ? 'animate-wiggle' : ''}`} />
 
         {/* Unread Counter Badge */}
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-black shadow-sm animate-pulse">
-            {unreadCount > 9 ? '9+' : unreadCount}
+        {totalAlertsCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-black shadow-sm">
+            {totalAlertsCount > 9 ? '9+' : totalAlertsCount}
           </span>
         )}
       </button>
@@ -175,9 +177,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               <span className="font-extrabold text-xs text-slate-900 uppercase tracking-wide">
                 Notifications
               </span>
-              {unreadCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
-                  {unreadCount} new
+              {totalAlertsCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                  {totalAlertsCount} alert{totalAlertsCount > 1 ? 's' : ''}
                 </span>
               )}
             </div>
@@ -203,9 +205,53 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
             </div>
           </div>
 
-          {/* List */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-            {notifications.length === 0 ? (
+          {/* Missing Collections Alerts Section */}
+          {scheduleAlerts.length > 0 && (
+            <div className="bg-rose-50/70 border-b border-rose-200 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>وصولی نہ ہونے کے الرٹس ({scheduleAlerts.length})</span>
+                </span>
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-200/80 px-2 py-0.5 rounded-full">
+                  وقت گزر گیا
+                </span>
+              </div>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {scheduleAlerts.map(alert => (
+                  <div
+                    key={alert.id}
+                    className="p-2.5 rounded-xl bg-white border border-rose-200 shadow-2xs space-y-1 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-900 text-xs">
+                        {alert.customer_name}
+                      </span>
+                      <span className="text-[9px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 uppercase">
+                        ⚠️ Collection Missing
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-tight">
+                      {alert.message}
+                    </p>
+                    <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500 font-medium border-t border-slate-100">
+                      <span>📍 {alert.customer_area}</span>
+                      <a
+                        href={`tel:${alert.customer_phone}`}
+                        className="text-blue-600 hover:underline font-bold"
+                      >
+                        📞 {alert.customer_phone}
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Regular Collection Event List */}
+          <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+            {notifications.length === 0 && scheduleAlerts.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
                 <Bell className="w-6 h-6 mx-auto mb-2 text-slate-300 stroke-1" />
                 No new notifications

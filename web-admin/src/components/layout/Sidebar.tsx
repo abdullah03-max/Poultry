@@ -13,6 +13,9 @@ import {
   Smartphone,
   ExternalLink,
   Download,
+  Factory as FactoryIcon,
+  Receipt as ReceiptIcon,
+  Lock as LockIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
@@ -23,6 +26,8 @@ export type NavigationTab =
   | 'collections'
   | 'daily-records'
   | 'monthly-register'
+  | 'factories'
+  | 'expenses'
   | 'customers'
   | 'workers'
   | 'reports'
@@ -33,6 +38,7 @@ interface SidebarProps {
   onSelectTab: (tab: NavigationTab) => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  lockedSections?: string[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   isMobileOpen = false,
   onCloseMobile,
+  lockedSections = [],
 }) => {
   const { logout, profile } = useAuth();
   const { isInstalled, triggerInstall } = usePWAInstall();
@@ -47,11 +54,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: { id: NavigationTab; label: string; urdu: string; icon: any; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', urdu: 'ڈیش بورڈ', icon: LayoutDashboard },
     { id: 'monthly-register', label: 'Monthly Register', urdu: 'ماہانہ رجسٹر', icon: TableProperties },
+    { id: 'factories', label: 'Factories (فیکٹریاں)', urdu: 'فیکٹریاں و سیلز', icon: FactoryIcon },
+    { id: 'expenses', label: 'Expenses (اخراجات)', urdu: 'اخراجات و کیش', icon: ReceiptIcon },
     { id: 'daily-records', label: 'Daily Records', urdu: 'روزانہ ریکارڈ', icon: CalendarCheck },
     { id: 'collections', label: 'All Collections', urdu: 'کلیکشن ریکارڈز', icon: Scale },
     { id: 'customers', label: 'Customers', urdu: 'گاہک / دکانیں', icon: Users },
     { id: 'workers', label: 'Workers Management', urdu: 'ورکرز مینجمنٹ', icon: UserCheck, badge: 'Admin' },
-    { id: 'reports', label: 'Reports & Export', urdu: 'رپورٹس', icon: FileSpreadsheet },
+    { id: 'reports', label: 'Reports & P&L', urdu: 'رپورٹس و منافع', icon: FileSpreadsheet },
     { id: 'settings', label: 'System Settings', urdu: 'ترتیبات', icon: Settings },
   ];
 
@@ -126,6 +135,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex items-center gap-2.5 truncate">
                   <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-brand-400'}`} />
                   <span className="truncate">{item.label}</span>
+                  {lockedSections.includes(item.id) && (
+                    <LockIcon className="w-3 h-3 text-amber-400 shrink-0" />
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {item.badge && (

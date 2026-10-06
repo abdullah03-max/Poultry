@@ -146,6 +146,7 @@ export interface Collection {
 export interface BusinessSettings {
   id: string;
   business_name: string;
+  business_name_urdu?: string; // Configurable Urdu Name, e.g. 'شان پولٹری پروٹین'
   business_phone: string;
   business_email: string;
   business_address: string;
@@ -157,6 +158,10 @@ export interface BusinessSettings {
   monthly_register_empty_symbol: string; // Default: 'X'
   enable_rates: boolean;
   allow_worker_edit_hours: number;
+  common_collection_start_time?: string; // e.g. '08:00'
+  common_collection_end_time?: string;   // e.g. '14:00'
+  locked_sections?: string[];            // e.g. ['factories', 'expenses', 'reports']
+  section_lock_pin?: string;             // e.g. '1234'
   updated_at: string;
   updated_by: string | null;
 }
@@ -180,4 +185,81 @@ export interface MonthlyRegisterCustomerRow {
   totalWeight: number;
   collectionDaysCount: number;
   totalAmount: number;
+  totalCharbiWeight?: number;
+  totalKacharaWeight?: number;
+  charbiRate?: number;
+  kacharaRate?: number;
+  totalCharbiAmount?: number;
+  totalKacharaAmount?: number;
+}
+
+// -----------------------------------------------------------------------------
+// Factory Management & Supply Ledger
+// -----------------------------------------------------------------------------
+export interface Factory {
+  id: string;
+  factory_code: string;
+  name: string;
+  contact_person: string | null;
+  phone: string;
+  whatsapp_no: string;
+  address: string | null;
+  area: string;
+  rate_charbi: number;
+  rate_kachara: number;
+  status: 'active' | 'inactive';
+  notes: string | null;
+  is_deleted?: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface FactoryTransaction {
+  id: string;
+  invoice_no: string;
+  factory_id: string;
+  transaction_date: string; // YYYY-MM-DD
+  charbi_weight: number;
+  charbi_rate: number;
+  charbi_total: number;
+  kachara_weight: number;
+  kachara_rate: number;
+  kachara_total: number;
+  total_weight: number;
+  total_amount: number;
+  advance_amount: number;
+  received_amount: number;
+  remaining_balance: number;
+  payment_status: 'paid' | 'partial' | 'unpaid';
+  vehicle_no: string | null;
+  driver_name: string | null;
+  notes: string | null;
+  created_at: string;
+  factory?: Factory;
+}
+
+// -----------------------------------------------------------------------------
+// Expense Tracking & Management
+// -----------------------------------------------------------------------------
+export type ExpenseCategory =
+  | 'worker'
+  | 'transportation'
+  | 'fuel'
+  | 'loading'
+  | 'maintenance'
+  | 'food'
+  | 'other';
+
+export interface Expense {
+  id: string;
+  expense_code: string;
+  category: ExpenseCategory;
+  category_name_urdu?: string;
+  description: string;
+  amount: number;
+  expense_date: string; // YYYY-MM-DD
+  person_name: string | null;
+  payment_method: 'cash' | 'online' | 'bank';
+  notes: string | null;
+  created_at: string;
 }

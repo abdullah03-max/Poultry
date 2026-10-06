@@ -3,7 +3,7 @@
 // Daylight B2B Clean Corporate Dashboard (Strictly for Administrator)
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar, NavigationTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -12,6 +12,8 @@ import { MonthlyRegisterPage } from './pages/MonthlyRegisterPage';
 import { DailyRecordPage } from './pages/DailyRecordPage';
 import { CollectionsPage } from './pages/CollectionsPage';
 import { CustomersPage } from './pages/CustomersPage';
+import { FactoriesPage } from './pages/FactoriesPage';
+import { ExpensesPage } from './pages/ExpensesPage';
 import { WorkersPage } from './pages/WorkersPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -19,8 +21,10 @@ import { LoginPage } from './pages/LoginPage';
 import { useRealtimeCollections } from './hooks/useRealtimeCollections';
 import { NewCollectionModal } from './components/collections/NewCollectionModal';
 import { CollectionDetailModal } from './components/collections/CollectionDetailModal';
-import { Collection } from './types/database';
-import { CheckCircle2 } from 'lucide-react';
+import { Modal } from './components/common/Modal';
+import { Collection, BusinessSettings } from './types/database';
+import { api } from './services/api';
+import { CheckCircle2, Lock, KeyRound } from 'lucide-react';
 
 const AdminApp: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -30,6 +34,13 @@ const AdminApp: React.FC = () => {
   const [selectedSlipForModal, setSelectedSlipForModal] = useState<Collection | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
+  // Settings & Section Lock State
+  const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
+  const [unlockedSections, setUnlockedSections] = useState<Set<string>>(new Set());
+  const [pinModalTargetTab, setPinModalTargetTab] = useState<NavigationTab | null>(null);
+  const [pinInput, setPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<string | null>(null);
+
   const {
     collections,
     realtimeActive,
@@ -37,12 +48,45 @@ const AdminApp: React.FC = () => {
     refreshCollections,
   } = useRealtimeCollections();
 
+  // Load business settings (for locked sections & PIN)
+  useEffect(() => {
+    api.getSettings().then(s => setBusinessSettings(s)).catch(console.warn);
+  }, [refreshTrigger]);
+
   // Re-fetch pages whenever a realtime event arrives from Supabase
-  React.useEffect(() => {
+  useEffect(() => {
     if (latestLiveEvent) {
       setRefreshTrigger(prev => prev + 1);
     }
   }, [latestLiveEvent]);
+
+  // Handle protected tab navigation
+  const handleSelectTab = (tab: NavigationTab) => {
+    const lockedList = businessSettings?.locked_sections || [];
+    if (lockedList.includes(tab) && !unlockedSections.has(tab)) {
+      setPinModalTargetTab(tab);
+      setPinInput('');
+      setPinError(null);
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
+  const handleVerifyPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const correctPin = businessSettings?.section_lock_pin || '1234';
+    if (pinInput.trim() === correctPin.trim()) {
+      if (pinModalTargetTab) {
+        setUnlockedSections(prev => new Set(prev).add(pinModalTargetTab));
+        setActiveTab(pinModalTargetTab);
+      }
+      setPinModalTargetTab(null);
+      setPinInput('');
+      setPinError(null);
+    } else {
+      setPinError('غلط پن کوڈ درج کیا گیا ہے۔ (Incorrect PIN)');
+    }
+  };
 
   if (authLoading) {
     return (
@@ -68,6 +112,14 @@ const AdminApp: React.FC = () => {
       title: 'Monthly Weight Register',
       subtitle: 'Customer vs. Days 1–31 grid matrix with auto-calculated totals',
       showPrint: true,
+    },
+    factories: {
+      title: 'Factories & Industrial Buyers',
+      subtitle: 'Buyer accounts, delivery ledgers, Charbi & Kachara supply records, and WhatsApp invoices',
+    },
+    expenses: {
+      title: 'Operational Expenses',
+      subtitle: 'Driver wages, vehicle fuel/diesel, freight, maintenance, and cash disbursements',
     },
     'daily-records': {
       title: 'Daily Record Sheet',
@@ -104,9 +156,10 @@ const AdminApp: React.FC = () => {
       {/* Responsive Left Sidebar */}
       <Sidebar
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        lockedSections={businessSettings?.locked_sections || []}
       />
 
       {/* Main Content Area */}
@@ -116,6 +169,7 @@ const AdminApp: React.FC = () => {
           title={currentHeader.title}
           subtitle={currentHeader.subtitle}
           realtimeActive={realtimeActive}
+          collections={collections}
           onOpenNewCollection={() => setIsNewCollectionOpen(true)}
           showPrint={currentHeader.showPrint}
           latestEvent={latestLiveEvent}
@@ -141,7 +195,7 @@ const AdminApp: React.FC = () => {
           {activeTab === 'dashboard' && (
             <DashboardPage
               collections={collections}
-              onNavigateTab={setActiveTab}
+              onNavigateTab={handleSelectTab}
               onOpenNewCollection={() => setIsNewCollectionOpen(true)}
             />
           )}
@@ -149,6 +203,10 @@ const AdminApp: React.FC = () => {
           {activeTab === 'monthly-register' && (
             <MonthlyRegisterPage refreshTrigger={refreshTrigger} />
           )}
+
+          {activeTab === 'factories' && <FactoriesPage />}
+
+          {activeTab === 'expenses' && <ExpensesPage />}
 
           {activeTab === 'daily-records' && (
             <DailyRecordPage refreshTrigger={refreshTrigger} />
@@ -167,6 +225,74 @@ const AdminApp: React.FC = () => {
           {activeTab === 'settings' && <SettingsPage />}
         </main>
       </div>
+
+      {/* Section Lock PIN Modal */}
+      <Modal
+        isOpen={!!pinModalTargetTab}
+        onClose={() => {
+          setPinModalTargetTab(null);
+          setPinInput('');
+          setPinError(null);
+        }}
+        title="سیکشن سیکیورٹی پن (Security PIN Required)"
+        subtitle={pinModalTargetTab ? `سیکشن (${String(pinModalTargetTab).toUpperCase()}) لاک ہے۔ رسائی کے لیے 4 ہندسوں کا پن درج کریں۔` : ''}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleVerifyPin} className="space-y-4">
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-100 text-amber-700">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div className="text-xs">
+              <strong className="text-amber-900 block font-bold">محفوظ شدہ سیکشن (Protected Section)</strong>
+              <span className="text-amber-700 text-[11px]">اس سیکشن کے ڈیٹا کو دیکھنے کے لیے درست ایڈمن پن درج کریں۔</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Admin PIN Code *
+            </label>
+            <input
+              type="password"
+              autoFocus
+              maxLength={8}
+              required
+              placeholder="••••"
+              value={pinInput}
+              onChange={e => {
+                setPinInput(e.target.value);
+                setPinError(null);
+              }}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-center text-lg font-mono font-black tracking-widest text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+            />
+            {pinError && (
+              <p className="text-xs text-rose-600 font-semibold mt-1 text-center">{pinError}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setPinModalTargetTab(null);
+                setPinInput('');
+                setPinError(null);
+              }}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition"
+            >
+              منسوخ (Cancel)
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>ان لاک کریں (Unlock)</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Global New Collection Modal */}
       <NewCollectionModal

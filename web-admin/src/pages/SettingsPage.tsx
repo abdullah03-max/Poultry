@@ -7,13 +7,12 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { BusinessSettings, WeightCategory } from '../types/database';
-import { Settings, Save, Check, Scale, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { BusinessSettings } from '../types/database';
+import { Settings, Save, Check, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
   const { user, updateAdminCredentials } = useAuth();
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
-  const [categories, setCategories] = useState<WeightCategory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -46,9 +45,8 @@ export const SettingsPage: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    Promise.all([api.getSettings(), api.getWeightCategories()]).then(([s, c]) => {
+    api.getSettings().then(s => {
       setSettings(s);
-      setCategories(c);
       setLoading(false);
     });
   }, []);
@@ -61,24 +59,13 @@ export const SettingsPage: React.FC = () => {
       setSaving(true);
       await api.updateSettings(settings);
 
-      // Save updated categories
-      for (const cat of categories) {
-        await api.updateWeightCategory(cat);
-      }
-
-      setSuccessMsg('Business settings and weight categories saved successfully!');
+      setSuccessMsg('Business settings and security configuration saved successfully!');
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err: any) {
       console.error('Failed to update settings:', err);
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleCategoryFieldChange = (id: string, field: keyof WeightCategory, val: any) => {
-    setCategories(prev =>
-      prev.map(c => (c.id === id ? { ...c, [field]: val } : c))
-    );
   };
 
   const handleUpdateAdminCredentials = async (e: React.FormEvent) => {
@@ -180,6 +167,18 @@ export const SettingsPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              Urdu Business Name (کاروبار کا اردو نام)
+            </label>
+            <input
+              type="text"
+              value={settings.business_name_urdu || 'شان پولٹری پروٹین'}
+              onChange={e => setSettings({ ...settings, business_name_urdu: e.target.value })}
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-bold"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
               Official Phone
             </label>
             <input
@@ -216,72 +215,86 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Weight Categories Configurator */}
+      {/* 2. Section Lock System */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
-            <Scale className="w-4 h-4 text-blue-600" /> Configurable Weight Categories
+            <Lock className="w-4 h-4 text-amber-600" /> Section Lock System (سیکشن لاک سسٹم)
           </h3>
-          <span className="text-[11px] text-slate-400 font-semibold">Customizable Poultry Streams</span>
+          <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full font-bold">
+            Admin PIN Protection
+          </span>
         </div>
 
         <p className="text-xs text-slate-500">
-          Rename category display names, adjust Urdu terminology, and modify default rates. Any changes reflect immediately in the mobile entry screen and register without database schema changes.
+          انفرادی سیکشنز کو لاک کر کے محفوظ بنائیں۔ جب بھی کوئی صارف لاک شدہ سیکشن کھولے گا تو ایڈمن پن (PIN) کوڈ درج کرنا لازمی ہو گا۔
         </p>
 
-        <div className="space-y-3">
-          {categories.map(cat => (
-            <div key={cat.id} className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
-              <div>
-                <label className="block text-[10px] text-slate-500 uppercase font-semibold mb-1">
-                  Category Code
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={cat.code}
-                  className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-500 font-mono"
-                />
-              </div>
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 max-w-sm space-y-1.5">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            سیکشن ان لاک پن کوڈ (Section Security PIN) *
+          </label>
+          <input
+            type="password"
+            maxLength={8}
+            placeholder="e.g. 1234"
+            value={settings.section_lock_pin || '1234'}
+            onChange={e => setSettings({ ...settings, section_lock_pin: e.target.value })}
+            className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:border-amber-500"
+          />
+          <p className="text-[10px] text-slate-400">لاک شدہ سیکشن کھولنے کے لیے یہ 4 ہندسوں والا پن استعمال ہو گا (Default: 1234)</p>
+        </div>
 
-              <div>
-                <label className="block text-[10px] text-slate-500 uppercase font-semibold mb-1">
-                  English Label
-                </label>
-                <input
-                  type="text"
-                  value={cat.name}
-                  onChange={e => handleCategoryFieldChange(cat.id, 'name', e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                />
-              </div>
+        <div className="pt-2">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            لاک کرنے کے لیے سیکشنز منتخب کریں (Select Sections to Lock):
+          </label>
 
-              <div>
-                <label className="block text-[10px] text-slate-500 uppercase font-semibold mb-1">
-                  Urdu Label (اردو)
-                </label>
-                <input
-                  type="text"
-                  value={cat.urdu_name || ''}
-                  onChange={e => handleCategoryFieldChange(cat.id, 'urdu_name', e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-urdu focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] text-slate-500 uppercase font-semibold mb-1">
-                  Default Rate (PKR / KG)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={cat.default_rate}
-                  onChange={e => handleCategoryFieldChange(cat.id, 'default_rate', parseFloat(e.target.value) || 0)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-amber-700 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-          ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {[
+              { id: 'factories', name: 'Factories (فیکٹریاں و سپلائی ریکارڈ)', desc: 'Factory ledgers, sales & rates' },
+              { id: 'expenses', name: 'Expenses (اخراجات و کیش)', desc: 'Staff wages, fuel, maintenance' },
+              { id: 'reports', name: 'Reports & P&L (رپورٹس و منافع)', desc: 'Financial profit & loss analytics' },
+              { id: 'monthly-register', name: 'Monthly Register (ماہانہ رجسٹر)', desc: 'Monthly customer statements' },
+              { id: 'customers', name: 'Customers (کسٹمرز ڈائریکٹری)', desc: 'Shop directory & agreed rates' },
+              { id: 'workers', name: 'Workers (ملازمین و کلیکٹرز)', desc: 'Collector staff & credentials' },
+            ].map(sec => {
+              const isLocked = (settings.locked_sections || []).includes(sec.id);
+              return (
+                <div
+                  key={sec.id}
+                  onClick={() => {
+                    const currentLocked = settings.locked_sections || [];
+                    const nextLocked = isLocked
+                      ? currentLocked.filter(k => k !== sec.id)
+                      : [...currentLocked, sec.id];
+                    setSettings({ ...settings, locked_sections: nextLocked });
+                  }}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
+                    isLocked
+                      ? 'bg-amber-50/80 border-amber-300 shadow-2xs'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isLocked}
+                    onChange={() => {}} // handled by parent div
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <div className="min-w-0">
+                    <span className="font-bold text-xs text-slate-900 block truncate">{sec.name}</span>
+                    <span className="text-[10px] text-slate-500 block truncate">{sec.desc}</span>
+                    <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                      isLocked ? 'bg-amber-200/70 text-amber-900' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {isLocked ? '🔒 لاک ہے (Locked)' : '🔓 کھلا ہے (Unlocked)'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 

@@ -1,10 +1,10 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Collection Schedule Alerts Hook
-// Monitors customer collection start & end times and notifies admin if missed
+// Monitors common collection start & end times and notifies admin if missed
 // =============================================================================
 
 import { useState, useEffect } from 'react';
-import { Customer, Collection } from '../types/database';
+import { Customer, Collection, BusinessSettings } from '../types/database';
 import { api } from '../services/api';
 import { playNotificationChime } from '../utils/audio';
 
@@ -24,21 +24,26 @@ export interface ScheduleAlert {
 export function useCollectionScheduleAlerts(collections: Collection[]) {
   const [alerts, setAlerts] = useState<ScheduleAlert[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [settings, setSettings] = useState<BusinessSettings | null>(null);
 
-  // Load customers
+  // Load customers & settings
   useEffect(() => {
-    const loadCust = async () => {
+    const loadData = async () => {
       try {
-        const list = await api.getCustomers();
-        setCustomers(list.filter(c => c.status === 'active'));
+        const [custList, sett] = await Promise.all([
+          api.getCustomers(),
+          api.getSettings(),
+        ]);
+        setCustomers(custList.filter(c => c.status === 'active' && !c.is_deleted));
+        setSettings(sett);
       } catch (err) {
-        console.warn('Could not load customers for schedule alerts:', err);
+        console.warn('Could not load data for schedule alerts:', err);
       }
     };
-    loadCust();
+    loadData();
   }, []);
 
-  // Check schedule compliance every 60 seconds
+  // Check schedule compliance every 30 seconds
   useEffect(() => {
     if (customers.length === 0) return;
 
@@ -64,23 +69,21 @@ export function useCollectionScheduleAlerts(collections: Collection[]) {
           .map(c => c.customer_id)
       );
 
+      // Common schedule for all customers (defaults to 08:00 AM - 02:00 PM)
+      const commonStartTime = settings?.common_collection_start_time || '08:00';
+      const commonEndTime = settings?.common_collection_end_time || '14:00';
+
+      // Format end time for comparison (HH:mm:ss)
+      const cleanEndTime = commonEndTime.length === 5 ? `${commonEndTime}:00` : commonEndTime;
+
       const newAlerts: ScheduleAlert[] = [];
 
-      customers.forEach(cust => {
-        // If already collected today, no alert needed
-        if (collectedCustomerIds.has(cust.id)) return;
+      // Only alert after defined End Time has passed
+      if (currentPktTimeStr > cleanEndTime) {
+        customers.forEach(cust => {
+          // If already collected today, no alert needed
+          if (collectedCustomerIds.has(cust.id)) return;
 
-        // Only alert if the admin configured a collection time window for this customer
-        if (!cust.collection_end_time) return;
-
-        const startTime = cust.collection_start_time || '08:00';
-        const endTime = cust.collection_end_time;
-
-        // Format times for comparison (HH:mm:ss)
-        const cleanEndTime = endTime.length === 5 ? `${endTime}:00` : endTime;
-
-        // If current time has passed the customer's scheduled end time:
-        if (currentPktTimeStr > cleanEndTime) {
           const alertId = `alert-${cust.id}-${todayPktDateStr}`;
           const alertItem: ScheduleAlert = {
             id: alertId,
@@ -88,15 +91,15 @@ export function useCollectionScheduleAlerts(collections: Collection[]) {
             customer_name: cust.name,
             customer_phone: cust.phone,
             customer_area: cust.area,
-            start_time: startTime.substring(0, 5),
-            end_time: endTime.substring(0, 5),
-            overdue_since: endTime.substring(0, 5),
-            message: `No collection has been recorded from ${cust.name} within its scheduled collection time (${startTime.substring(0, 5)} – ${endTime.substring(0, 5)}).`,
+            start_time: commonStartTime.substring(0, 5),
+            end_time: commonEndTime.substring(0, 5),
+            overdue_since: commonEndTime.substring(0, 5),
+            message: `No collection has been recorded for ${cust.name} within today's scheduled collection time.`,
             created_at: new Date(),
           };
           newAlerts.push(alertItem);
-        }
-      });
+        });
+      }
 
       setAlerts(prev => {
         // Only trigger audio chime if a brand new alert appeared
@@ -110,9 +113,9 @@ export function useCollectionScheduleAlerts(collections: Collection[]) {
     };
 
     checkCompliance();
-    const interval = setInterval(checkCompliance, 60000); // Check every minute
+    const interval = setInterval(checkCompliance, 30000);
     return () => clearInterval(interval);
-  }, [customers, collections]);
+  }, [customers, collections, settings]);
 
   return { alerts, totalAlerts: alerts.length };
 }

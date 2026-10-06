@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Customer, Collection } from '../types/database';
 import { formatWeight, formatCurrency, formatDate } from '../utils/formatters';
-import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2, Trash2, Clock } from 'lucide-react';
+import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2, Trash2, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 
 export const CustomersPage: React.FC = () => {
@@ -25,48 +25,45 @@ export const CustomersPage: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null);
 
-  // Quick Collection Time Modal
-  const [timeModalCustomer, setTimeModalCustomer] = useState<Customer | null>(null);
-  const [quickStartTime, setQuickStartTime] = useState<string>('08:00');
-  const [quickEndTime, setQuickEndTime] = useState<string>('12:00');
-  const [savingTime, setSavingTime] = useState<boolean>(false);
+  // Global / Common Collection Time Settings (Applies to all customers)
+  const [commonStartTime, setCommonStartTime] = useState<string>('08:00');
+  const [commonEndTime, setCommonEndTime] = useState<string>('14:00');
+  const [isEditingSchedule, setIsEditingSchedule] = useState<boolean>(false);
+  const [savingSchedule, setSavingSchedule] = useState<boolean>(false);
+  const [todayCollectedCustomerIds, setTodayCollectedCustomerIds] = useState<Set<string>>(new Set());
 
-  const handleOpenTimeModal = (cust: Customer) => {
-    setTimeModalCustomer(cust);
-    setQuickStartTime(cust.collection_start_time?.substring(0, 5) || '08:00');
-    setQuickEndTime(cust.collection_end_time?.substring(0, 5) || '12:00');
-  };
-
-  const handleSaveQuickTime = async (e: React.FormEvent) => {
+  const handleSaveCommonSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!timeModalCustomer) return;
     try {
-      setSavingTime(true);
-      await api.updateCustomer(timeModalCustomer.id, {
-        collection_start_time: quickStartTime,
-        collection_end_time: quickEndTime,
+      setSavingSchedule(true);
+      await api.updateSettings({
+        common_collection_start_time: commonStartTime,
+        common_collection_end_time: commonEndTime,
       });
-      setCustomers(prev =>
-        prev.map(c =>
-          c.id === timeModalCustomer.id
-            ? { ...c, collection_start_time: quickStartTime, collection_end_time: quickEndTime }
-            : c
-        )
-      );
-      setTimeModalCustomer(null);
+      setIsEditingSchedule(false);
     } catch (err: any) {
-      console.error('Failed to update collection time:', err);
-      alert('Could not update collection time: ' + (err.message || 'Error'));
+      console.error('Failed to update common collection schedule:', err);
+      alert('Could not save schedule: ' + (err.message || 'Error'));
     } finally {
-      setSavingTime(false);
+      setSavingSchedule(false);
     }
   };
 
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const data = await api.getCustomers(true);
+      const todayPktDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+      const [data, sett, todayColRes] = await Promise.all([
+        api.getCustomers(true),
+        api.getSettings(),
+        api.getCollections({ startDate: todayPktDateStr, endDate: todayPktDateStr, limit: 1000 }),
+      ]);
       setCustomers(data);
+      if (sett.common_collection_start_time) setCommonStartTime(sett.common_collection_start_time);
+      if (sett.common_collection_end_time) setCommonEndTime(sett.common_collection_end_time);
+
+      const collectedIds = new Set(todayColRes.collections.map(c => c.customer_id));
+      setTodayCollectedCustomerIds(collectedIds);
     } catch (err) {
       console.error('Error fetching customers:', err);
     } finally {
@@ -251,6 +248,100 @@ export const CustomersPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Global Collection Schedule Banner (Single common time for all customers) */}
+      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl p-5 text-white shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-blue-500/20 rounded-lg text-blue-300">
+                <Clock className="w-5 h-5 text-blue-300" />
+              </span>
+              <h3 className="text-base font-bold text-white tracking-tight">
+                وقت وصولی تمام کسٹمرز کے لیے (Common Collection Schedule)
+              </h3>
+            </div>
+            <p className="text-xs text-blue-200/90 leading-relaxed max-w-xl">
+              تمام کسٹمرز اور دکانوں کے لیے وصولی کا ایک ہی مشترکہ وقت مقرر ہے۔ مقررہ آخری وقت گزرنے کے بعد اگر کسی کسٹمر سے وصولی نہ ہو تو نوٹیفکیشن بیل میں خودکار الرٹ ظاہر ہو گا۔
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {isEditingSchedule ? (
+              <form onSubmit={handleSaveCommonSchedule} className="flex flex-wrap items-center gap-2 bg-white/10 backdrop-blur-md p-2.5 rounded-xl border border-white/20">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-blue-200 text-[11px] font-semibold">شروع:</span>
+                  <input
+                    type="time"
+                    required
+                    value={commonStartTime}
+                    onChange={e => setCommonStartTime(e.target.value)}
+                    className="bg-white text-slate-900 font-mono text-xs font-bold px-2 py-1 rounded-lg border border-slate-300 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-blue-200 text-[11px] font-semibold">اختتام:</span>
+                  <input
+                    type="time"
+                    required
+                    value={commonEndTime}
+                    onChange={e => setCommonEndTime(e.target.value)}
+                    className="bg-white text-slate-900 font-mono text-xs font-bold px-2 py-1 rounded-lg border border-slate-300 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={savingSchedule}
+                  className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm transition disabled:opacity-50"
+                >
+                  {savingSchedule ? 'محفوظ...' : 'محفوظ کریں'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingSchedule(false)}
+                  className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition"
+                >
+                  منسوخ
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/20">
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-blue-200 tracking-wider block">مقررہ روزانہ وقت</span>
+                  <span className="font-mono text-sm font-extrabold text-white">
+                    {commonStartTime} — {commonEndTime}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingSchedule(true)}
+                  className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition shadow-sm active:scale-95"
+                >
+                  وقت تبدیل کریں
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick status bar */}
+        <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-4">
+            <span className="text-blue-200">
+              کل دکانیں: <strong className="text-white font-mono">{customers.length}</strong>
+            </span>
+            <span className="text-emerald-300">
+              آج وصولی شدہ: <strong className="text-white font-mono">{todayCollectedCustomerIds.size}</strong>
+            </span>
+            <span className="text-amber-300">
+              باقی دکانیں: <strong className="text-white font-mono">{Math.max(0, customers.length - todayCollectedCustomerIds.size)}</strong>
+            </span>
+          </div>
+          <span className="text-[11px] text-blue-300/80">
+            شیڈول ڈیڈ لائن: {commonEndTime}
+          </span>
+        </div>
+      </div>
+
       {/* Customers Cards / Directory */}
       {loading ? (
         <div className="py-24 flex flex-col items-center justify-center text-slate-400 gap-2">
@@ -306,34 +397,28 @@ export const CustomersPage: React.FC = () => {
                       کچرا: {cust.rate_kachara ?? (cust.rate_per_kg ?? 45)} PKR/KG
                     </span>
                   </div>
-                  {/* Collection Time Schedule Badge / Button */}
-                  {cust.collection_end_time ? (
-                    <div className="flex items-center justify-between gap-1.5 text-[11px] font-semibold text-blue-800 bg-blue-50/90 border border-blue-200/90 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <span className="truncate">
-                          وقت وصولی: {cust.collection_start_time?.substring(0, 5) || '08:00'} – {cust.collection_end_time.substring(0, 5)}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenTimeModal(cust)}
-                        className="text-[10px] font-bold text-blue-700 hover:text-blue-900 bg-white px-2 py-0.5 rounded-lg border border-blue-200 shadow-2xs hover:bg-blue-50 transition shrink-0"
-                        title="وقت وصولی تبدیل کریں"
-                      >
-                        تبدیل کریں
-                      </button>
+                  {/* Common Schedule Status Badge */}
+                  {todayCollectedCustomerIds.has(cust.id) ? (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>✅ آج وصولی مکمل (Collected Today)</span>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenTimeModal(cust)}
-                      className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100/90 border border-dashed border-amber-300 py-1.5 px-2.5 rounded-xl transition mt-1.5"
-                    >
-                      <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>+ وقت وصولی مقرر کریں (Set Collection Time)</span>
-                    </button>
-                  )}
+                  ) : (() => {
+                    const now = new Date();
+                    const nowPktStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour12: false, hour: '2-digit', minute: '2-digit' });
+                    const isOverdue = nowPktStr > commonEndTime;
+                    return isOverdue ? (
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>⚠️ آج وصولی غائب (Missing Collection)</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
+                        <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>وقت مقرر: {commonStartTime} تا {commonEndTime}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -348,13 +433,6 @@ export const CustomersPage: React.FC = () => {
                 </button>
 
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleOpenTimeModal(cust)}
-                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                    title="وقت وصولی مقرر کریں (Set Time Window)"
-                  >
-                    <Clock className="w-4 h-4" />
-                  </button>
                   <button
                     onClick={() => {
                       setEditingCustomer(cust);
@@ -611,42 +689,10 @@ export const CustomersPage: React.FC = () => {
             />
           </div>
 
-          {/* Collection Time Schedule & Alerts */}
-          <div className="p-3.5 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-blue-600" />
-                وقت وصولی شیڈول (Collection Time Window)
-              </span>
-              <span className="text-[10px] text-blue-600 font-medium">Automatic Alerts</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  شروع وقت (Start Time)
-                </label>
-                <input
-                  type="time"
-                  value={editingCustomer?.collection_start_time || ''}
-                  onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), collection_start_time: e.target.value }))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  آخری وقت (End Time / Deadline)
-                </label>
-                <input
-                  type="time"
-                  value={editingCustomer?.collection_end_time || ''}
-                  onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), collection_end_time: e.target.value }))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-600 font-mono"
-                />
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-500 pt-0.5">
-              اگر اس مقررہ وقت تک دکان سے وصولی نہ ہو تو ایڈمن پینل میں خودکار وارننگ الرٹ ظاہر ہو جائے گا۔
-            </p>
+          {/* Common Schedule Notice */}
+          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-900">
+            <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>یہ دکان عمومی روزانہ وصولی شیڈول ({commonStartTime} تا {commonEndTime}) کے مطابق چلے گی۔</span>
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-100">
@@ -662,119 +708,6 @@ export const CustomersPage: React.FC = () => {
               className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition"
             >
               Save Customer
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Quick Collection Time Modal */}
-      <Modal
-        isOpen={!!timeModalCustomer}
-        onClose={() => setTimeModalCustomer(null)}
-        title="وقت وصولی مقرر کریں (Set Collection Time)"
-        subtitle={timeModalCustomer ? `دکان: ${timeModalCustomer.name} (${timeModalCustomer.customer_code})` : ''}
-        maxWidth="sm"
-      >
-        <form onSubmit={handleSaveQuickTime} className="space-y-4">
-          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
-            <p className="text-xs font-semibold text-blue-900 flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>مقررہ وقت منتخب کریں (Select Preset Time):</span>
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => { setQuickStartTime('08:00'); setQuickEndTime('11:00'); }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left transition ${
-                  quickStartTime === '08:00' && quickEndTime === '11:00'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                🌅 صبح (08:00 - 11:00)
-              </button>
-              <button
-                type="button"
-                onClick={() => { setQuickStartTime('11:00'); setQuickEndTime('14:00'); }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left transition ${
-                  quickStartTime === '11:00' && quickEndTime === '14:00'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                ☀️ دوپہر (11:00 - 14:00)
-              </button>
-              <button
-                type="button"
-                onClick={() => { setQuickStartTime('14:00'); setQuickEndTime('17:00'); }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left transition ${
-                  quickStartTime === '14:00' && quickEndTime === '17:00'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                🌤️ سہ پہر (14:00 - 17:00)
-              </button>
-              <button
-                type="button"
-                onClick={() => { setQuickStartTime('17:00'); setQuickEndTime('20:00'); }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left transition ${
-                  quickStartTime === '17:00' && quickEndTime === '20:00'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                🌙 شام (17:00 - 20:00)
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                شروع وقت (Start Time)
-              </label>
-              <input
-                type="time"
-                required
-                value={quickStartTime}
-                onChange={e => setQuickStartTime(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-brand-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                آخری وقت (End / Deadline)
-              </label>
-              <input
-                type="time"
-                required
-                value={quickEndTime}
-                onChange={e => setQuickEndTime(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-brand-600"
-              />
-            </div>
-          </div>
-
-          <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-            💡 اگر کلیکٹر اس مقررہ آخری وقت تک دکان پر نہ پہنچے تو ایڈمن ڈیش بورڈ پر خودکار تاخیر (Delay Alert) کا الارم ظاہر ہو گا۔
-          </p>
-
-          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setTimeModalCustomer(null)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition"
-            >
-              منسوخ (Cancel)
-            </button>
-            <button
-              type="submit"
-              disabled={savingTime}
-              className="flex items-center gap-1.5 px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition disabled:opacity-50"
-            >
-              {savingTime ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-              <span>وقت محفوظ کریں (Save Time)</span>
             </button>
           </div>
         </form>
