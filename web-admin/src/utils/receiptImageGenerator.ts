@@ -78,17 +78,64 @@ export function normalizeSlipData(slip: OfflineCollectionItem | Collection | any
   };
 }
 
+function dataURLToBlob(dataurl: string): Blob {
+  const arr = dataurl.split(',');
+  const mime = (arr[0].match(/:(.*?);/) || [])[1] || 'image/png';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
 /**
- * Helper to load an image asynchronously
+ * Helper to load an image asynchronously without blocking or throwing
  */
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise(resolve => {
     if (!src) return resolve(null);
+    let done = false;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
+
+    // Only set crossOrigin for remote absolute URLs, NEVER for data: or local /assets/ URLs
+    if (src.startsWith('http:') || src.startsWith('https:')) {
+      if (!src.includes('appassets.androidplatform.net') && !src.includes(window.location.hostname)) {
+        img.crossOrigin = 'anonymous';
+      }
+    }
+
+    const timer = setTimeout(() => {
+      if (!done) {
+        done = true;
+        resolve(img.complete && img.naturalWidth > 0 ? img : null);
+      }
+    }, 600);
+
+    img.onload = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        resolve(img);
+      }
+    };
+
+    img.onerror = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        resolve(null);
+      }
+    };
+
     img.src = src;
+
+    if (img.complete && img.naturalWidth > 0) {
+      done = true;
+      clearTimeout(timer);
+      resolve(img);
+    }
   });
 }
 
@@ -460,12 +507,29 @@ export async function generateReceiptImageBlob(rawSlip: OfflineCollectionItem | 
   ctx.font = '11px system-ui, sans-serif';
   ctx.fillText('Shan Poultry Protein ERP • Burewala, Gaggoo Mandi, Vehari • Helpline: 0300-0000000', width / 2, curY);
 
-  // Return canvas as PNG Blob
+  // Return canvas as PNG Blob with safe fallback
   return new Promise((resolve, reject) => {
-    canvas.toBlob(blob => {
-      if (blob) resolve(blob);
-      else reject(new Error('Failed to generate PNG blob'));
-    }, 'image/png');
+    try {
+      canvas.toBlob(blob => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          try {
+            const dataUrl = canvas.toDataURL('image/png');
+            resolve(dataURLToBlob(dataUrl));
+          } catch (e) {
+            reject(new Error('Failed to generate PNG blob: ' + e));
+          }
+        }
+      }, 'image/png');
+    } catch (e) {
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        resolve(dataURLToBlob(dataUrl));
+      } catch (err) {
+        reject(new Error('Canvas export failed: ' + e));
+      }
+    }
   });
 }
 

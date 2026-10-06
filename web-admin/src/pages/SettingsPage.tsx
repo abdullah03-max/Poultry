@@ -26,6 +26,12 @@ export const SettingsPage: React.FC = () => {
   const [credSuccess, setCredSuccess] = useState<string | null>(null);
   const [credError, setCredError] = useState<string | null>(null);
 
+  // Section Security PIN State (New PIN & Confirm PIN with view/hide toggles)
+  const [sectionPin, setSectionPin] = useState<string>('');
+  const [confirmSectionPin, setConfirmSectionPin] = useState<string>('');
+  const [showSectionPin, setShowSectionPin] = useState<boolean>(false);
+  const [showConfirmSectionPin, setShowConfirmSectionPin] = useState<boolean>(false);
+
   useEffect(() => {
     if (isSupabaseConfigured()) {
       supabase
@@ -47,6 +53,9 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     api.getSettings().then(s => {
       setSettings(s);
+      const currentPin = s.section_lock_pin || '';
+      setSectionPin(currentPin);
+      setConfirmSectionPin(currentPin);
       setLoading(false);
     });
   }, []);
@@ -55,9 +64,23 @@ export const SettingsPage: React.FC = () => {
     e.preventDefault();
     if (!settings) return;
 
+    if (sectionPin && confirmSectionPin && sectionPin !== confirmSectionPin) {
+      alert('سیکشن لاک پن کوڈ اور کنفرم پن کوڈ ایک جیسے ہونے چاہئیں۔ (Security PIN and Confirm PIN do not match!)');
+      return;
+    }
+    if (sectionPin && sectionPin.length < 4) {
+      alert('پن کوڈ کم از کم 4 ہندسوں پر مشتمل ہونا چاہیے۔ (Security PIN must be at least 4 digits)');
+      return;
+    }
+
     try {
       setSaving(true);
-      await api.updateSettings(settings);
+      const updatedSettings = {
+        ...settings,
+        section_lock_pin: sectionPin.trim(),
+      };
+      await api.updateSettings(updatedSettings);
+      setSettings(updatedSettings);
 
       setSuccessMsg('Business settings and security configuration saved successfully!');
       setTimeout(() => setSuccessMsg(null), 3000);
@@ -230,19 +253,88 @@ export const SettingsPage: React.FC = () => {
           انفرادی سیکشنز کو لاک کر کے محفوظ بنائیں۔ جب بھی کوئی صارف لاک شدہ سیکشن کھولے گا تو ایڈمن پن (PIN) کوڈ درج کرنا لازمی ہو گا۔
         </p>
 
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 max-w-sm space-y-1.5">
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-            سیکشن ان لاک پن کوڈ (Section Security PIN) *
-          </label>
-          <input
-            type="password"
-            maxLength={8}
-            placeholder="e.g. 1234"
-            value={settings.section_lock_pin || '1234'}
-            onChange={e => setSettings({ ...settings, section_lock_pin: e.target.value })}
-            className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:border-amber-500"
-          />
-          <p className="text-[10px] text-slate-400">لاک شدہ سیکشن کھولنے کے لیے یہ 4 ہندسوں والا پن استعمال ہو گا (Default: 1234)</p>
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              سیکشن ان لاک پن کوڈ (Section Security PIN)
+            </span>
+            <span className="text-[11px] text-slate-500 font-mono">
+              {sectionPin ? `${sectionPin.length} Digits PIN` : 'کوئی پن سیٹ نہیں'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+            {/* New Security PIN */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                نیا پن کوڈ (New Security PIN) *
+              </label>
+              <div className="relative">
+                <input
+                  type={showSectionPin ? 'text' : 'password'}
+                  maxLength={10}
+                  placeholder="نیا 4 ہندسوں والا پن درج کریں"
+                  value={sectionPin}
+                  onChange={e => setSectionPin(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl pl-4 pr-10 py-2.5 text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSectionPin(!showSectionPin)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition"
+                  title={showSectionPin ? 'پن چھپائیں' : 'پن دیکھیں'}
+                >
+                  {showSectionPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Security PIN */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                پن کوڈ کی تصدیق (Confirm PIN) *
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmSectionPin ? 'text' : 'password'}
+                  maxLength={10}
+                  placeholder="دوبارہ پن کوڈ درج کریں"
+                  value={confirmSectionPin}
+                  onChange={e => setConfirmSectionPin(e.target.value)}
+                  className={`w-full bg-white border rounded-xl pl-4 pr-10 py-2.5 text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:ring-1 ${
+                    confirmSectionPin && sectionPin !== confirmSectionPin
+                      ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20'
+                      : 'border-slate-300 focus:border-amber-500 focus:ring-amber-500'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmSectionPin(!showConfirmSectionPin)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition"
+                  title={showConfirmSectionPin ? 'پن چھپائیں' : 'پن دیکھیں'}
+                >
+                  {showConfirmSectionPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Validation Feedback Status */}
+          {confirmSectionPin && sectionPin !== confirmSectionPin ? (
+            <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>⚠️ پن کوڈ مماثلت نہیں رکھتے (PINs do not match)</span>
+            </p>
+          ) : confirmSectionPin && sectionPin === confirmSectionPin ? (
+            <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" />
+              <span>✓ پن کوڈ کی تصدیق مکمل ہے (PIN confirmed)</span>
+            </p>
+          ) : (
+            <p className="text-[10px] text-slate-400">
+              لاک شدہ سیکشن کھولنے کے لیے یہ 4 سے 8 ہندسوں والا پن استعمال ہو گا۔ آپ اپنی مرضی کا نیا پن سیٹ کر سکتے ہیں۔
+            </p>
+          )}
         </div>
 
         <div className="pt-2">

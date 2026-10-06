@@ -264,6 +264,19 @@ export const MobileApp: React.FC = () => {
   // Sharing & downloading image state
   const [isSharingImage, setIsSharingImage] = useState<boolean>(false);
   const [isDownloadingImage, setIsDownloadingImage] = useState<boolean>(false);
+  const [preloadedReceiptBlob, setPreloadedReceiptBlob] = useState<Blob | null>(null);
+
+  // Pre-generate receipt image in memory as soon as receipt modal is opened
+  useEffect(() => {
+    if (receiptModalSlip) {
+      setPreloadedReceiptBlob(null);
+      generateReceiptImageBlob(receiptModalSlip)
+        .then(b => setPreloadedReceiptBlob(b))
+        .catch(err => console.warn('Pre-generating receipt image error:', err));
+    } else {
+      setPreloadedReceiptBlob(null);
+    }
+  }, [receiptModalSlip]);
 
   // Live Worker GPS Tracking Watcher
   useEffect(() => {
@@ -2568,10 +2581,11 @@ export const MobileApp: React.FC = () => {
                 onClick={async () => {
                   setIsSharingImage(true);
                   try {
-                    await shareReceiptImage(receiptModalSlip);
-                  } catch (e) {
-                    console.warn('Share image error, fallback to text:', e);
-                    openWhatsAppReceipt(receiptModalSlip);
+                    const blob = preloadedReceiptBlob || await generateReceiptImageBlob(receiptModalSlip);
+                    await shareReceiptImage(receiptModalSlip, blob);
+                  } catch (e: any) {
+                    console.error('Share image error:', e);
+                    alert('رسید تصویر شیئر کرنے میں مسئلہ آیا: ' + (e?.message || e));
                   } finally {
                     setIsSharingImage(false);
                   }
@@ -2593,7 +2607,8 @@ export const MobileApp: React.FC = () => {
                   onClick={async () => {
                     setIsDownloadingImage(true);
                     try {
-                      await downloadReceiptImage(receiptModalSlip);
+                      const blob = preloadedReceiptBlob || await generateReceiptImageBlob(receiptModalSlip);
+                      await downloadReceiptImage(receiptModalSlip, blob);
                       alert('رسید تصویر کامیابی سے محفوظ ہو گئی (Receipt image downloaded/saved)');
                     } catch (e: any) {
                       alert('ڈاؤنلوڈ میں خرابی: ' + (e?.message || 'Error saving receipt'));

@@ -383,6 +383,8 @@ public class MainActivity extends AppCompatActivity {
                             }
                             waIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
                             waIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            waIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            waIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                             try {
                                 grantUriPermission("com.whatsapp", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                             } catch (Exception ignored) {}
@@ -401,6 +403,8 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 waBizIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
                                 waBizIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                waBizIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                waBizIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                                 try {
                                     grantUriPermission("com.whatsapp.w4b", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                                 } catch (Exception ignored) {}
