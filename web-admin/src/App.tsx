@@ -24,7 +24,18 @@ import { CollectionDetailModal } from './components/collections/CollectionDetail
 import { Modal } from './components/common/Modal';
 import { Collection, BusinessSettings } from './types/database';
 import { api } from './services/api';
-import { CheckCircle2, Lock, KeyRound } from 'lucide-react';
+import { CheckCircle2, Lock, KeyRound, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+
+const sectionLabels: Record<string, string> = {
+  factories: 'Factories (فیکٹریاں و سپلائی ریکارڈ)',
+  expenses: 'Expenses (اخراجات و کیش)',
+  reports: 'Reports & P&L (رپورٹس و منافع)',
+  'monthly-register': 'Monthly Register (ماہانہ رجسٹر)',
+  customers: 'Customers (کسٹمرز ڈائریکٹری)',
+  workers: 'Workers (ملازمین و کلیکٹرز)',
+  'daily-records': 'Daily Records (روزانہ ریکارڈ)',
+  collections: 'Collections (کلیکشن ریکارڈز)',
+};
 
 const AdminApp: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -40,6 +51,7 @@ const AdminApp: React.FC = () => {
   const [pinModalTargetTab, setPinModalTargetTab] = useState<NavigationTab | null>(null);
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<string | null>(null);
+  const [showPinInModal, setShowPinInModal] = useState<boolean>(false);
 
   const {
     collections,
@@ -48,10 +60,75 @@ const AdminApp: React.FC = () => {
     refreshCollections,
   } = useRealtimeCollections();
 
-  // Load business settings (for locked sections & PIN)
+  // Load business settings (for locked sections & PIN) with local cache fallback
   useEffect(() => {
-    api.getSettings().then(s => setBusinessSettings(s)).catch(console.warn);
+    // Read local cache immediately for instant lock protection
+    const cachedLocked = localStorage.getItem('spp_locked_sections');
+    const cachedPin = localStorage.getItem('spp_section_lock_pin');
+    if (cachedLocked || cachedPin) {
+      try {
+        const parsedLocked = cachedLocked ? JSON.parse(cachedLocked) : [];
+        setBusinessSettings(prev => ({
+          ...(prev || ({} as BusinessSettings)),
+          locked_sections: parsedLocked,
+          section_lock_pin: cachedPin || prev?.section_lock_pin || '1234',
+        }));
+      } catch (err) {}
+    }
+
+    api.getSettings().then(s => {
+      setBusinessSettings(s);
+      if (s.locked_sections) {
+        localStorage.setItem('spp_locked_sections', JSON.stringify(s.locked_sections));
+      }
+      if (s.section_lock_pin) {
+        localStorage.setItem('spp_section_lock_pin', s.section_lock_pin);
+      }
+    }).catch(console.warn);
   }, [refreshTrigger]);
+
+  // Reactive listener for settings updates across components & browser tabs
+  useEffect(() => {
+    const handleSettingsUpdate = (e: any) => {
+      const updated = e.detail;
+      if (updated) {
+        setBusinessSettings(prev => ({ ...(prev || ({} as BusinessSettings)), ...updated }));
+        // Clear session unlocks so newly locked sections are locked immediately
+        setUnlockedSections(new Set());
+        // If current tab is now locked, trigger lock modal
+        const currentLocked = updated.locked_sections || [];
+        if (currentLocked.includes(activeTab) && activeTab !== 'settings' && activeTab !== 'dashboard') {
+          setPinModalTargetTab(activeTab);
+          setPinInput('');
+          setPinError(null);
+          setShowPinInModal(false);
+        }
+      }
+    };
+
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key === 'spp_locked_sections' || e.key === 'spp_section_lock_pin') {
+        const cachedLocked = localStorage.getItem('spp_locked_sections');
+        const cachedPin = localStorage.getItem('spp_section_lock_pin');
+        try {
+          const parsedLocked = cachedLocked ? JSON.parse(cachedLocked) : [];
+          setBusinessSettings(prev => ({
+            ...(prev || ({} as BusinessSettings)),
+            locked_sections: parsedLocked,
+            section_lock_pin: cachedPin || prev?.section_lock_pin || '1234',
+          }));
+          setUnlockedSections(new Set());
+        } catch (err) {}
+      }
+    };
+
+    window.addEventListener('spp_settings_updated', handleSettingsUpdate);
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('spp_settings_updated', handleSettingsUpdate);
+      window.removeEventListener('storage', handleStorageUpdate);
+    };
+  }, [activeTab]);
 
   // Re-fetch pages whenever a realtime event arrives from Supabase
   useEffect(() => {
@@ -60,13 +137,41 @@ const AdminApp: React.FC = () => {
     }
   }, [latestLiveEvent]);
 
+  // Guard active tab if settings finish loading and indicate it should be locked
+  useEffect(() => {
+    const lockedList = businessSettings?.locked_sections || [];
+    if (
+      activeTab !== 'settings' &&
+      activeTab !== 'dashboard' &&
+      lockedList.includes(activeTab) &&
+      !unlockedSections.has(activeTab)
+    ) {
+      setPinModalTargetTab(activeTab);
+    }
+  }, [businessSettings, activeTab, unlockedSections]);
+
   // Handle protected tab navigation
   const handleSelectTab = (tab: NavigationTab) => {
-    const lockedList = businessSettings?.locked_sections || [];
+    if (tab === 'settings' || tab === 'dashboard') {
+      setActiveTab(tab);
+      return;
+    }
+
+    const lockedList =
+      businessSettings?.locked_sections ||
+      (() => {
+        try {
+          return JSON.parse(localStorage.getItem('spp_locked_sections') || '[]');
+        } catch {
+          return [];
+        }
+      })();
+
     if (lockedList.includes(tab) && !unlockedSections.has(tab)) {
       setPinModalTargetTab(tab);
       setPinInput('');
       setPinError(null);
+      setShowPinInModal(false);
     } else {
       setActiveTab(tab);
     }
@@ -74,8 +179,16 @@ const AdminApp: React.FC = () => {
 
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPin = businessSettings?.section_lock_pin || '1234';
-    if (pinInput.trim() === correctPin.trim()) {
+    const correctPin = (
+      businessSettings?.section_lock_pin ||
+      localStorage.getItem('spp_section_lock_pin') ||
+      '1234'
+    ).trim();
+
+    const entered = pinInput.trim();
+
+    // Support case-insensitive matching for alphanumeric PINs (e.g. "Abdullah" vs "abdullah")
+    if (entered && (entered === correctPin || entered.toLowerCase() === correctPin.toLowerCase())) {
       if (pinModalTargetTab) {
         setUnlockedSections(prev => new Set(prev).add(pinModalTargetTab));
         setActiveTab(pinModalTargetTab);
@@ -83,9 +196,31 @@ const AdminApp: React.FC = () => {
       setPinModalTargetTab(null);
       setPinInput('');
       setPinError(null);
+      setShowPinInModal(false);
     } else {
-      setPinError('غلط پن کوڈ درج کیا گیا ہے۔ (Incorrect PIN)');
+      setPinError('غلط پن کوڈ درج کیا گیا ہے۔ براہ کرم درست ایڈمن پن درج کریں۔ (Incorrect PIN)');
     }
+  };
+
+  const handleCancelPinModal = () => {
+    const target = pinModalTargetTab;
+    setPinModalTargetTab(null);
+    setPinInput('');
+    setPinError(null);
+    setShowPinInModal(false);
+    // If the active tab was this locked tab, send user safely to dashboard
+    if (target && activeTab === target && !unlockedSections.has(target)) {
+      setActiveTab('dashboard');
+    }
+  };
+
+  const handleLockCurrentSection = (tab: NavigationTab) => {
+    setUnlockedSections(prev => {
+      const next = new Set(prev);
+      next.delete(tab);
+      return next;
+    });
+    setActiveTab('dashboard');
   };
 
   if (authLoading) {
@@ -190,6 +325,27 @@ const AdminApp: React.FC = () => {
           </div>
         )}
 
+        {/* Protected Section Status & Quick Re-Lock Bar */}
+        {businessSettings?.locked_sections?.includes(activeTab) && unlockedSections.has(activeTab) && (
+          <div className="mx-3 sm:mx-6 lg:mx-8 mt-2 px-3.5 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between no-print animate-fadeIn">
+            <div className="flex items-center gap-2 text-xs text-amber-300 font-semibold">
+              <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>
+                سیکشن: <strong>{sectionLabels[activeTab] || activeTab}</strong> ایڈمن پن سے محفوظ ہے۔
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleLockCurrentSection(activeTab)}
+              className="text-[11px] font-bold px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white rounded-lg border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="اس سیکشن کو فوراً دوبارہ لاک کریں"
+            >
+              <Lock className="w-3 h-3" />
+              <span>دوبارہ لاک کریں (Lock Now)</span>
+            </button>
+          </div>
+        )}
+
         {/* Page Content View */}
         <main className="flex-1 p-3 sm:p-5 lg:p-8 overflow-y-auto w-full">
           {activeTab === 'dashboard' && (
@@ -229,63 +385,76 @@ const AdminApp: React.FC = () => {
       {/* Section Lock PIN Modal */}
       <Modal
         isOpen={!!pinModalTargetTab}
-        onClose={() => {
-          setPinModalTargetTab(null);
-          setPinInput('');
-          setPinError(null);
-        }}
+        onClose={handleCancelPinModal}
         title="سیکشن سیکیورٹی پن (Security PIN Required)"
-        subtitle={pinModalTargetTab ? `سیکشن (${String(pinModalTargetTab).toUpperCase()}) لاک ہے۔ رسائی کے لیے 4 ہندسوں کا پن درج کریں۔` : ''}
+        subtitle={
+          pinModalTargetTab
+            ? `سیکشن: ${sectionLabels[pinModalTargetTab] || String(pinModalTargetTab).toUpperCase()} لاک ہے۔ رسائی کے لیے ایڈمن پن درج کریں۔`
+            : ''
+        }
         maxWidth="sm"
       >
         <form onSubmit={handleVerifyPin} className="space-y-4">
           <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-100 text-amber-700">
+            <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div className="text-xs">
-              <strong className="text-amber-900 block font-bold">محفوظ شدہ سیکشن (Protected Section)</strong>
-              <span className="text-amber-700 text-[11px]">اس سیکشن کے ڈیٹا کو دیکھنے کے لیے درست ایڈمن پن درج کریں۔</span>
+              <strong className="text-amber-900 block font-bold">
+                {pinModalTargetTab ? sectionLabels[pinModalTargetTab] || pinModalTargetTab : 'محفوظ شدہ سیکشن'}
+              </strong>
+              <span className="text-amber-700 text-[11px]">
+                یہ سیکشن سیکیورٹی کے تحت لاک ہے۔ ڈیٹا دیکھنے اور تبدیل کرنے کے لیے ایڈمن پن کوڈ درج کریں۔
+              </span>
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Admin PIN Code *
+              Admin PIN / Password *
             </label>
-            <input
-              type="password"
-              autoFocus
-              maxLength={8}
-              required
-              placeholder="••••"
-              value={pinInput}
-              onChange={e => {
-                setPinInput(e.target.value);
-                setPinError(null);
-              }}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-center text-lg font-mono font-black tracking-widest text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
-            />
+            <div className="relative">
+              <input
+                type={showPinInModal ? 'text' : 'password'}
+                autoFocus
+                maxLength={20}
+                required
+                placeholder="ایڈمن پن یا پاس ورڈ درج کریں"
+                value={pinInput}
+                onChange={e => {
+                  setPinInput(e.target.value);
+                  setPinError(null);
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-4 pr-10 py-2.5 text-center text-lg font-mono font-black tracking-widest text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPinInModal(!showPinInModal)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition"
+                title={showPinInModal ? 'پن چھپائیں' : 'پن دیکھیں'}
+              >
+                {showPinInModal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
             {pinError && (
-              <p className="text-xs text-rose-600 font-semibold mt-1 text-center">{pinError}</p>
+              <p className="text-xs text-rose-600 font-bold mt-1.5 text-center flex items-center justify-center gap-1">
+                <span>⚠️</span>
+                <span>{pinError}</span>
+              </p>
             )}
           </div>
 
           <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => {
-                setPinModalTargetTab(null);
-                setPinInput('');
-                setPinError(null);
-              }}
+              onClick={handleCancelPinModal}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition"
             >
               منسوخ (Cancel)
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5"
+              className="px-5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer"
             >
               <KeyRound className="w-3.5 h-3.5" />
               <span>ان لاک کریں (Unlock)</span>

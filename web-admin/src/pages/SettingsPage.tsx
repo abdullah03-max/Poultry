@@ -8,7 +8,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BusinessSettings } from '../types/database';
-import { Settings, Save, Check, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Settings, Save, Check, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle, Unlock, CheckSquare, Square, Trash2 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
   const { user, updateAdminCredentials } = useAuth();
@@ -31,6 +31,9 @@ export const SettingsPage: React.FC = () => {
   const [confirmSectionPin, setConfirmSectionPin] = useState<string>('');
   const [showSectionPin, setShowSectionPin] = useState<boolean>(false);
   const [showConfirmSectionPin, setShowConfirmSectionPin] = useState<boolean>(false);
+  const [lockSaving, setLockSaving] = useState<boolean>(false);
+  const [lockSuccessMsg, setLockSuccessMsg] = useState<string | null>(null);
+  const [lockErrorMsg, setLockErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (isSupabaseConfigured()) {
@@ -79,8 +82,13 @@ export const SettingsPage: React.FC = () => {
         ...settings,
         section_lock_pin: sectionPin.trim(),
       };
-      await api.updateSettings(updatedSettings);
-      setSettings(updatedSettings);
+      const result = await api.updateSettings(updatedSettings);
+      setSettings(result);
+
+      // Cache locally and broadcast update to all tabs/components
+      localStorage.setItem('spp_locked_sections', JSON.stringify(result.locked_sections || []));
+      localStorage.setItem('spp_section_lock_pin', result.section_lock_pin || '');
+      window.dispatchEvent(new CustomEvent('spp_settings_updated', { detail: result }));
 
       setSuccessMsg('Business settings and security configuration saved successfully!');
       setTimeout(() => setSuccessMsg(null), 3000);
@@ -89,6 +97,87 @@ export const SettingsPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Dedicated Save Function for Section Lock Card
+  const handleSaveSectionLockOnly = async (e?: React.MouseEvent | React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!settings) return;
+
+    setLockErrorMsg(null);
+    setLockSuccessMsg(null);
+
+    const pin = sectionPin.trim();
+    const confirmPin = confirmSectionPin.trim();
+    const selectedSections = settings.locked_sections || [];
+
+    // If sections are marked for lock, verify PIN is configured
+    if (selectedSections.length > 0 && !pin) {
+      setLockErrorMsg('سیکشنز کو لاک کرنے کے لیے ایڈمن پن (PIN) درج کرنا لازمی ہے۔ (PIN is required to lock sections)');
+      return;
+    }
+
+    if (pin && pin.length < 4) {
+      setLockErrorMsg('سیکیورٹی پن کوڈ کم از کم 4 حروف یا ہندسوں پر مشتمل ہونا چاہیے۔ (PIN must be at least 4 characters)');
+      return;
+    }
+
+    if (pin && confirmPin && pin !== confirmPin) {
+      setLockErrorMsg('پن کوڈ اور کنفرم پن کوڈ ایک جیسے نہیں ہیں۔ براہ کرم دونوں خانوں میں ایک جیسا پن درج کریں۔ (PINs do not match)');
+      return;
+    }
+
+    if (pin && !confirmPin) {
+      setLockErrorMsg('براہ کرم کنفرم پن کے خانے میں بھی پن کوڈ درج کریں۔ (Please enter Confirm PIN)');
+      return;
+    }
+
+    try {
+      setLockSaving(true);
+      const updatedSettings: BusinessSettings = {
+        ...settings,
+        section_lock_pin: pin,
+        locked_sections: selectedSections,
+      };
+
+      const result = await api.updateSettings(updatedSettings);
+      setSettings(result);
+
+      // Cache in localStorage for immediate zero-lag enforcement
+      localStorage.setItem('spp_locked_sections', JSON.stringify(result.locked_sections || []));
+      localStorage.setItem('spp_section_lock_pin', result.section_lock_pin || '');
+
+      // Broadcast event so App.tsx and Sidebar update immediately without page refresh
+      window.dispatchEvent(new CustomEvent('spp_settings_updated', { detail: result }));
+
+      setLockSuccessMsg(
+        selectedSections.length > 0
+          ? `✓ ایڈمن سیکیورٹی پن اور سیکشن لاک کامیابی سے محفوظ ہو گئے ہیں! (${selectedSections.length} سیکشنز فوری طور پر لاک کر دیے گئے ہیں)`
+          : '✓ ایڈمن سیکیورٹی سیٹنگز محفوظ ہو گئی ہیں (کوئی سیکشن لاک نہیں ہے)'
+      );
+      setTimeout(() => setLockSuccessMsg(null), 6000);
+    } catch (err: any) {
+      console.error('Failed to update section lock settings:', err);
+      setLockErrorMsg('سیکشن لاک سیٹنگز محفوظ کرنے میں مسئلہ آیا: ' + (err.message || 'Error occurred'));
+    } finally {
+      setLockSaving(false);
+    }
+  };
+
+  const handleSelectAllSections = () => {
+    if (!settings) return;
+    const allSecIds = ['factories', 'expenses', 'reports', 'monthly-register', 'customers', 'workers'];
+    setSettings({ ...settings, locked_sections: allSecIds });
+  };
+
+  const handleDeselectAllSections = () => {
+    if (!settings) return;
+    setSettings({ ...settings, locked_sections: [] });
+  };
+
+  const handleClearPin = () => {
+    setSectionPin('');
+    setConfirmSectionPin('');
   };
 
   const handleUpdateAdminCredentials = async (e: React.FormEvent) => {
@@ -241,26 +330,55 @@ export const SettingsPage: React.FC = () => {
       {/* 2. Section Lock System */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-          <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-600" /> Section Lock System (سیکشن لاک سسٹم)
-          </h3>
-          <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full font-bold">
-            Admin PIN Protection
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
+                Section Lock System (سیکشن لاک سسٹم)
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                ایڈمن سیکیورٹی پن اور انفرادی سیکشن پروٹیکشن
+              </p>
+            </div>
+          </div>
+          <span className={`text-[11px] px-2.5 py-1 rounded-full font-bold border ${
+            (settings.locked_sections || []).length > 0
+              ? 'text-amber-800 bg-amber-100/80 border-amber-300'
+              : 'text-slate-600 bg-slate-100 border-slate-200'
+          }`}>
+            {(settings.locked_sections || []).length > 0
+              ? `🔒 ${(settings.locked_sections || []).length} سیکشنز لاک ہیں`
+              : '🔓 سب سیکشنز کھلے ہیں'}
           </span>
         </div>
 
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-600 leading-relaxed">
           انفرادی سیکشنز کو لاک کر کے محفوظ بنائیں۔ جب بھی کوئی صارف لاک شدہ سیکشن کھولے گا تو ایڈمن پن (PIN) کوڈ درج کرنا لازمی ہو گا۔
         </p>
 
+        {/* PIN Configuration Box */}
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
               سیکشن ان لاک پن کوڈ (Section Security PIN)
             </span>
-            <span className="text-[11px] text-slate-500 font-mono">
-              {sectionPin ? `${sectionPin.length} Digits PIN` : 'کوئی پن سیٹ نہیں'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500 font-mono">
+                {sectionPin ? `${sectionPin.length} حروف / ہندسے` : 'کوئی پن درج نہیں'}
+              </span>
+              {(sectionPin || confirmSectionPin) && (
+                <button
+                  type="button"
+                  onClick={handleClearPin}
+                  className="text-[10px] text-rose-600 hover:text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 hover:bg-rose-100 transition"
+                  title="دونوں خانے خالی کریں"
+                >
+                  صاف کریں (Clear)
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
@@ -272,8 +390,8 @@ export const SettingsPage: React.FC = () => {
               <div className="relative">
                 <input
                   type={showSectionPin ? 'text' : 'password'}
-                  maxLength={10}
-                  placeholder="نیا 4 ہندسوں والا پن درج کریں"
+                  maxLength={20}
+                  placeholder="نیا پن یا پاس ورڈ درج کریں"
                   value={sectionPin}
                   onChange={e => setSectionPin(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl pl-4 pr-10 py-2.5 text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
@@ -297,8 +415,8 @@ export const SettingsPage: React.FC = () => {
               <div className="relative">
                 <input
                   type={showConfirmSectionPin ? 'text' : 'password'}
-                  maxLength={10}
-                  placeholder="دوبارہ پن کوڈ درج کریں"
+                  maxLength={20}
+                  placeholder="دوبارہ وہی پن کوڈ درج کریں"
                   value={confirmSectionPin}
                   onChange={e => setConfirmSectionPin(e.target.value)}
                   className={`w-full bg-white border rounded-xl pl-4 pr-10 py-2.5 text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:ring-1 ${
@@ -328,19 +446,38 @@ export const SettingsPage: React.FC = () => {
           ) : confirmSectionPin && sectionPin === confirmSectionPin ? (
             <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5" />
-              <span>✓ پن کوڈ کی تصدیق مکمل ہے (PIN confirmed)</span>
+              <span>✓ پن کوڈ کی تصدیق درست ہے (PIN confirmed)</span>
             </p>
           ) : (
             <p className="text-[10px] text-slate-400">
-              لاک شدہ سیکشن کھولنے کے لیے یہ 4 سے 8 ہندسوں والا پن استعمال ہو گا۔ آپ اپنی مرضی کا نیا پن سیٹ کر سکتے ہیں۔
+              لاک شدہ سیکشن کھولنے کے لیے کم از کم 4 ہندسوں یا حروف کا پن استعمال کریں۔ مثال کے طور پر: 1234 یا اپنا نام۔
             </p>
           )}
         </div>
 
+        {/* Section Checkboxes */}
         <div className="pt-2">
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-            لاک کرنے کے لیے سیکشنز منتخب کریں (Select Sections to Lock):
-          </label>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              لاک کرنے کے لیے سیکشنز منتخب کریں (Select Sections to Lock):
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSelectAllSections}
+                className="px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg flex items-center gap-1 transition"
+              >
+                <CheckSquare className="w-3.5 h-3.5" /> سب لاک کریں (Lock All)
+              </button>
+              <button
+                type="button"
+                onClick={handleDeselectAllSections}
+                className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-lg flex items-center gap-1 transition"
+              >
+                <Square className="w-3.5 h-3.5" /> سب ان لاک کریں (Unlock All)
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {[
@@ -387,6 +524,45 @@ export const SettingsPage: React.FC = () => {
               );
             })}
           </div>
+        </div>
+
+        {/* Success / Error Feedback Banners */}
+        {lockSuccessMsg && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+            <Check className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+            <span>{lockSuccessMsg}</span>
+          </div>
+        )}
+
+        {lockErrorMsg && (
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+            <AlertCircle className="w-4.5 h-4.5 text-rose-600 shrink-0" />
+            <span>{lockErrorMsg}</span>
+          </div>
+        )}
+
+        {/* Dedicated Save & Lock Action Bar */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-amber-50/40 p-4 rounded-xl border border-amber-200/60">
+          <div>
+            <span className="font-bold text-xs text-slate-800 block">
+              {(settings.locked_sections || []).length > 0
+                ? `🔒 ${(settings.locked_sections || []).length} سیکشنز لاک کرنے کے لیے منتخب ہیں`
+                : '🔓 فی الحال کوئی سیکشن لاک کے لیے منتخب نہیں'}
+            </span>
+            <span className="text-[11px] text-slate-500">
+              تبدیلیاں لاگو کرنے اور فوری لاک کرنے کے لیے نیچے دیا گیا بٹن دبائیں۔
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveSectionLockOnly}
+            disabled={lockSaving}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition shrink-0 cursor-pointer disabled:opacity-50"
+          >
+            {lockSaving ? <Check className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+            <span>{lockSaving ? 'محفوظ کیا جا رہا ہے...' : 'محفوظ کریں اور سیکشنز لاک کریں (Save PIN & Lock Sections Now)'}</span>
+          </button>
         </div>
       </div>
 
