@@ -1960,9 +1960,14 @@ export const MobileApp: React.FC = () => {
                         )}
                         <button
                           type="button"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            shareReceiptImage(s);
+                            try {
+                              const b = await generateReceiptImageBlob(s);
+                              await shareReceiptImage(s, b);
+                            } catch (err: any) {
+                              alert('رسید تصویر شیئر کرنے میں مسئلہ: ' + (err?.message || err));
+                            }
                           }}
                           className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-1 transition ml-1"
                           title="واٹس ایپ پر رسید تصویر بھیجیں / Send Receipt Image"
@@ -2581,7 +2586,10 @@ export const MobileApp: React.FC = () => {
                 onClick={async () => {
                   setIsSharingImage(true);
                   try {
-                    const blob = preloadedReceiptBlob || await generateReceiptImageBlob(receiptModalSlip);
+                    let blob = preloadedReceiptBlob;
+                    if (!blob || blob.size === 0) {
+                      blob = await generateReceiptImageBlob(receiptModalSlip);
+                    }
                     await shareReceiptImage(receiptModalSlip, blob);
                   } catch (e: any) {
                     console.error('Share image error:', e);

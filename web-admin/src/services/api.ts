@@ -698,19 +698,18 @@ export const api = {
     const total_weight = Number((charbi_weight + kachara_weight).toFixed(2));
     const total_amount = Number((charbi_total + kachara_total).toFixed(2));
     const advance_amount = Number(data.advance_amount || 0);
-    const received_amount = Number(data.received_amount || advance_amount);
-    const remaining_balance = Number((total_amount - received_amount).toFixed(2));
+    const received_amount = Number(data.received_amount || 0);
+    const remaining_balance = Math.max(0, Number((total_amount - (advance_amount + received_amount)).toFixed(2)));
 
     let payment_status: 'paid' | 'partial' | 'unpaid' = 'unpaid';
-    if (received_amount >= total_amount && total_amount > 0) {
+    if ((advance_amount + received_amount) >= total_amount && total_amount > 0) {
       payment_status = 'paid';
-    } else if (received_amount > 0) {
+    } else if ((advance_amount + received_amount) > 0) {
       payment_status = 'partial';
     }
 
-    const payload: FactoryTransaction = {
-      id: `tx-${Date.now()}`,
-      invoice_no: data.invoice_no || `FAC-INV-${String(mockFactoryTransactions.length + 1).padStart(3, '0')}`,
+    const txInsertPayload = {
+      invoice_no: data.invoice_no || `FAC-INV-${Date.now().toString().slice(-4)}`,
       factory_id: data.factory_id || '',
       transaction_date: data.transaction_date || new Date().toISOString().split('T')[0],
       charbi_weight,
@@ -728,18 +727,31 @@ export const api = {
       vehicle_no: data.vehicle_no || null,
       driver_name: data.driver_name || null,
       notes: data.notes || null,
-      created_at: new Date().toISOString(),
     };
 
     if (isSupabaseConfigured()) {
       try {
-        const { data: dbData, error } = await supabase.from('factory_transactions').insert([payload]).select().single();
-        if (!error && dbData) return dbData;
-      } catch (err) {
-        console.warn('[API] Could not insert factory transaction in Supabase:', err);
+        const { data: dbData, error } = await supabase
+          .from('factory_transactions')
+          .insert([txInsertPayload])
+          .select('*, factory:factories(*)')
+          .single();
+        if (!error && dbData) return dbData as FactoryTransaction;
+        if (error) {
+          console.error('[API] Could not insert factory transaction in Supabase:', error);
+          throw new Error(error.message || 'Database error creating transaction');
+        }
+      } catch (err: any) {
+        console.error('[API] Insert factory transaction error:', err);
+        throw err;
       }
     }
 
+    const payload: FactoryTransaction = {
+      ...txInsertPayload,
+      id: `tx-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
     mockFactoryTransactions.unshift(payload);
     return payload;
   },
@@ -747,10 +759,18 @@ export const api = {
   async updateFactoryTransaction(id: string, updates: Partial<FactoryTransaction>): Promise<FactoryTransaction> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.from('factory_transactions').update(updates).eq('id', id).select().single();
-        if (!error && data) return data;
-      } catch (err) {
-        console.warn('[API] Could not update factory transaction in Supabase:', err);
+        const { factory, ...dbUpdates } = updates as any;
+        const { data, error } = await supabase
+          .from('factory_transactions')
+          .update(dbUpdates)
+          .eq('id', id)
+          .select('*, factory:factories(*)')
+          .single();
+        if (!error && data) return data as FactoryTransaction;
+        if (error) throw new Error(error.message);
+      } catch (err: any) {
+        console.error('[API] Could not update factory transaction in Supabase:', err);
+        throw err;
       }
     }
     const idx = mockFactoryTransactions.findIndex(t => t.id === id);
@@ -766,7 +786,7 @@ export const api = {
       try {
         await supabase.from('factory_transactions').delete().eq('id', id);
       } catch (err) {
-        console.warn('[API] Could not delete factory transaction in Supabase:', err);
+        console.warn('[API] Could not delete factory transaction from Supabase:', err);
       }
     }
     mockFactoryTransactions = mockFactoryTransactions.filter(t => t.id !== id);
@@ -798,23 +818,86 @@ export const api = {
   },
 
   async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<Expense> {
-    const payload: Expense = {
-      ...expense,
-      id: `exp-${Date.now()}`,
-      created_at: new Date().toISOString(),
+    const expenseData = {
+      expense_code: expense.expense_code || `EXP-${Date.now().toString().slice(-4)}`,
+      category: expense.category,
+      category_name_urdu: expense.category_name_urdu || null,
+      description: expense.description,
+      amount: Number(expense.amount || 0),
+      expense_date: expense.expense_date || new Date().toISOString().split('T')[0],
+      person_name: expense.person_name || null,
+      payment_method: expense.payment_method || 'cash',
+      notes: expense.notes || null,
     };
 
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.from('expenses').insert([payload]).select().single();
-        if (!error && data) return data;
-      } catch (err) {
-        console.warn('[API] Could not create expense in Supabase:', err);
+        const { data, error } = await supabase.from('expenses').insert([expenseData]).select().single();
+        if (!error && data) return data as Expense;
+        if (error) {
+          console.error('[API] Could not create expense in Supabase:', error);
+          throw new Error(error.message);
+        }
+      } catch (err: any) {
+        console.error('[API] Supabase expense insert failed:', err);
+        throw err;
       }
     }
 
+    const payload: Expense = {
+      ...expenseData,
+      id: `exp-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
     mockExpenses.unshift(payload);
     return payload;
+  },
+
+  async recordCustomerPayment(data: {
+    customerId: string;
+    customerName: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: 'cash' | 'online' | 'bank';
+    notes?: string;
+    month?: string;
+    year?: number;
+  }): Promise<Expense> {
+    const expenseCode = `PAY-${Date.now().toString().slice(-5)}`;
+    const description = `Customer Payment: ${data.customerName} (${data.month || ''} ${data.year || ''})`.trim();
+    const exp = await this.createExpense({
+      expense_code: expenseCode,
+      category: 'other',
+      category_name_urdu: 'گاہک کو ادائیگی',
+      description,
+      amount: data.amount,
+      expense_date: data.paymentDate,
+      person_name: data.customerName,
+      payment_method: data.paymentMethod,
+      notes: data.notes || `Monthly Register Payment for ${data.customerName}`,
+    });
+
+    // Also store local payment receipt history
+    try {
+      const stored = JSON.parse(localStorage.getItem('spp_customer_payments') || '[]');
+      stored.unshift({
+        id: exp.id,
+        customerId: data.customerId,
+        customerName: data.customerName,
+        amount: data.amount,
+        paymentDate: data.paymentDate,
+        paymentMethod: data.paymentMethod,
+        notes: data.notes,
+        month: data.month,
+        year: data.year,
+        created_at: new Date().toISOString(),
+      });
+      localStorage.setItem('spp_customer_payments', JSON.stringify(stored));
+    } catch (e) {
+      console.warn('Could not cache customer payment to localStorage:', e);
+    }
+
+    return exp;
   },
 
   async updateExpense(id: string, updates: Partial<Expense>): Promise<Expense> {

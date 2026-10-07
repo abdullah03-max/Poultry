@@ -3,12 +3,13 @@
 // Complete digital replacement of the manual handwritten monthly weight register
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MonthlyRegisterCustomerRow } from '../../types/database';
 import { formatWeight, formatCurrency } from '../../utils/formatters';
-import { Search, Download, Printer, Filter } from 'lucide-react';
+import { Search, Download, Printer, Filter, DollarSign, X, CheckCircle2 } from 'lucide-react';
 import { exportMonthlyRegisterToCSV, triggerPrint } from '../../utils/exportUtils';
 import { CustomerMonthlyBillModal } from './CustomerMonthlyBillModal';
+import { api } from '../../services/api';
 
 interface MonthlyMatrixTableProps {
   year: number;
@@ -38,6 +39,36 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
   const [search, setSearch] = useState<string>('');
   const [selectedArea, setSelectedArea] = useState<string>('all');
   const [selectedBillRow, setSelectedBillRow] = useState<MonthlyRegisterCustomerRow | null>(null);
+
+  // Customer Payment Modal State
+  const [payingRow, setPayingRow] = useState<MonthlyRegisterCustomerRow | null>(null);
+  const [payAmount, setPayAmount] = useState<number>(0);
+  const [payDate, setPayDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [payMethod, setPayMethod] = useState<'cash' | 'online' | 'bank'>('cash');
+  const [payNotes, setPayNotes] = useState<string>('');
+  const [isSavingPay, setIsSavingPay] = useState<boolean>(false);
+  const [paySuccessMsg, setPaySuccessMsg] = useState<string | null>(null);
+  const [paidCustomerIds, setPaidCustomerIds] = useState<Record<string, number>>({});
+
+  // Load recorded customer payments from local storage
+  const loadPaymentRecords = () => {
+    try {
+      const records = JSON.parse(localStorage.getItem('spp_customer_payments') || '[]');
+      const mapping: Record<string, number> = {};
+      records.forEach((r: any) => {
+        if (r.customerId) {
+          mapping[r.customerId] = (mapping[r.customerId] || 0) + (r.amount || 0);
+        }
+      });
+      setPaidCustomerIds(mapping);
+    } catch (e) {
+      console.warn('Could not load payment records:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadPaymentRecords();
+  }, []);
 
   // Extract unique areas
   const areas = Array.from(new Set(rows.map(r => r.customer.area))).filter(Boolean);
@@ -178,8 +209,8 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                 <th className="py-3 px-4 text-right border-b border-r border-slate-200 min-w-[110px] bg-amber-100/70 text-amber-900 font-black">
                   ٹوٹل بل (PKR)
                 </th>
-                <th className="py-3 px-3 text-center border-b border-slate-200 min-w-[75px] bg-slate-100 text-slate-700 no-print">
-                  بل پرنٹ
+                <th className="py-3 px-3 text-center border-b border-slate-200 min-w-[140px] bg-slate-100 text-slate-700 no-print">
+                  کارروائی (Actions)
                 </th>
               </tr>
             </thead>
@@ -286,17 +317,39 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                       {formatCurrency(row.totalAmount, '')}
                     </td>
 
-                    {/* Print Customer Bill Button */}
+                    {/* Print Customer Bill & Pay Buttons */}
                     <td className="py-2.5 px-2 text-center no-print border-l border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBillRow(row)}
-                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 mx-auto"
-                        title="ماہانہ بل پرنٹ کریں"
-                      >
-                        <Printer className="w-3 h-3" />
-                        <span>پرنٹ</span>
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPayingRow(row);
+                            setPayAmount(row.totalAmount);
+                            setPayDate(new Date().toISOString().split('T')[0]);
+                            setPayMethod('cash');
+                            setPayNotes(`Monthly payment for ${row.customer.name} - ${monthName} ${year}`);
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
+                            paidCustomerIds[row.customer.id]
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                          }`}
+                          title="گاہک کو ادائیگی ریکارڈ کریں (Pay Customer)"
+                        >
+                          <DollarSign className="w-3 h-3 text-emerald-600" />
+                          <span>{paidCustomerIds[row.customer.id] ? 'مزید ادائیگی' : 'ادائیگی'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBillRow(row)}
+                          className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1"
+                          title="ماہانہ بل پرنٹ کریں"
+                        >
+                          <Printer className="w-3 h-3" />
+                          <span>پرنٹ</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -403,6 +456,172 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
         year={year}
         daysInMonth={daysInMonth}
       />
+
+      {/* Customer Payment Modal (ادائیگی فارم) */}
+      {payingRow && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-black text-base text-slate-900">گاہک کو ادائیگی ریکارڈ کریں (Pay Customer)</h3>
+                <p className="text-xs text-slate-500 font-semibold">{monthName} {year} کا ماہانہ بل و ادائیگی</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPayingRow(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Customer & Bill Overview Card */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">گاہک / دکان:</span>
+                <span className="font-bold text-slate-900 font-sans">{payingRow.customer.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">علاقہ / مارکیٹ:</span>
+                <span className="font-medium text-slate-700">{payingRow.customer.area}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold">کل وزن سپلائی:</span>
+                <span className="font-mono font-bold text-blue-600">{payingRow.totalWeight} KG</span>
+              </div>
+              <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                <span className="text-slate-900 font-bold">کل واجب الادا بل:</span>
+                <span className="font-mono font-black text-amber-700 text-sm">
+                  Rs. {payingRow.totalAmount.toLocaleString()}
+                </span>
+              </div>
+              {paidCustomerIds[payingRow.customer.id] > 0 && (
+                <div className="flex justify-between items-center text-emerald-800 bg-emerald-50 p-2 rounded-xl border border-emerald-200 font-bold">
+                  <span>پہلے ادا شدہ رقم:</span>
+                  <span className="font-mono">Rs. {paidCustomerIds[payingRow.customer.id].toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Payment Form */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (payAmount <= 0) {
+                  alert('براہ کرم درست رقم درج کریں (Enter valid amount).');
+                  return;
+                }
+                try {
+                  setIsSavingPay(true);
+                  await api.recordCustomerPayment({
+                    customerId: payingRow.customer.id,
+                    customerName: payingRow.customer.name,
+                    amount: payAmount,
+                    paymentDate: payDate,
+                    paymentMethod: payMethod,
+                    notes: payNotes,
+                    month: monthName,
+                    year: year,
+                  });
+                  loadPaymentRecords();
+                  setPaySuccessMsg(`ادائیگی کامیابی سے درج ہو گئی! (Rs. ${payAmount.toLocaleString()} paid to ${payingRow.customer.name})`);
+                  setTimeout(() => {
+                    setPaySuccessMsg(null);
+                    setPayingRow(null);
+                  }, 1200);
+                } catch (err: any) {
+                  alert('ادائیگی محفوظ کرنے میں مسئلہ: ' + (err.message || 'Error saving payment'));
+                } finally {
+                  setIsSavingPay(false);
+                }
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ادا کی گئی رقم (Payment Amount PKR) *
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  required
+                  value={payAmount || ''}
+                  onChange={(e) => setPayAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono font-bold text-emerald-700 focus:outline-none focus:border-emerald-600 shadow-2xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    تاریخ ادائیگی (Payment Date) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-purple-600 shadow-2xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    طریقہ کار (Method) *
+                  </label>
+                  <select
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value as any)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-purple-600 shadow-2xs"
+                  >
+                    <option value="cash">💵 کیش / نقد (Cash)</option>
+                    <option value="online">📱 آن لائن / ایزی پیسہ (Online)</option>
+                    <option value="bank">🏦 بینک ٹرانسفر (Bank)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  تفصیل / رسید نمبر (Notes / Receipt Ref)
+                </label>
+                <input
+                  type="text"
+                  placeholder="مثلاً: رسید نمبر #301، ماہانہ ادائیگی مکمل"
+                  value={payNotes}
+                  onChange={(e) => setPayNotes(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-600 shadow-2xs"
+                />
+              </div>
+
+              {paySuccessMsg && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl text-center font-bold text-xs flex items-center justify-center gap-1.5 animate-fadeIn">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>{paySuccessMsg}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPayingRow(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition"
+                >
+                  منسوخ (Cancel)
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPay}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl shadow-md transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{isSavingPay ? 'محفوظ ہو رہا ہے...' : 'ادائیگی محفوظ کریں (Save)'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -344,13 +344,25 @@ public class MainActivity extends AppCompatActivity {
                     try (java.io.FileOutputStream fos = new java.io.FileOutputStream(imageFile)) {
                         fos.write(decodedBytes);
                         fos.flush();
+                        try {
+                            fos.getFD().sync();
+                        } catch (Exception ignored) {}
                     }
+                    imageFile.setReadable(true, false);
 
                     Uri contentUri = FileProvider.getUriForFile(
                             MainActivity.this,
                             getPackageName() + ".fileprovider",
                             imageFile
                     );
+
+                    // Explicitly grant URI read & write permissions to both WhatsApp variants
+                    try {
+                        grantUriPermission("com.whatsapp", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    } catch (Exception ignored) {}
+                    try {
+                        grantUriPermission("com.whatsapp.w4b", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    } catch (Exception ignored) {}
 
                     // Normalize phone number (e.g. 923001234567)
                     String cleanPhone = phone != null ? phone.replaceAll("[^0-9]", "") : "";
@@ -362,12 +374,14 @@ public class MainActivity extends AppCompatActivity {
 
                     Intent shareIntent = new Intent(Intent.ACTION_SEND);
                     shareIntent.setType("image/png");
+                    shareIntent.setDataAndType(contentUri, "image/png");
                     shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
                     if (caption != null && !caption.isEmpty()) {
                         shareIntent.putExtra(Intent.EXTRA_TEXT, caption);
                     }
-                    shareIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
+                    shareIntent.setClipData(ClipData.newUri(getContentResolver(), "Receipt", contentUri));
                     shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
                     boolean sentDirect = false;
                     if (cleanPhone.length() >= 10) {
@@ -375,19 +389,16 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             Intent waIntent = new Intent(Intent.ACTION_SEND);
                             waIntent.setType("image/png");
+                            waIntent.setDataAndType(contentUri, "image/png");
                             waIntent.setPackage("com.whatsapp");
                             waIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
                             waIntent.putExtra("jid", cleanPhone + "@s.whatsapp.net");
                             if (caption != null && !caption.isEmpty()) {
                                 waIntent.putExtra(Intent.EXTRA_TEXT, caption);
                             }
-                            waIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
+                            waIntent.setClipData(ClipData.newUri(getContentResolver(), "Receipt", contentUri));
                             waIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                             waIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            waIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                            try {
-                                grantUriPermission("com.whatsapp", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            } catch (Exception ignored) {}
                             startActivity(waIntent);
                             sentDirect = true;
                         } catch (Exception e1) {
@@ -395,19 +406,16 @@ public class MainActivity extends AppCompatActivity {
                             try {
                                 Intent waBizIntent = new Intent(Intent.ACTION_SEND);
                                 waBizIntent.setType("image/png");
+                                waBizIntent.setDataAndType(contentUri, "image/png");
                                 waBizIntent.setPackage("com.whatsapp.w4b");
                                 waBizIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
                                 waBizIntent.putExtra("jid", cleanPhone + "@s.whatsapp.net");
                                 if (caption != null && !caption.isEmpty()) {
                                     waBizIntent.putExtra(Intent.EXTRA_TEXT, caption);
                                 }
-                                waBizIntent.setClipData(ClipData.newRawUri("Receipt", contentUri));
+                                waBizIntent.setClipData(ClipData.newUri(getContentResolver(), "Receipt", contentUri));
                                 waBizIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                                 waBizIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                waBizIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                                try {
-                                    grantUriPermission("com.whatsapp.w4b", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                } catch (Exception ignored) {}
                                 startActivity(waBizIntent);
                                 sentDirect = true;
                             } catch (Exception e2) {
@@ -418,6 +426,8 @@ public class MainActivity extends AppCompatActivity {
 
                     if (!sentDirect) {
                         Intent chooser = Intent.createChooser(shareIntent, "واٹس ایپ پر رسید تصویر بھیجیں (Share Receipt Image)");
+                        chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(chooser);
                     }
 

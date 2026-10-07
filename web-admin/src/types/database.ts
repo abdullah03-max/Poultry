@@ -254,7 +254,7 @@ export interface Expense {
   id: string;
   expense_code: string;
   category: ExpenseCategory;
-  category_name_urdu?: string;
+  category_name_urdu?: string | null;
   description: string;
   amount: number;
   expense_date: string; // YYYY-MM-DD

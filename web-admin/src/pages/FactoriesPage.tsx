@@ -118,7 +118,7 @@ export const FactoriesPage: React.FC = () => {
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTransaction?.factory_id) {
-      alert('Please select a factory.');
+      alert('براہ کرم فیکٹری منتخب کریں (Please select a factory).');
       return;
     }
 
@@ -132,7 +132,7 @@ export const FactoriesPage: React.FC = () => {
       const kRate = parseFloat(String(editingTransaction.kachara_rate || 0)) || 0;
       const kAmt = Math.round(kWeight * kRate);
 
-      const totW = cWeight + kWeight;
+      const totW = Number((cWeight + kWeight).toFixed(2));
       const totAmt = cAmt + kAmt;
 
       const advRec = parseFloat(String(editingTransaction.advance_amount || 0)) || 0;
@@ -160,9 +160,10 @@ export const FactoriesPage: React.FC = () => {
       };
 
       if (editingTransaction.id) {
-        await api.updateFactoryTransaction(editingTransaction.id, payload);
+        const updated = await api.updateFactoryTransaction(editingTransaction.id, payload);
+        setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t));
       } else {
-        await api.createFactoryTransaction({
+        const created = await api.createFactoryTransaction({
           factory_id: editingTransaction.factory_id,
           transaction_date: editingTransaction.transaction_date || new Date().toISOString().split('T')[0],
           invoice_no: editingTransaction.invoice_no || `SPP-FAC-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -182,13 +183,15 @@ export const FactoriesPage: React.FC = () => {
           payment_status: payStatus,
           notes: editingTransaction.notes || null,
         });
+        setTransactions(prev => [created, ...prev]);
       }
 
       setTransactionModalOpen(false);
       setEditingTransaction(null);
-      fetchData();
+      await fetchData();
     } catch (err: any) {
-      alert('Error saving delivery record: ' + (err.message || 'Error'));
+      console.error('Save transaction error:', err);
+      alert('Error saving delivery record: ' + (err.message || 'Unknown error'));
     } finally {
       setSaving(false);
     }
@@ -805,92 +808,179 @@ export const FactoriesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Charbi Weights & Rates */}
-          <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
-            <span className="font-bold text-emerald-900 block">چربی وزن و ریٹ (Charbi Weight & Rate):</span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">چربی وزن (KG)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={editingTransaction?.charbi_weight || ''}
-                  onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), charbi_weight: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">چربی ریٹ (PKR/KG)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={editingTransaction?.charbi_rate || ''}
-                  onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), charbi_rate: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900"
-                />
-              </div>
-            </div>
-          </div>
+          {/* Live Computations */}
+          {(() => {
+            const cWeight = parseFloat(String(editingTransaction?.charbi_weight || 0)) || 0;
+            const cRate = parseFloat(String(editingTransaction?.charbi_rate || 0)) || 0;
+            const cTotal = Math.round(cWeight * cRate);
 
-          {/* Kachara Weights & Rates */}
-          <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
-            <span className="font-bold text-amber-900 block">کچرا وزن و ریٹ (Kachara Weight & Rate):</span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">کچرا وزن (KG)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={editingTransaction?.kachara_weight || ''}
-                  onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), kachara_weight: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">کچرا ریٹ (PKR/KG)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={editingTransaction?.kachara_rate || ''}
-                  onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), kachara_rate: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900"
-                />
-              </div>
-            </div>
-          </div>
+            const kWeight = parseFloat(String(editingTransaction?.kachara_weight || 0)) || 0;
+            const kRate = parseFloat(String(editingTransaction?.kachara_rate || 0)) || 0;
+            const kTotal = Math.round(kWeight * kRate);
 
-          {/* Payment & Advance */}
-          <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
-            <span className="font-bold text-blue-900 block">ادائیگی و نقد رقم (Payments & Balance):</span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">ایڈوانس وصولی (Advance PKR)</label>
-                <input
-                  type="number"
-                  step="100"
-                  min="0"
-                  value={editingTransaction?.advance_amount || ''}
-                  onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), advance_amount: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-white border border-blue-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">مزید وصول شدہ رقم (Received PKR)</label>
-                <input
-                  type="number"
-                  step="100"
-                  min="0"
-                  value={editingTransaction?.received_amount || ''}
-                  onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), received_amount: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-white border border-blue-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900"
-                />
-              </div>
-            </div>
-          </div>
+            const netWeight = Number((cWeight + kWeight).toFixed(2));
+            const grandTotal = cTotal + kTotal;
+
+            const adv = parseFloat(String(editingTransaction?.advance_amount || 0)) || 0;
+            const rec = parseFloat(String(editingTransaction?.received_amount || 0)) || 0;
+            const totalPaid = adv + rec;
+            const remaining = Math.max(0, grandTotal - totalPaid);
+
+            return (
+              <>
+                {/* Charbi Weights & Rates */}
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-emerald-950">🟢 چربی وزن و ریٹ (Charbi Weight & Rate):</span>
+                    <span className="font-mono font-bold text-xs text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-lg border border-emerald-200">
+                      کل چربی رقم: Rs. {cTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">چربی وزن (KG)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0.0"
+                        value={editingTransaction?.charbi_weight || ''}
+                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), charbi_weight: parseFloat(e.target.value) || 0 }))}
+                        className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600 shadow-2xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">چربی ریٹ (PKR/KG)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="75"
+                        value={editingTransaction?.charbi_rate || ''}
+                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), charbi_rate: parseFloat(e.target.value) || 0 }))}
+                        className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-mono text-emerald-800 bg-emerald-100/50 px-2.5 py-1 rounded-lg flex justify-between items-center">
+                    <span>حساب کتاب: {cWeight} KG × Rs. {cRate}</span>
+                    <span className="font-black text-emerald-950">= Rs. {cTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Kachara Weights & Rates */}
+                <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-amber-950">🟠 کچرا وزن و ریٹ (Kachara Weight & Rate):</span>
+                    <span className="font-mono font-bold text-xs text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-lg border border-amber-200">
+                      کل کچرا رقم: Rs. {kTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">کچرا وزن (KG)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0.0"
+                        value={editingTransaction?.kachara_weight || ''}
+                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), kachara_weight: parseFloat(e.target.value) || 0 }))}
+                        className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600 shadow-2xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">کچرا ریٹ (PKR/KG)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="60"
+                        value={editingTransaction?.kachara_rate || ''}
+                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), kachara_rate: parseFloat(e.target.value) || 0 }))}
+                        className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-mono text-amber-800 bg-amber-100/50 px-2.5 py-1 rounded-lg flex justify-between items-center">
+                    <span>حساب کتاب: {kWeight} KG × Rs. {kRate}</span>
+                    <span className="font-black text-amber-950">= Rs. {kTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Grand Summary of Weights & Bill */}
+                <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-2 font-mono text-xs shadow-md">
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span className="font-sans font-bold">⚖️ کل سپلائی وزن (Total Net Weight):</span>
+                    <span className="text-sm font-black text-blue-400">{netWeight.toFixed(2)} KG</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-slate-100">
+                    <span className="font-sans font-extrabold text-sm">💰 کل بل رقم (Total Bill):</span>
+                    <span className="text-base font-black text-amber-400">Rs. {grandTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Payment & Advance */}
+                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
+                  <span className="font-bold text-xs text-blue-950 block">💳 ادائیگی و نقد وصولی (Payments & Balance):</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">ایڈوانس رقم (Advance PKR)</label>
+                      <input
+                        type="number"
+                        step="100"
+                        min="0"
+                        placeholder="0"
+                        value={editingTransaction?.advance_amount || ''}
+                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), advance_amount: parseFloat(e.target.value) || 0 }))}
+                        className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600 shadow-2xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">مزید وصولی (Received PKR)</label>
+                      <input
+                        type="number"
+                        step="100"
+                        min="0"
+                        placeholder="0"
+                        value={editingTransaction?.received_amount || ''}
+                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), received_amount: parseFloat(e.target.value) || 0 }))}
+                        className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Auto-Calculated Remaining Balance (Reminder Box) */}
+                  <div className="p-3 bg-white border-2 border-amber-300 rounded-xl flex items-center justify-between shadow-2xs">
+                    <div>
+                      <span className="text-xs font-black text-slate-900 block">بقایا رقم / ریمائنڈر (Remaining Balance):</span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        Rs. {grandTotal.toLocaleString()} - (Rs. {adv.toLocaleString()} + Rs. {rec.toLocaleString()})
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-lg font-black font-mono text-amber-900 block">
+                        Rs. {remaining.toLocaleString()}
+                      </span>
+                      {remaining === 0 && grandTotal > 0 ? (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                          مکمل ادا شدہ (Fully Paid)
+                        </span>
+                      ) : totalPaid > 0 ? (
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                          جزوی ادائیگی (Partial)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md">
+                          غیر ادا شدہ (Unpaid)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
             <button

@@ -569,7 +569,8 @@ export async function shareReceiptImage(
       (window as any).AndroidBridge.shareReceiptImage(base64Data, filename, phone, caption);
       return { success: true, method: 'android_bridge' };
     } catch (err) {
-      console.warn('AndroidBridge.shareReceiptImage failed, falling back:', err);
+      console.error('AndroidBridge.shareReceiptImage failed:', err);
+      throw err;
     }
   }
 
