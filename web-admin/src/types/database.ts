@@ -281,3 +281,45 @@ export interface Expense {
   notes: string | null;
   created_at: string;
 }
+
+// -----------------------------------------------------------------------------
+// Dedicated Chicken Shop Management & Khata Records
+// -----------------------------------------------------------------------------
+export interface ChickenShopRecord {
+  id: string;
+  voucher_no?: string;
+  customer_name: string;                // نام دکان دار / کسٹمر
+  phone?: string | null;                // رابطہ نمبر
+  dokan_khata?: string | null;          // دکان کھاتہ (Shop Account # / Reference)
+  customer_khata?: string | null;       // کسٹمر کھاتہ (Customer Ledger Reference)
+  record_date: string;                  // YYYY-MM-DD
+  
+  // Boles (بونلس)
+  boles_weight: number;                 // وزن KG
+  boles_rate: number;                   // ریٹ PKR
+  boles_total: number;                  // کل رقم PKR
+  
+  // Thai (تھائی)
+  thai_weight: number;                  // وزن KG
+  thai_rate: number;                    // ریٹ PKR
+  thai_total: number;                   // کل رقم PKR
+  
+  // Gosht (گوشت)
+  gosht_weight: number;                 // وزن KG
+  gosht_rate: number;                   // ریٹ PKR
+  gosht_total: number;                  // کل رقم PKR
+  
+  // Aggregated Totals & Khata Balances
+  total_weight: number;                 // کل وزن (KG)
+  subtotal_amount: number;              // آج کا بل (PKR)
+  bakaya_raqam: number;                 // بقایا رقم (Previous Outstanding Balance)
+  total_raqam: number;                  // کل رقم (Total = subtotal + bakaya_raqam)
+  received_amount: number;              // وصول شدہ رقم (Cash / Received Amount)
+  remaining_balance: number;            // باقی رقم (Remaining = total_raqam - received_amount)
+  payment_status: 'paid' | 'partial' | 'unpaid';
+  
+  notes?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+

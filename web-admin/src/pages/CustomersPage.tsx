@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Customer, Collection } from '../types/database';
 import { formatWeight, formatCurrency, formatDate } from '../utils/formatters';
-import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2, Trash2, Clock, CheckCircle2, AlertTriangle, Wallet } from 'lucide-react';
+import { Search, Plus, Phone, MapPin, Edit, History, UserX, UserCheck, Scale, Loader2, Trash2, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 
 export const CustomersPage: React.FC = () => {
@@ -118,38 +118,6 @@ export const CustomersPage: React.FC = () => {
       const charbiRate = editingCustomer.rate_charbi ?? 55.0;
       const kacharaRate = editingCustomer.rate_kachara ?? (editingCustomer.rate_per_kg ?? 45.0);
 
-      const bolesWeight = editingCustomer.boles_weight != null && editingCustomer.boles_weight !== ('' as any)
-        ? parseFloat(String(editingCustomer.boles_weight))
-        : null;
-      const bolesRate = editingCustomer.boles_rate != null && editingCustomer.boles_rate !== ('' as any)
-        ? parseFloat(String(editingCustomer.boles_rate))
-        : null;
-      const bolesTotal = bolesWeight && bolesRate ? Number((bolesWeight * bolesRate).toFixed(2)) : null;
-
-      const thaiWeight = editingCustomer.thai_weight != null && editingCustomer.thai_weight !== ('' as any)
-        ? parseFloat(String(editingCustomer.thai_weight))
-        : null;
-      const thaiRate = editingCustomer.thai_rate != null && editingCustomer.thai_rate !== ('' as any)
-        ? parseFloat(String(editingCustomer.thai_rate))
-        : null;
-      const thaiTotal = thaiWeight && thaiRate ? Number((thaiWeight * thaiRate).toFixed(2)) : null;
-
-      const goshtWeight = editingCustomer.gosht_weight != null && editingCustomer.gosht_weight !== ('' as any)
-        ? parseFloat(String(editingCustomer.gosht_weight))
-        : null;
-      const goshtRate = editingCustomer.gosht_rate != null && editingCustomer.gosht_rate !== ('' as any)
-        ? parseFloat(String(editingCustomer.gosht_rate))
-        : null;
-      const goshtTotal = goshtWeight && goshtRate ? Number((goshtWeight * goshtRate).toFixed(2)) : null;
-
-      const bakayaRaqam = editingCustomer.bakaya_raqam != null && editingCustomer.bakaya_raqam !== ('' as any)
-        ? parseFloat(String(editingCustomer.bakaya_raqam))
-        : 0;
-      const calculatedTotal = (bolesTotal || 0) + (thaiTotal || 0) + (goshtTotal || 0) + (bakayaRaqam || 0);
-      const totalRaqam = editingCustomer.total_raqam != null && editingCustomer.total_raqam !== ('' as any)
-        ? parseFloat(String(editingCustomer.total_raqam))
-        : calculatedTotal;
-
       const customerPayload: Partial<Customer> = {
         ...editingCustomer,
         rate_charbi: charbiRate,
@@ -157,19 +125,6 @@ export const CustomersPage: React.FC = () => {
         rate_per_kg: kacharaRate,
         collection_start_time: editingCustomer.collection_start_time || null,
         collection_end_time: editingCustomer.collection_end_time || null,
-        dokan_khata: editingCustomer.dokan_khata || null,
-        customer_khata: editingCustomer.customer_khata || null,
-        boles_weight: bolesWeight,
-        boles_rate: bolesRate,
-        boles_total: bolesTotal,
-        thai_weight: thaiWeight,
-        thai_rate: thaiRate,
-        thai_total: thaiTotal,
-        gosht_weight: goshtWeight,
-        gosht_rate: goshtRate,
-        gosht_total: goshtTotal,
-        bakaya_raqam: bakayaRaqam || null,
-        total_raqam: totalRaqam || null,
         category_rates: {
           charbi: charbiRate,
           kachara: kacharaRate,
@@ -193,19 +148,6 @@ export const CustomersPage: React.FC = () => {
           rate_kachara: kacharaRate,
           collection_start_time: editingCustomer.collection_start_time || null,
           collection_end_time: editingCustomer.collection_end_time || null,
-          dokan_khata: editingCustomer.dokan_khata || null,
-          customer_khata: editingCustomer.customer_khata || null,
-          boles_weight: bolesWeight,
-          boles_rate: bolesRate,
-          boles_total: bolesTotal,
-          thai_weight: thaiWeight,
-          thai_rate: thaiRate,
-          thai_total: thaiTotal,
-          gosht_weight: goshtWeight,
-          gosht_rate: goshtRate,
-          gosht_total: goshtTotal,
-          bakaya_raqam: bakayaRaqam || null,
-          total_raqam: totalRaqam || null,
           category_rates: {
             charbi: charbiRate,
             kachara: kacharaRate,
@@ -455,36 +397,6 @@ export const CustomersPage: React.FC = () => {
                       کچرا: {cust.rate_kachara ?? (cust.rate_per_kg ?? 45)} PKR/KG
                     </span>
                   </div>
-
-                  {/* Chicken Shop Khata Summary */}
-                  {(cust.dokan_khata || cust.customer_khata || cust.total_raqam != null || cust.bakaya_raqam != null) && (
-                    <div className="p-2.5 bg-blue-50/50 border border-blue-200/80 rounded-xl space-y-1 text-[11px] mt-1.5">
-                      <div className="flex justify-between items-center text-slate-700">
-                        <span className="font-bold flex items-center gap-1 text-slate-800">
-                          <Wallet className="w-3 h-3 text-blue-600" /> دکان کھاتہ:
-                        </span>
-                        <span className="font-mono font-bold text-blue-700">
-                          {cust.dokan_khata || cust.customer_khata || '—'}
-                        </span>
-                      </div>
-                      {cust.total_raqam != null && (
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-slate-600">کل رقم:</span>
-                          <span className="font-mono font-extrabold text-emerald-700">
-                            Rs. {Number(cust.total_raqam).toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                      {cust.bakaya_raqam != null && Number(cust.bakaya_raqam) > 0 && (
-                        <div className="flex justify-between items-center text-rose-700 font-bold">
-                          <span>بقایہ رقم:</span>
-                          <span className="font-mono">
-                            Rs. {Number(cust.bakaya_raqam).toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
                   {/* Common Schedule Status Badge */}
                   {todayCollectedCustomerIds.has(cust.id) ? (
                     <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
@@ -585,62 +497,6 @@ export const CustomersPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Chicken Shop Financial & Khata Card */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5 uppercase">
-                  <Wallet className="w-4 h-4 text-blue-600" /> دکان کھاتہ و کسٹمر مالیات (Shop Financial Ledger)
-                </span>
-                <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full font-mono">
-                  {viewCustomer.dokan_khata || viewCustomer.customer_khata || 'کھاتہ ایکٹو'}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">دکان کھاتہ</span>
-                  <span className="font-bold text-slate-900 mt-0.5 block">{viewCustomer.dokan_khata || '—'}</span>
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">کسٹمر کھاتہ</span>
-                  <span className="font-bold text-slate-900 mt-0.5 block">{viewCustomer.customer_khata || '—'}</span>
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-rose-200 bg-rose-50/20">
-                  <span className="text-[10px] text-rose-500 block uppercase font-bold">بقایہ رقم</span>
-                  <span className="font-bold text-rose-700 font-mono mt-0.5 block">
-                    Rs. {Number(viewCustomer.bakaya_raqam || 0).toLocaleString()}
-                  </span>
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/20">
-                  <span className="text-[10px] text-emerald-600 block uppercase font-bold">کل رقم</span>
-                  <span className="font-black text-emerald-800 font-mono mt-0.5 block">
-                    Rs. {Number(viewCustomer.total_raqam || 0).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-              {(viewCustomer.boles_weight || viewCustomer.thai_weight || viewCustomer.gosht_weight) && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
-                  <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="font-bold text-slate-700 block">Boles (بونلیس):</span>
-                    <span className="text-slate-600 font-mono text-[10px]">
-                      {viewCustomer.boles_weight ?? 0} KG @ Rs. {viewCustomer.boles_rate ?? 0} = Rs. {Number(viewCustomer.boles_total || 0).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="font-bold text-slate-700 block">Thai (تھائی):</span>
-                    <span className="text-slate-600 font-mono text-[10px]">
-                      {viewCustomer.thai_weight ?? 0} KG @ Rs. {viewCustomer.thai_rate ?? 0} = Rs. {Number(viewCustomer.thai_total || 0).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <span className="font-bold text-slate-700 block">Gosht (گوشت):</span>
-                    <span className="text-slate-600 font-mono text-[10px]">
-                      {viewCustomer.gosht_weight ?? 0} KG @ Rs. {viewCustomer.gosht_rate ?? 0} = Rs. {Number(viewCustomer.gosht_total || 0).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
             <div>
               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <History className="w-4 h-4 text-brand-600" /> Recent Collection Slips
@@ -694,7 +550,7 @@ export const CustomersPage: React.FC = () => {
         onClose={() => setEditModalOpen(false)}
         title={editingCustomer?.id ? 'Edit Customer' : 'Add New Poultry Customer'}
         subtitle="Manage customer details, rate per KG, and contact information"
-        maxWidth="lg"
+        maxWidth="md"
       >
         <form onSubmit={handleSaveCustomer} className="space-y-4">
           <div>
@@ -831,258 +687,6 @@ export const CustomersPage: React.FC = () => {
               onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), address: e.target.value }))}
               className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-brand-600"
             />
-          </div>
-
-          {/* Chicken Shop Financial & Khata Section (دکان کھاتہ و کسٹمر مالیات) */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-200/90 pb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
-                  <Wallet className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">
-                    Chicken Shop Financial & Khata (دکان کھاتہ و کسٹمر مالیات)
-                  </h4>
-                  <p className="text-[10px] text-slate-500">
-                    دکان کھاتہ، کسٹمر کھاتہ، گوشت کے اوزان، ریٹ اور بقایہ جات کا حساب کتاب
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2.5 py-1 rounded-full">
-                کھاتہ لیجر
-              </span>
-            </div>
-
-            {/* Khata Identification Fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Dokan Khata (دکان کھاتہ)
-                </label>
-                <input
-                  type="text"
-                  placeholder="مثال: کھاتہ # 12"
-                  value={editingCustomer?.dokan_khata || ''}
-                  onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), dokan_khata: e.target.value }))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-urdu focus:outline-none focus:border-blue-600"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Customer Khata (کسٹمر کھاتہ)
-                </label>
-                <input
-                  type="text"
-                  placeholder="کسٹمر کھاتہ تفصیل یا نمبر"
-                  value={editingCustomer?.customer_khata || ''}
-                  onChange={e => setEditingCustomer(prev => ({ ...(prev || {}), customer_khata: e.target.value }))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-urdu focus:outline-none focus:border-blue-600"
-                />
-              </div>
-            </div>
-
-            {/* Boles, Thai, Gosht Rows */}
-            <div className="space-y-2 pt-1">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                گوشت کی اقسام، اوزان اور ریٹس (Meat Categories, Weights & Rates)
-              </label>
-
-              {/* Boles */}
-              <div className="grid grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-xl border border-slate-200">
-                <div className="col-span-12 sm:col-span-4">
-                  <span className="font-bold text-xs text-slate-900 block">Boles (بونلیس)</span>
-                  <span className="text-[10px] text-slate-400">Boneless Chicken Meat</span>
-                </div>
-                <div className="col-span-6 sm:col-span-4">
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase">Weight (وزن KG)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder="0.0"
-                    value={editingCustomer?.boles_weight ?? ''}
-                    onChange={e => {
-                      const w = e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0;
-                      const r = typeof editingCustomer?.boles_rate === 'number' ? editingCustomer.boles_rate : 0;
-                      const tot = typeof w === 'number' && r ? Number((w * r).toFixed(2)) : null;
-                      setEditingCustomer(prev => ({
-                        ...(prev || {}),
-                        boles_weight: w,
-                        boles_total: tot,
-                      }));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-                <div className="col-span-6 sm:col-span-4">
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase">Rate (ریٹ PKR)</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="0"
-                    value={editingCustomer?.boles_rate ?? ''}
-                    onChange={e => {
-                      const r = e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0;
-                      const w = typeof editingCustomer?.boles_weight === 'number' ? editingCustomer.boles_weight : 0;
-                      const tot = typeof r === 'number' && w ? Number((w * r).toFixed(2)) : null;
-                      setEditingCustomer(prev => ({
-                        ...(prev || {}),
-                        boles_rate: r,
-                        boles_total: tot,
-                      }));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-              </div>
-
-              {/* Thai */}
-              <div className="grid grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-xl border border-slate-200">
-                <div className="col-span-12 sm:col-span-4">
-                  <span className="font-bold text-xs text-slate-900 block">Thai (تھائی)</span>
-                  <span className="text-[10px] text-slate-400">Chicken Thai Portions</span>
-                </div>
-                <div className="col-span-6 sm:col-span-4">
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase">Weight (وزن KG)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder="0.0"
-                    value={editingCustomer?.thai_weight ?? ''}
-                    onChange={e => {
-                      const w = e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0;
-                      const r = typeof editingCustomer?.thai_rate === 'number' ? editingCustomer.thai_rate : 0;
-                      const tot = typeof w === 'number' && r ? Number((w * r).toFixed(2)) : null;
-                      setEditingCustomer(prev => ({
-                        ...(prev || {}),
-                        thai_weight: w,
-                        thai_total: tot,
-                      }));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-                <div className="col-span-6 sm:col-span-4">
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase">Rate (ریٹ PKR)</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="0"
-                    value={editingCustomer?.thai_rate ?? ''}
-                    onChange={e => {
-                      const r = e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0;
-                      const w = typeof editingCustomer?.thai_weight === 'number' ? editingCustomer.thai_weight : 0;
-                      const tot = typeof r === 'number' && w ? Number((w * r).toFixed(2)) : null;
-                      setEditingCustomer(prev => ({
-                        ...(prev || {}),
-                        thai_rate: r,
-                        thai_total: tot,
-                      }));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-              </div>
-
-              {/* Gosht */}
-              <div className="grid grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-xl border border-slate-200">
-                <div className="col-span-12 sm:col-span-4">
-                  <span className="font-bold text-xs text-slate-900 block">Gosht (گوشت)</span>
-                  <span className="text-[10px] text-slate-400">Standard Broiler Meat</span>
-                </div>
-                <div className="col-span-6 sm:col-span-4">
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase">Weight (وزن KG)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder="0.0"
-                    value={editingCustomer?.gosht_weight ?? ''}
-                    onChange={e => {
-                      const w = e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0;
-                      const r = typeof editingCustomer?.gosht_rate === 'number' ? editingCustomer.gosht_rate : 0;
-                      const tot = typeof w === 'number' && r ? Number((w * r).toFixed(2)) : null;
-                      setEditingCustomer(prev => ({
-                        ...(prev || {}),
-                        gosht_weight: w,
-                        gosht_total: tot,
-                      }));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-                <div className="col-span-6 sm:col-span-4">
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase">Rate (ریٹ PKR)</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="0"
-                    value={editingCustomer?.gosht_rate ?? ''}
-                    onChange={e => {
-                      const r = e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0;
-                      const w = typeof editingCustomer?.gosht_weight === 'number' ? editingCustomer.gosht_weight : 0;
-                      const tot = typeof r === 'number' && w ? Number((w * r).toFixed(2)) : null;
-                      setEditingCustomer(prev => ({
-                        ...(prev || {}),
-                        gosht_rate: r,
-                        gosht_total: tot,
-                      }));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Bakaya Raqam & Total Raqam Auto Calculated */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-[11px] font-semibold text-rose-800 uppercase tracking-wider mb-1">
-                  Bakaya Raqam (بقایہ رقم PKR)
-                </label>
-                <input
-                  type="number"
-                  step="1"
-                  min="0"
-                  placeholder="0"
-                  value={editingCustomer?.bakaya_raqam ?? ''}
-                  onChange={e => {
-                    const val = e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0;
-                    setEditingCustomer(prev => ({
-                      ...(prev || {}),
-                      bakaya_raqam: val,
-                    }));
-                  }}
-                  className="w-full bg-rose-50/40 border border-rose-300 rounded-xl px-3 py-2 text-xs text-rose-900 font-mono font-bold focus:outline-none focus:border-rose-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-emerald-800 uppercase tracking-wider mb-1">
-                  Total Raqam (کل رقم PKR - Auto Calculated)
-                </label>
-                {(() => {
-                  const bTot = (parseFloat(String(editingCustomer?.boles_weight || 0)) || 0) * (parseFloat(String(editingCustomer?.boles_rate || 0)) || 0);
-                  const tTot = (parseFloat(String(editingCustomer?.thai_weight || 0)) || 0) * (parseFloat(String(editingCustomer?.thai_rate || 0)) || 0);
-                  const gTot = (parseFloat(String(editingCustomer?.gosht_weight || 0)) || 0) * (parseFloat(String(editingCustomer?.gosht_rate || 0)) || 0);
-                  const bakaya = parseFloat(String(editingCustomer?.bakaya_raqam || 0)) || 0;
-                  const autoTotal = Math.round(bTot + tTot + gTot + bakaya);
-                  return (
-                    <input
-                      type="text"
-                      readOnly
-                      value={autoTotal > 0 ? `Rs. ${autoTotal.toLocaleString()}` : (editingCustomer?.total_raqam ? `Rs. ${Number(editingCustomer.total_raqam).toLocaleString()}` : 'Rs. 0')}
-                      className="w-full bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2 text-xs text-emerald-900 font-mono font-black focus:outline-none cursor-default"
-                    />
-                  );
-                })()}
-              </div>
-            </div>
           </div>
 
           {/* Common Schedule Notice */}

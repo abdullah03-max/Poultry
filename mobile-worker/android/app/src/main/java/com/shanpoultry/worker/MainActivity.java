@@ -94,6 +94,11 @@ public class MainActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             perms.add(Manifest.permission.ACCESS_COARSE_LOCATION);
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                perms.add(Manifest.permission.POST_NOTIFICATIONS);
+            }
+        }
         if (!perms.isEmpty()) {
             ActivityCompat.requestPermissions(this, perms.toArray(new String[0]), PERMISSION_REQUEST_CODE);
         }
@@ -482,6 +487,43 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "رسید تصویر گیلری میں محفوظ ہو گئی!\nSaved to Pictures/ShanPoultry", Toast.LENGTH_LONG).show();
                 } catch (Exception e) {
                     Toast.makeText(MainActivity.this, "Failed to save image: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void startBackgroundLocationTracking(final String workerId, final String workerName, final String supabaseUrl, final String supabaseAnonKey) {
+            runOnUiThread(() -> {
+                try {
+                    Intent serviceIntent = new Intent(MainActivity.this, WorkerLocationService.class);
+                    serviceIntent.setAction(WorkerLocationService.ACTION_START);
+                    serviceIntent.putExtra(WorkerLocationService.EXTRA_WORKER_ID, workerId);
+                    serviceIntent.putExtra(WorkerLocationService.EXTRA_WORKER_NAME, workerName);
+                    serviceIntent.putExtra(WorkerLocationService.EXTRA_SUPABASE_URL, supabaseUrl);
+                    serviceIntent.putExtra(WorkerLocationService.EXTRA_SUPABASE_KEY, supabaseAnonKey);
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
+                    } else {
+                        startService(serviceIntent);
+                    }
+                    Toast.makeText(MainActivity.this, "فیلڈ ورکر بیک گراؤنڈ GPS ٹریکنگ ایکٹو ہو گئی ہے", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Failed to start GPS service: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void stopBackgroundLocationTracking() {
+            runOnUiThread(() -> {
+                try {
+                    Intent serviceIntent = new Intent(MainActivity.this, WorkerLocationService.class);
+                    serviceIntent.setAction(WorkerLocationService.ACTION_STOP);
+                    stopService(serviceIntent);
+                    Toast.makeText(MainActivity.this, "GPS ٹریکنگ سروس روک دی گئی ہے", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    // Ignore
                 }
             });
         }

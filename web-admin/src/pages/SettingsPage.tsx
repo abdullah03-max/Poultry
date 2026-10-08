@@ -598,6 +598,7 @@ export const SettingsPage: React.FC = () => {
               { id: 'daily-records', name: 'Daily Records (روزانہ ریکارڈ)', desc: 'Daily collections & day-end closure' },
               { id: 'collections', name: 'All Collections (کلیکشن ریکارڈز)', desc: 'Individual weigh-in slip entries' },
               { id: 'customers', name: 'Customers (کسٹمرز ڈائریکٹری)', desc: 'Shop directory, Khata & agreed rates' },
+              { id: 'chicken-shop', name: 'Chicken Shop (چکن شاپ و کھاتہ)', desc: 'Boles, Thai, Gosht sales & customer ledger' },
               { id: 'workers', name: 'Workers (ملازمین و کلیکٹرز)', desc: 'Collector staff & credentials' },
               { id: 'reports', name: 'Reports & P&L (رپورٹس و منافع)', desc: 'Financial profit & loss analytics' },
             ].map(sec => {

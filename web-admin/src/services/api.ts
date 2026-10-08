@@ -15,6 +15,7 @@ import {
   Factory,
   FactoryTransaction,
   Expense,
+  ChickenShopRecord,
 } from '../types/database';
 import { getDaysInMonth } from '../utils/formatters';
 
@@ -396,6 +397,64 @@ let mockExpenses: Expense[] = [
     created_at: new Date().toISOString(),
   },
 ];
+
+let mockChickenShopRecords: ChickenShopRecord[] = [
+  {
+    id: 'cs-rec-10000000-0000-0000-0000-000000000001',
+    voucher_no: 'CS-001',
+    customer_name: 'الحرمین چکن شاپ',
+    phone: '0301-7654321',
+    dokan_khata: 'کھاتہ نمبر 14',
+    customer_khata: 'حاجی ارشد صاحب',
+    record_date: new Date().toISOString().split('T')[0],
+    boles_weight: 45.0,
+    boles_rate: 620.0,
+    boles_total: 27900.0,
+    thai_weight: 30.0,
+    thai_rate: 480.0,
+    thai_total: 14400.0,
+    gosht_weight: 120.0,
+    gosht_rate: 380.0,
+    gosht_total: 45600.0,
+    total_weight: 195.0,
+    subtotal_amount: 87900.0,
+    bakaya_raqam: 12000.0,
+    total_raqam: 99900.0,
+    received_amount: 80000.0,
+    remaining_balance: 19900.0,
+    payment_status: 'partial',
+    notes: '80,000 نقد وصول، بقایا اگلے چالان میں شامل ہوگا',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'cs-rec-10000000-0000-0000-0000-000000000002',
+    voucher_no: 'CS-002',
+    customer_name: 'مدینہ پولٹری و چکن پوائنٹ',
+    phone: '0300-8899112',
+    dokan_khata: 'کھاتہ نمبر 08',
+    customer_khata: 'محمد عثمان',
+    record_date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+    boles_weight: 25.0,
+    boles_rate: 620.0,
+    boles_total: 15500.0,
+    thai_weight: 18.0,
+    thai_rate: 480.0,
+    thai_total: 8640.0,
+    gosht_weight: 85.0,
+    gosht_rate: 380.0,
+    gosht_total: 32300.0,
+    total_weight: 128.0,
+    subtotal_amount: 56440.0,
+    bakaya_raqam: 0.0,
+    total_raqam: 56440.0,
+    received_amount: 56440.0,
+    remaining_balance: 0.0,
+    payment_status: 'paid',
+    notes: 'مکمل ادائیگی بذریعہ جیز کیش',
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
 
 // -----------------------------------------------------------------------------
 // Chicken Shop Financial & Khata Serialization Helpers
@@ -1852,5 +1911,138 @@ export const api = {
       }
     }
     return [...mockAuditLogs];
+  },
+
+  // ---------------------------------------------------------------------------
+  // Dedicated Chicken Shop Management & Khata Records
+  // ---------------------------------------------------------------------------
+  async getChickenShopRecords(): Promise<ChickenShopRecord[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_records')
+          .select('*')
+          .order('record_date', { ascending: false });
+        if (!error && data) {
+          return data as ChickenShopRecord[];
+        }
+      } catch (err) {
+        console.warn('[API] Could not fetch chicken_shop_records from Supabase, using local fallback:', err);
+      }
+    }
+    try {
+      const stored = localStorage.getItem('spp_chicken_shop_records');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {}
+    return [...mockChickenShopRecords];
+  },
+
+  async getChickenShopRecordById(id: string): Promise<ChickenShopRecord | null> {
+    const records = await this.getChickenShopRecords();
+    return records.find(r => r.id === id) || null;
+  },
+
+  async createChickenShopRecord(
+    record: Omit<ChickenShopRecord, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<ChickenShopRecord> {
+    const id = `cs-rec-${Date.now()}`;
+    const voucher_no = record.voucher_no || `CS-${Math.floor(100 + Math.random() * 900)}`;
+    const now = new Date().toISOString();
+    const newRecord: ChickenShopRecord = {
+      ...record,
+      id,
+      voucher_no,
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_records')
+          .insert([newRecord])
+          .select()
+          .single();
+        if (!error && data) {
+          return data as ChickenShopRecord;
+        }
+      } catch (err) {
+        console.warn('[API] Could not insert chicken_shop_record to Supabase, saving locally:', err);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem('spp_chicken_shop_records');
+      const list: ChickenShopRecord[] = stored ? JSON.parse(stored) : [...mockChickenShopRecords];
+      list.unshift(newRecord);
+      localStorage.setItem('spp_chicken_shop_records', JSON.stringify(list));
+    } catch {}
+
+    mockChickenShopRecords.unshift(newRecord);
+    return newRecord;
+  },
+
+  async updateChickenShopRecord(
+    id: string,
+    updates: Partial<ChickenShopRecord>
+  ): Promise<ChickenShopRecord> {
+    const now = new Date().toISOString();
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_records')
+          .update({ ...updates, updated_at: now })
+          .eq('id', id)
+          .select()
+          .single();
+        if (!error && data) {
+          return data as ChickenShopRecord;
+        }
+      } catch (err) {
+        console.warn('[API] Could not update chicken_shop_record in Supabase:', err);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem('spp_chicken_shop_records');
+      const list: ChickenShopRecord[] = stored ? JSON.parse(stored) : [...mockChickenShopRecords];
+      const idx = list.findIndex(r => r.id === id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...updates, updated_at: now };
+        localStorage.setItem('spp_chicken_shop_records', JSON.stringify(list));
+        return list[idx];
+      }
+    } catch {}
+
+    const mIdx = mockChickenShopRecords.findIndex(r => r.id === id);
+    if (mIdx !== -1) {
+      mockChickenShopRecords[mIdx] = { ...mockChickenShopRecords[mIdx], ...updates, updated_at: now };
+      return mockChickenShopRecords[mIdx];
+    }
+    throw new Error('Chicken shop record not found');
+  },
+
+  async deleteChickenShopRecord(id: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('chicken_shop_records').delete().eq('id', id);
+        if (!error) return;
+      } catch (err) {
+        console.warn('[API] Could not delete chicken_shop_record from Supabase:', err);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem('spp_chicken_shop_records');
+      if (stored) {
+        const list: ChickenShopRecord[] = JSON.parse(stored);
+        const filtered = list.filter(r => r.id !== id);
+        localStorage.setItem('spp_chicken_shop_records', JSON.stringify(filtered));
+      }
+    } catch {}
+
+    mockChickenShopRecords = mockChickenShopRecords.filter(r => r.id !== id);
   },
 };

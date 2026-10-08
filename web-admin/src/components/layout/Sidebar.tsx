@@ -16,6 +16,7 @@ import {
   Factory as FactoryIcon,
   Receipt as ReceiptIcon,
   Lock as LockIcon,
+  Store,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
@@ -29,6 +30,7 @@ export type NavigationTab =
   | 'factories'
   | 'expenses'
   | 'customers'
+  | 'chicken-shop'
   | 'workers'
   | 'reports'
   | 'settings';
@@ -58,7 +60,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'expenses', label: 'Expenses (اخراجات)', urdu: 'اخراجات و کیش', icon: ReceiptIcon },
     { id: 'daily-records', label: 'Daily Records', urdu: 'روزانہ ریکارڈ', icon: CalendarCheck },
     { id: 'collections', label: 'All Collections', urdu: 'کلیکشن ریکارڈز', icon: Scale },
-    { id: 'customers', label: 'Customers', urdu: 'گاہک / دکانیں', icon: Users },
+    { id: 'customers', label: 'Customers', urdu: 'ویسٹ گاہک و دکانیں', icon: Users },
+    { id: 'chicken-shop', label: 'Chicken Shop (چکن شاپ)', urdu: 'چکن شاپ و کھاتہ', icon: Store },
     { id: 'workers', label: 'Workers Management', urdu: 'ورکرز مینجمنٹ', icon: UserCheck, badge: 'Admin' },
     { id: 'reports', label: 'Reports & P&L', urdu: 'رپورٹس و منافع', icon: FileSpreadsheet },
     { id: 'settings', label: 'System Settings', urdu: 'ترتیبات', icon: Settings },

@@ -21,6 +21,54 @@ import {
   Compass
 } from 'lucide-react';
 
+export const getWorkerPresence = (w: Profile): {
+  status: 'online' | 'idle' | 'offline';
+  label: string;
+  pinBg: string;
+  badgeClass: string;
+  timeAgoText: string;
+} => {
+  if (!w.last_location_updated_at) {
+    return {
+      status: 'offline',
+      label: 'Offline (No Signal)',
+      pinBg: '#64748B',
+      badgeClass: 'bg-slate-100 text-slate-500 border-slate-200',
+      timeAgoText: 'Never tracked',
+    };
+  }
+
+  const diffMs = Date.now() - new Date(w.last_location_updated_at).getTime();
+  const diffMinutes = Math.floor(diffMs / (60 * 1000));
+
+  if (diffMinutes < 5 && w.is_online !== false) {
+    return {
+      status: 'online',
+      label: 'Online Live',
+      pinBg: '#059669',
+      badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+      timeAgoText: diffMinutes === 0 ? 'Just now' : `${diffMinutes}m ago`,
+    };
+  } else if (diffMinutes <= 30) {
+    return {
+      status: 'idle',
+      label: 'Idle / Stale',
+      pinBg: '#D97706',
+      badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
+      timeAgoText: `${diffMinutes}m ago`,
+    };
+  } else {
+    const hours = Math.floor(diffMinutes / 60);
+    return {
+      status: 'offline',
+      label: 'Offline',
+      pinBg: '#64748B',
+      badgeClass: 'bg-slate-100 text-slate-500 border-slate-200',
+      timeAgoText: hours > 24 ? `${Math.floor(hours / 24)}d ago` : `${hours}h ago`,
+    };
+  }
+};
+
 interface WorkerTrackingMapProps {
   onSelectWorker?: (worker: Profile) => void;
   selectedWorkerId?: string | null;
@@ -164,10 +212,7 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       const lat = w.current_latitude ? Number(w.current_latitude) : 30.2974 + (w.id.charCodeAt(0) % 5) * 0.01;
       const lng = w.current_longitude ? Number(w.current_longitude) : 72.8550 + (w.id.charCodeAt(1) % 5) * 0.01;
 
-      const isLiveOnline = w.is_online === true || (
-        w.last_location_updated_at &&
-        (Date.now() - new Date(w.last_location_updated_at).getTime()) < 10 * 60 * 1000
-      );
+      const presence = getWorkerPresence(w);
 
       const latlng: L.LatLngTuple = [lat, lng];
       bounds.push(latlng);
@@ -177,14 +222,14 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
         className: 'custom-worker-pin',
         html: `
           <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-            ${isLiveOnline ? `
+            ${presence.status === 'online' ? `
               <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background: rgba(16, 185, 129, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
             ` : ''}
             <div style="
               width: 32px; 
               height: 32px; 
               border-radius: 50%; 
-              background: ${isLiveOnline ? '#059669' : '#475569'}; 
+              background: ${presence.pinBg}; 
               border: 3px solid white; 
               box-shadow: 0 4px 10px rgba(0,0,0,0.3);
               display: flex;
@@ -210,12 +255,12 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
         const marker = L.marker(latlng, { icon: customIcon }).addTo(map);
 
         const popupContent = `
-          <div style="font-family: sans-serif; min-width: 170px; padding: 4px;">
+          <div style="font-family: sans-serif; min-width: 190px; padding: 4px;">
             <div style="font-weight: bold; font-size: 14px; color: #0F172A; margin-bottom: 2px;">
               ${w.full_name}
             </div>
-            <div style="font-size: 11px; color: ${isLiveOnline ? '#059669' : '#64748B'}; font-weight: 600; margin-bottom: 6px;">
-              ● ${isLiveOnline ? 'Active Online (Live GPS)' : 'Offline / Last Seen'}
+            <div style="font-size: 11px; color: ${presence.pinBg}; font-weight: 700; margin-bottom: 6px;">
+              ● ${presence.label} (${presence.timeAgoText})
             </div>
             ${w.phone ? `
               <div style="font-size: 11px; color: #334155; margin-bottom: 4px;">
@@ -223,8 +268,13 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
               </div>
             ` : ''}
             <div style="font-size: 10px; color: #64748B; font-family: monospace;">
-              Coordinates: ${lat.toFixed(4)}, ${lng.toFixed(4)}
+              GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}
             </div>
+            ${w.location_accuracy ? `
+              <div style="font-size: 10px; color: #94A3B8; font-family: monospace;">
+                Accuracy: ±${Math.round(w.location_accuracy)}m
+              </div>
+            ` : ''}
           </div>
         `;
 
@@ -327,10 +377,7 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
 
           {workers.map(w => {
             const isSelected = selectedWorkerId === w.id;
-            const isLive = w.is_online === true || (
-              w.last_location_updated_at &&
-              (Date.now() - new Date(w.last_location_updated_at).getTime()) < 10 * 60 * 1000
-            );
+            const presence = getWorkerPresence(w);
 
             return (
               <div
@@ -343,38 +390,45 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                        presence.status === 'online'
+                          ? 'bg-emerald-500 animate-pulse'
+                          : presence.status === 'idle'
+                          ? 'bg-amber-500'
+                          : 'bg-slate-400'
+                      }`}
+                    />
                     <span className="font-bold text-slate-900 text-xs truncate">{w.full_name}</span>
                   </div>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${
-                    isLive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {isLive ? 'Online' : 'Offline'}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${presence.badgeClass}`}>
+                    {presence.label}
                   </span>
                 </div>
 
                 <div className="mt-2 text-[11px] text-slate-500 space-y-1">
                   {w.phone && (
                     <div className="flex items-center gap-1.5">
-                      <Phone className="w-3 h-3 text-slate-400" />
+                      <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                       <span>{w.phone}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-1.5 font-mono text-[10px]">
                     <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
-                    <span>
-                      {w.current_latitude ? `${Number(w.current_latitude).toFixed(4)}, ${Number(w.current_longitude).toFixed(4)}` : 'Gaggoo Mandi Hub'}
+                    <span className="truncate">
+                      {w.current_latitude
+                        ? `${Number(w.current_latitude).toFixed(5)}, ${Number(w.current_longitude).toFixed(5)}`
+                        : 'No GPS Signal'}
+                      {w.location_accuracy ? ` (±${Math.round(w.location_accuracy)}m)` : ''}
                     </span>
                   </div>
                 </div>
 
                 <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                  <span className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
                     <Clock className="w-3 h-3" />
-                    {w.last_location_updated_at
-                      ? new Date(w.last_location_updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      : 'Just now'}
+                    {presence.timeAgoText}
                   </span>
                   <button
                     type="button"
@@ -382,7 +436,7 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
                       e.stopPropagation();
                       handleFocusWorker(w);
                     }}
-                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition"
                   >
                     <Crosshair className="w-3 h-3" /> Track Worker
                   </button>
@@ -401,14 +455,18 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
           <div ref={mapContainerRef} className="w-full h-full min-h-[460px] z-10" />
 
           {/* Quick Floating Map Overlay */}
-          <div className="absolute bottom-3 left-3 z-20 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-slate-200 text-xs shadow-md flex items-center gap-3">
+          <div className="absolute bottom-3 left-3 z-20 bg-white/95 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-slate-200 text-xs shadow-md flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5 text-slate-700">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="font-semibold text-[11px]">Green Pin: Live Worker Online</span>
+              <span className="font-semibold text-[11px]">Green: Live Online (&lt; 5m)</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-amber-700">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+              <span className="font-semibold text-[11px]">Amber: Idle (5–30m)</span>
             </div>
             <div className="flex items-center gap-1.5 text-slate-500">
               <span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
-              <span className="text-[11px]">Grey Pin: Last Known Hub</span>
+              <span className="font-semibold text-[11px]">Grey: Offline (&gt; 30m)</span>
             </div>
           </div>
         </div>

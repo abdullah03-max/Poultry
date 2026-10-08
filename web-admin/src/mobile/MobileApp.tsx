@@ -267,11 +267,22 @@ export const MobileApp: React.FC = () => {
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const lastGpsUpdateRef = useRef<number>(0);
+  const [showLocationPermissionModal, setShowLocationPermissionModal] = useState<boolean>(false);
 
   // Sharing & downloading image state
   const [isSharingImage, setIsSharingImage] = useState<boolean>(false);
   const [isDownloadingImage, setIsDownloadingImage] = useState<boolean>(false);
   const [preloadedReceiptBlob, setPreloadedReceiptBlob] = useState<Blob | null>(null);
+
+  // Prompt worker for background GPS tracking acknowledgment once logged in
+  useEffect(() => {
+    if (worker?.id) {
+      const ack = localStorage.getItem(`spp_bg_gps_ack_${worker.id}`);
+      if (!ack) {
+        setShowLocationPermissionModal(true);
+      }
+    }
+  }, [worker?.id]);
 
   // Pre-generate receipt image in memory as soon as receipt modal is opened
   useEffect(() => {
@@ -285,52 +296,81 @@ export const MobileApp: React.FC = () => {
     }
   }, [receiptModalSlip]);
 
-  // Live Worker GPS Tracking Watcher
+  // Live Worker GPS Tracking Watcher (Foreground + Background)
   useEffect(() => {
     if (!worker?.id || !navigator.geolocation) {
       setGpsActive(false);
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const accuracy = pos.coords.accuracy;
+    // 1. Start Native Android Foreground Tracking Service if inside Android APK
+    if ((window as any).AndroidBridge?.startBackgroundLocationTracking) {
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ohwslpcuetrpkqhvvszu.supabase.co';
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable__TCI9Uw0WZYMn_-80ZRekw_IcA-Q91j';
+        (window as any).AndroidBridge.startBackgroundLocationTracking(
+          worker.id,
+          worker.full_name || 'Field Collector',
+          supabaseUrl,
+          supabaseKey
+        );
+      } catch (err) {
+        console.warn('Native Android background GPS error:', err);
+      }
+    }
 
-        setGpsCoords({ lat, lng, accuracy });
-        setGpsActive(true);
-        setGpsError(null);
-
-        const now = Date.now();
-        // Update Supabase if at least 15 seconds passed
-        if (now - lastGpsUpdateRef.current > 15000) {
-          lastGpsUpdateRef.current = now;
-          try {
-            await supabase
-              .from('profiles')
-              .update({
-                current_latitude: lat,
-                current_longitude: lng,
-                location_accuracy: accuracy,
-                last_location_updated_at: new Date().toISOString(),
-                is_online: true,
-              })
-              .eq('id', worker.id);
-
-            await supabase
-              .from('worker_locations')
-              .insert({
-                worker_id: worker.id,
-                latitude: lat,
-                longitude: lng,
-                accuracy: accuracy,
-                recorded_at: new Date().toISOString(),
-              });
-          } catch (e) {
-            console.warn('GPS location sync warning:', e);
-          }
+    // 2. Request Screen WakeLock for PWA / Web browser support
+    let wakeLockSentinel: any = null;
+    const acquireWake = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
         }
+      } catch {}
+    };
+    acquireWake();
+
+    // 3. Push location updates to Supabase
+    const pushLocation = async (lat: number, lng: number, accuracy: number) => {
+      setGpsCoords({ lat, lng, accuracy });
+      setGpsActive(true);
+      setGpsError(null);
+
+      const now = Date.now();
+      // Update Supabase if at least 15 seconds passed
+      if (now - lastGpsUpdateRef.current > 15000) {
+        lastGpsUpdateRef.current = now;
+        try {
+          await supabase
+            .from('profiles')
+            .update({
+              current_latitude: lat,
+              current_longitude: lng,
+              location_accuracy: accuracy,
+              last_location_updated_at: new Date().toISOString(),
+              is_online: true,
+            })
+            .eq('id', worker.id);
+
+          await supabase
+            .from('worker_locations')
+            .insert({
+              worker_id: worker.id,
+              latitude: lat,
+              longitude: lng,
+              accuracy: accuracy,
+              recorded_at: new Date().toISOString(),
+            });
+        } catch (e) {
+          console.warn('GPS location sync warning:', e);
+        }
+      }
+    };
+
+    // 4. Continuous Geolocation Watch
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        pushLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
       (err) => {
         console.warn('Geolocation watch error:', err.message);
@@ -344,8 +384,39 @@ export const MobileApp: React.FC = () => {
       }
     );
 
+    // 5. Visibility change handler: re-ping location when worker resumes app
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        acquireWake();
+        if (navigator.geolocation && worker.id) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => pushLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+            () => {},
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 6. Regular heartbeat interval (every 18 seconds)
+    const heartbeatInterval = setInterval(() => {
+      if (navigator.geolocation && worker.id) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => pushLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+          () => {},
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
+        );
+      }
+    }, 18000);
+
     return () => {
       navigator.geolocation.clearWatch(watchId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(heartbeatInterval);
+      if (wakeLockSentinel) {
+        try { wakeLockSentinel.release(); } catch {}
+      }
     };
   }, [worker?.id]);
 
@@ -2873,6 +2944,55 @@ export const MobileApp: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Background GPS Permission & Activation Modal */}
+      {showLocationPermissionModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 text-center">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <Navigation className="w-7 h-7 text-emerald-600 animate-pulse" />
+            </div>
+
+            <div>
+              <h3 className="text-base font-black text-slate-900 font-urdu">لائیو فیلڈ لوکیشن ٹریکنگ</h3>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
+                Background GPS Location Tracking
+              </p>
+            </div>
+
+            <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-right font-urdu">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>فیلڈ آپریشنز اور کلیکشنز کے دوران ایڈمن پینل پر لائیو لوکیشن اور روٹ دکھانے کے لیے لوکیشن درکار ہے۔</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>یہ ٹریکنگ ایپ منیمائز ہونے یا سکرین بند ہونے پر بھی بیک گراؤنڈ میں جاری رہے گی تاکہ سگنل متواتر رہے۔</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (worker?.id) {
+                  localStorage.setItem(`spp_bg_gps_ack_${worker.id}`, 'true');
+                }
+                setShowLocationPermissionModal(false);
+                if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    () => {},
+                    () => {},
+                    { enableHighAccuracy: true }
+                  );
+                }
+              }}
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 font-urdu"
+            >
+              <span>✓ اجازت دیں اور لائیو ٹریکنگ شروع کریں</span>
+            </button>
           </div>
         </div>
       )}

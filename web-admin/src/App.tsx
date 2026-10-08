@@ -17,6 +17,7 @@ import { ExpensesPage } from './pages/ExpensesPage';
 import { WorkersPage } from './pages/WorkersPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ChickenShopPage } from './pages/ChickenShopPage';
 import { LoginPage } from './pages/LoginPage';
 import { useRealtimeCollections } from './hooks/useRealtimeCollections';
 import { NewCollectionModal } from './components/collections/NewCollectionModal';
@@ -33,7 +34,8 @@ const sectionLabels: Record<string, string> = {
   expenses: 'Expenses (اخراجات و کیش)',
   reports: 'Reports & P&L (رپورٹس و منافع)',
   'monthly-register': 'Monthly Register (ماہانہ رجسٹر)',
-  customers: 'Customers (کسٹمرز و چکن شاپ کھاتہ)',
+  customers: 'Customers (ویسٹ گاہک و دکانیں)',
+  'chicken-shop': 'Chicken Shop (چکن شاپ و کھاتہ)',
   workers: 'Workers Management (ورکرز مینجمنٹ)',
   'daily-records': 'Daily Records (روزانہ ریکارڈ)',
   collections: 'Collections (کلیکشن ریکارڈز)',
@@ -272,6 +274,11 @@ const AdminApp: React.FC = () => {
       title: 'Customers Directory',
       subtitle: 'Poultry shops, wholesale dealers, and rate schedules',
     },
+    'chicken-shop': {
+      title: 'Chicken Shop Management & Khata',
+      subtitle: 'Boneless, Thai, Gosht sales, Dokan Khata, Customer Khata, and WhatsApp statements',
+      showPrint: true,
+    },
     workers: {
       title: 'Field Workers & Collectors',
       subtitle: 'Active mobile employees recording waste weights',
@@ -376,6 +383,8 @@ const AdminApp: React.FC = () => {
           )}
 
           {activeTab === 'customers' && <CustomersPage />}
+
+          {activeTab === 'chicken-shop' && <ChickenShopPage />}
 
           {activeTab === 'workers' && <WorkersPage />}
 

@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
-import { WorkerTrackingMap } from '../components/tracking/WorkerTrackingMap';
+import { WorkerTrackingMap, getWorkerPresence } from '../components/tracking/WorkerTrackingMap';
 
 export const WorkersPage: React.FC = () => {
   const [workers, setWorkers] = useState<Profile[]>([]);
@@ -453,30 +453,31 @@ export const WorkersPage: React.FC = () => {
 
                     {/* Live GPS Status */}
                     <td className="py-3.5 px-4 text-center">
-                      {w.is_online ? (
-                        <button
-                          type="button"
-                          onClick={() => handleTrackWorker(w)}
-                          title="Click to track live on map"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition"
-                        >
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                          </span>
-                          <span>Online Live</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleTrackWorker(w)}
-                          title="Click to view location on map"
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-medium hover:bg-slate-200 transition"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                          <span>Offline</span>
-                        </button>
-                      )}
+                      {(() => {
+                        const presence = getWorkerPresence(w);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleTrackWorker(w)}
+                            title={`Click to track ${w.full_name} live on map • ${presence.timeAgoText}`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${presence.badgeClass}`}
+                          >
+                            {presence.status === 'online' ? (
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                              </span>
+                            ) : (
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  presence.status === 'idle' ? 'bg-amber-500' : 'bg-slate-400'
+                                }`}
+                              />
+                            )}
+                            <span>{presence.label}</span>
+                          </button>
+                        );
+                      })()}
                     </td>
 
                     {/* Status Pill & Toggle */}
