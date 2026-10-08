@@ -27,12 +27,14 @@ import { api } from './services/api';
 import { CheckCircle2, Lock, KeyRound, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 
 const sectionLabels: Record<string, string> = {
+  settings: 'System Settings (سسٹم ترتیبات)',
+  dashboard: 'Operations Dashboard (ڈیش بورڈ)',
   factories: 'Factories (فیکٹریاں و سپلائی ریکارڈ)',
   expenses: 'Expenses (اخراجات و کیش)',
   reports: 'Reports & P&L (رپورٹس و منافع)',
   'monthly-register': 'Monthly Register (ماہانہ رجسٹر)',
-  customers: 'Customers (کسٹمرز ڈائریکٹری)',
-  workers: 'Workers (ملازمین و کلیکٹرز)',
+  customers: 'Customers (کسٹمرز و چکن شاپ کھاتہ)',
+  workers: 'Workers Management (ورکرز مینجمنٹ)',
   'daily-records': 'Daily Records (روزانہ ریکارڈ)',
   collections: 'Collections (کلیکشن ریکارڈز)',
 };
@@ -97,7 +99,10 @@ const AdminApp: React.FC = () => {
         setUnlockedSections(new Set());
         // If current tab is now locked, trigger lock modal
         const currentLocked = updated.locked_sections || [];
-        if (currentLocked.includes(activeTab) && activeTab !== 'settings' && activeTab !== 'dashboard') {
+        const isCurrentTabLocked =
+          currentLocked.includes(activeTab) ||
+          (activeTab === 'settings' && (currentLocked.includes('settings') || !!updated.section_lock_pin));
+        if (isCurrentTabLocked && activeTab !== 'dashboard') {
           setPinModalTargetTab(activeTab);
           setPinInput('');
           setPinError(null);
@@ -140,10 +145,10 @@ const AdminApp: React.FC = () => {
   // Guard active tab if settings finish loading and indicate it should be locked
   useEffect(() => {
     const lockedList = businessSettings?.locked_sections || [];
+    const isLocked = lockedList.includes(activeTab) || (activeTab === 'settings' && (lockedList.includes('settings') || !!businessSettings?.section_lock_pin));
     if (
-      activeTab !== 'settings' &&
       activeTab !== 'dashboard' &&
-      lockedList.includes(activeTab) &&
+      isLocked &&
       !unlockedSections.has(activeTab)
     ) {
       setPinModalTargetTab(activeTab);
@@ -152,11 +157,6 @@ const AdminApp: React.FC = () => {
 
   // Handle protected tab navigation
   const handleSelectTab = (tab: NavigationTab) => {
-    if (tab === 'settings' || tab === 'dashboard') {
-      setActiveTab(tab);
-      return;
-    }
-
     const lockedList =
       businessSettings?.locked_sections ||
       (() => {
@@ -167,7 +167,10 @@ const AdminApp: React.FC = () => {
         }
       })();
 
-    if (lockedList.includes(tab) && !unlockedSections.has(tab)) {
+    // Check if section is locked. System Settings requires PIN if locked or if section_lock_pin is set
+    const isLocked = lockedList.includes(tab) || (tab === 'settings' && (lockedList.includes('settings') || !!businessSettings?.section_lock_pin));
+
+    if (isLocked && !unlockedSections.has(tab)) {
       setPinModalTargetTab(tab);
       setPinInput('');
       setPinError(null);
@@ -225,9 +228,9 @@ const AdminApp: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
+      <div className="min-h-screen bg-white flex items-center justify-center text-slate-700">
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
           <span className="text-sm font-medium">Initializing SHAN POULTRY Operations...</span>
         </div>
       </div>
@@ -287,7 +290,7 @@ const AdminApp: React.FC = () => {
   const currentHeader = pageHeaders[activeTab];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex">
       {/* Responsive Left Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -298,7 +301,7 @@ const AdminApp: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 ml-0 flex flex-col min-w-0 w-full transition-all duration-300">
+      <div className="flex-1 lg:ml-64 ml-0 flex flex-col min-w-0 w-full transition-all duration-300 bg-slate-50">
         {/* Sticky Top Header */}
         <Header
           title={currentHeader.title}
@@ -314,22 +317,22 @@ const AdminApp: React.FC = () => {
 
         {/* Live Event Realtime Toast Notification */}
         {latestLiveEvent && (
-          <div className="mx-3 sm:mx-6 lg:mx-8 mt-3 sm:mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between animate-fadeIn no-print">
-            <div className="flex items-center gap-2 text-xs text-emerald-300 font-semibold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="mx-3 sm:mx-6 lg:mx-8 mt-3 sm:mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between animate-fadeIn no-print shadow-xs">
+            <div className="flex items-center gap-2 text-xs text-emerald-800 font-semibold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>
                 Live Realtime Update: New Collection {latestLiveEvent.collection?.receipt_no} from {latestLiveEvent.collection?.customer?.name || 'Mobile Field Worker'} ({latestLiveEvent.collection?.total_net_weight} KG)
               </span>
             </div>
-            <span className="text-[10px] text-emerald-400 font-mono">Just Now</span>
+            <span className="text-[10px] text-emerald-700 font-mono font-bold">Just Now</span>
           </div>
         )}
 
         {/* Protected Section Status & Quick Re-Lock Bar */}
-        {businessSettings?.locked_sections?.includes(activeTab) && unlockedSections.has(activeTab) && (
-          <div className="mx-3 sm:mx-6 lg:mx-8 mt-2 px-3.5 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between no-print animate-fadeIn">
-            <div className="flex items-center gap-2 text-xs text-amber-300 font-semibold">
-              <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+        {(businessSettings?.locked_sections?.includes(activeTab) || (activeTab === 'settings' && businessSettings?.section_lock_pin)) && unlockedSections.has(activeTab) && (
+          <div className="mx-3 sm:mx-6 lg:mx-8 mt-2 px-3.5 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between no-print animate-fadeIn shadow-2xs">
+            <div className="flex items-center gap-2 text-xs text-amber-900 font-semibold">
+              <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span>
                 سیکشن: <strong>{sectionLabels[activeTab] || activeTab}</strong> ایڈمن پن سے محفوظ ہے۔
               </span>
@@ -337,17 +340,17 @@ const AdminApp: React.FC = () => {
             <button
               type="button"
               onClick={() => handleLockCurrentSection(activeTab)}
-              className="text-[11px] font-bold px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white rounded-lg border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="text-[11px] font-bold px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg border border-amber-300 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               title="اس سیکشن کو فوراً دوبارہ لاک کریں"
             >
-              <Lock className="w-3 h-3" />
+              <Lock className="w-3 h-3 text-amber-700" />
               <span>دوبارہ لاک کریں (Lock Now)</span>
             </button>
           </div>
         )}
 
         {/* Page Content View */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-8 overflow-y-auto w-full">
+        <main className="flex-1 p-3 sm:p-5 lg:p-8 overflow-y-auto w-full bg-slate-50">
           {activeTab === 'dashboard' && (
             <DashboardPage
               collections={collections}

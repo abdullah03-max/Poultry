@@ -91,29 +91,29 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   return (
     <div className="space-y-6 text-slate-800">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700/60 p-4 sm:p-6 md:p-8 shadow-card text-white">
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 md:p-8 shadow-card text-slate-900">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div className="space-y-1.5 sm:space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 text-xs font-semibold uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-poultry-gold" /> Operations Command Center
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Operations Command Center
             </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
               SHAN POULTRY PROTEIN
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 font-normal">
+            <p className="text-xs sm:text-sm text-slate-500 font-normal">
               Realtime Poultry Waste Collection & Weight Management Portal. Monitoring live field collections across Gaggoo Mandi, Burewala, Vehari, and Sahiwal.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={() => onNavigateTab('monthly-register')}
-              className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-600 shadow-sm transition text-center"
+              className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-300 shadow-xs transition text-center"
             >
               Monthly Register
             </button>
             <button
               onClick={onOpenNewCollection}
-              className="flex-1 sm:flex-none px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-sm transition active:scale-95 text-center"
+              className="flex-1 sm:flex-none px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition active:scale-95 text-center"
             >
               + Record Collection
             </button>

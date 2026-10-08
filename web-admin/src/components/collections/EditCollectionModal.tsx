@@ -357,14 +357,14 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
           </div>
 
           {/* Live Calculation Summary Banner */}
-          <div className="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between font-mono">
+          <div className="p-3.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl flex items-center justify-between font-mono">
             <div>
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Net Weight</span>
-              <span className="text-lg font-black text-emerald-400">{totalNet.toFixed(2)} KG</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Net Weight</span>
+              <span className="text-lg font-black text-blue-700">{totalNet.toFixed(2)} KG</span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Amount</span>
-              <span className="text-lg font-black text-amber-400">Rs. {totalAmount.toLocaleString()}</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Amount</span>
+              <span className="text-lg font-black text-amber-700">Rs. {totalAmount.toLocaleString()}</span>
             </div>
           </div>
 

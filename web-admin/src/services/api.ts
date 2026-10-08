@@ -171,6 +171,9 @@ let mockSettings: BusinessSettings = {
   common_collection_end_time: '14:00',
   locked_sections: [],
   section_lock_pin: '1234',
+  receipt_title: '🐔 SHAN POULTRY PROTEIN - رسید 🐔',
+  receipt_tagline: 'Official B2B Weigh-in Collection & Factory Supply Receipt',
+  receipt_footer_phone: '+92 300 1234567',
   updated_at: new Date().toISOString(),
   updated_by: null,
 };
@@ -395,40 +398,160 @@ let mockExpenses: Expense[] = [
 ];
 
 // -----------------------------------------------------------------------------
+// Chicken Shop Financial & Khata Serialization Helpers
+// -----------------------------------------------------------------------------
+function hydrateCustomerKhata(c: any): Customer {
+  if (!c) return c;
+  const khata = c.category_rates?.chicken_shop_khata || c.category_rates || {};
+  return {
+    ...c,
+    dokan_khata: c.dokan_khata ?? khata.dokan_khata ?? null,
+    customer_khata: c.customer_khata ?? khata.customer_khata ?? null,
+    boles_weight: c.boles_weight ?? khata.boles_weight ?? null,
+    boles_rate: c.boles_rate ?? khata.boles_rate ?? null,
+    boles_total: c.boles_total ?? khata.boles_total ?? (khata.boles_weight && khata.boles_rate ? Number((khata.boles_weight * khata.boles_rate).toFixed(2)) : null),
+    thai_weight: c.thai_weight ?? khata.thai_weight ?? null,
+    thai_rate: c.thai_rate ?? khata.thai_rate ?? null,
+    thai_total: c.thai_total ?? khata.thai_total ?? (khata.thai_weight && khata.thai_rate ? Number((khata.thai_weight * khata.thai_rate).toFixed(2)) : null),
+    gosht_weight: c.gosht_weight ?? khata.gosht_weight ?? null,
+    gosht_rate: c.gosht_rate ?? khata.gosht_rate ?? null,
+    gosht_total: c.gosht_total ?? khata.gosht_total ?? (khata.gosht_weight && khata.gosht_rate ? Number((khata.gosht_weight * khata.gosht_rate).toFixed(2)) : null),
+    bakaya_raqam: c.bakaya_raqam ?? khata.bakaya_raqam ?? null,
+    total_raqam: c.total_raqam ?? khata.total_raqam ?? null,
+  };
+}
+
+function serializeCustomerKhata(c: any): any {
+  if (!c) return c;
+  const bolesWeight = c.boles_weight != null ? parseFloat(c.boles_weight) : null;
+  const bolesRate = c.boles_rate != null ? parseFloat(c.boles_rate) : null;
+  const bolesTotal = bolesWeight && bolesRate ? Number((bolesWeight * bolesRate).toFixed(2)) : (c.boles_total != null ? parseFloat(c.boles_total) : null);
+
+  const thaiWeight = c.thai_weight != null ? parseFloat(c.thai_weight) : null;
+  const thaiRate = c.thai_rate != null ? parseFloat(c.thai_rate) : null;
+  const thaiTotal = thaiWeight && thaiRate ? Number((thaiWeight * thaiRate).toFixed(2)) : (c.thai_total != null ? parseFloat(c.thai_total) : null);
+
+  const goshtWeight = c.gosht_weight != null ? parseFloat(c.gosht_weight) : null;
+  const goshtRate = c.gosht_rate != null ? parseFloat(c.gosht_rate) : null;
+  const goshtTotal = goshtWeight && goshtRate ? Number((goshtWeight * goshtRate).toFixed(2)) : (c.gosht_total != null ? parseFloat(c.gosht_total) : null);
+
+  const bakayaRaqam = c.bakaya_raqam != null ? parseFloat(c.bakaya_raqam) : 0;
+  const calculatedTotal = (bolesTotal || 0) + (thaiTotal || 0) + (goshtTotal || 0) + (bakayaRaqam || 0);
+  const totalRaqam = c.total_raqam != null ? parseFloat(c.total_raqam) : calculatedTotal;
+
+  const khata = {
+    dokan_khata: c.dokan_khata || null,
+    customer_khata: c.customer_khata || null,
+    boles_weight: bolesWeight,
+    boles_rate: bolesRate,
+    boles_total: bolesTotal,
+    thai_weight: thaiWeight,
+    thai_rate: thaiRate,
+    thai_total: thaiTotal,
+    gosht_weight: goshtWeight,
+    gosht_rate: goshtRate,
+    gosht_total: goshtTotal,
+    bakaya_raqam: bakayaRaqam,
+    total_raqam: totalRaqam,
+  };
+
+  const existingCategoryRates = c.category_rates || {};
+  return {
+    ...c,
+    ...khata,
+    category_rates: {
+      ...existingCategoryRates,
+      chicken_shop_khata: khata,
+      ...khata,
+    },
+  };
+}
+
+function extractSafeCustomerPayload(p: any): any {
+  return {
+    customer_code: p.customer_code,
+    name: p.name,
+    contact_person: p.contact_person,
+    phone: p.phone,
+    alternate_phone: p.alternate_phone,
+    address: p.address,
+    area: p.area,
+    rate_per_kg: p.rate_per_kg,
+    rate_charbi: p.rate_charbi,
+    rate_kachara: p.rate_kachara,
+    collection_start_time: p.collection_start_time,
+    collection_end_time: p.collection_end_time,
+    category_rates: p.category_rates,
+    status: p.status,
+    notes: p.notes,
+    updated_at: p.updated_at,
+  };
+}
+
+// -----------------------------------------------------------------------------
 // API Service Methods
 // -----------------------------------------------------------------------------
 
 export const api = {
   // Business Settings
   async getSettings(): Promise<BusinessSettings> {
+    const cachedReceiptTitle = localStorage.getItem('spp_receipt_title');
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase.from('business_settings').select('*').limit(1).maybeSingle();
         if (!error && data) {
-          mockSettings = data;
-          return data;
+          const merged: BusinessSettings = {
+            ...data,
+            receipt_title: cachedReceiptTitle || data.receipt_title || '🐔 SHAN POULTRY PROTEIN - رسید 🐔',
+          };
+          mockSettings = merged;
+          return merged;
         }
       } catch (err) {
         console.warn('[API] Could not fetch settings from Supabase, using mock state:', err);
       }
     }
-    return { ...mockSettings };
+    return {
+      ...mockSettings,
+      receipt_title: cachedReceiptTitle || mockSettings.receipt_title || '🐔 SHAN POULTRY PROTEIN - رسید 🐔',
+    };
   },
 
   async updateSettings(settings: Partial<BusinessSettings>): Promise<BusinessSettings> {
+    if (settings.receipt_title) {
+      localStorage.setItem('spp_receipt_title', settings.receipt_title);
+    }
     if (isSupabaseConfigured()) {
       try {
         const { data: existing } = await supabase.from('business_settings').select('id').limit(1).maybeSingle();
         const targetId = existing?.id || mockSettings.id;
-        const { data, error } = await supabase
+
+        const payload: any = { ...settings, updated_at: new Date().toISOString() };
+        let { data, error } = await supabase
           .from('business_settings')
-          .update({ ...settings, updated_at: new Date().toISOString() })
+          .update(payload)
           .eq('id', targetId)
           .select()
           .single();
+
+        // If error 42703 (receipt_title column not yet in Supabase schema), retry without non-standard cols
+        if (error && (error as any).code === '42703') {
+          const { receipt_title, receipt_tagline, receipt_footer_phone, ...safePayload } = payload;
+          const retry = await supabase
+            .from('business_settings')
+            .update(safePayload)
+            .eq('id', targetId)
+            .select()
+            .single();
+          if (!retry.error && retry.data) {
+            data = { ...retry.data, ...settings };
+            error = null;
+          }
+        }
+
         if (!error && data) {
-          mockSettings = data;
-          return data;
+          mockSettings = { ...data, ...settings };
+          return mockSettings;
         }
       } catch (err) {
         console.warn('[API] Could not update settings in Supabase, updating mock state:', err);
@@ -488,63 +611,93 @@ export const api = {
         let query = supabase.from('customers').select('*').order('name', { ascending: true });
         if (!includeDeleted) query = query.eq('is_deleted', false);
         const { data, error } = await query;
-        if (!error && data) return data;
+        if (!error && data) return data.map(hydrateCustomerKhata);
       } catch (err) {
         console.warn('[API] Could not fetch customers from Supabase, using mock state:', err);
       }
     }
-    return mockCustomers.filter(c => includeDeleted || !c.is_deleted);
+    return mockCustomers.filter(c => includeDeleted || !c.is_deleted).map(hydrateCustomerKhata);
   },
 
   async getCustomerById(id: string): Promise<Customer | null> {
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase.from('customers').select('*').eq('id', id).single();
-        if (!error && data) return data;
+        if (!error && data) return hydrateCustomerKhata(data);
       } catch (err) {
         console.warn('[API] Could not fetch customer by id from Supabase, using mock state:', err);
       }
     }
-    return mockCustomers.find(c => c.id === id) || null;
+    const found = mockCustomers.find(c => c.id === id);
+    return found ? hydrateCustomerKhata(found) : null;
   },
 
   async createCustomer(customer: Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>): Promise<Customer> {
+    const payload = serializeCustomerKhata(customer);
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase.from('customers').insert([customer]).select().single();
-        if (!error && data) return data;
+        let { data, error } = await supabase.from('customers').insert([payload]).select().single();
+        if (error && (error as any).code === '42703') {
+          // If columns do not exist yet in Supabase schema, insert clean payload with JSONB category_rates
+          const safePayload = extractSafeCustomerPayload(payload);
+          const retry = await supabase.from('customers').insert([safePayload]).select().single();
+          if (!retry.error && retry.data) {
+            data = retry.data;
+            error = null;
+          }
+        }
+        if (!error && data) return hydrateCustomerKhata({ ...data, ...customer });
       } catch (err) {
         console.warn('[API] Could not create customer in Supabase, saving to mock state:', err);
       }
     }
-    const newCust: Customer = {
-      ...customer,
+    const newCust: Customer = hydrateCustomerKhata({
+      ...payload,
       id: `c-${Date.now()}`,
       is_deleted: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+    });
     mockCustomers.push(newCust);
     return newCust;
   },
 
   async updateCustomer(id: string, updates: Partial<Customer>): Promise<Customer> {
+    const payload = serializeCustomerKhata(updates);
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('customers')
-          .update({ ...updates, updated_at: new Date().toISOString() })
+          .update({ ...payload, updated_at: new Date().toISOString() })
           .eq('id', id)
           .select()
           .single();
-        if (!error && data) return data;
+
+        if (error && (error as any).code === '42703') {
+          const safePayload = extractSafeCustomerPayload({ ...payload, updated_at: new Date().toISOString() });
+          const retry = await supabase
+            .from('customers')
+            .update(safePayload)
+            .eq('id', id)
+            .select()
+            .single();
+          if (!retry.error && retry.data) {
+            data = retry.data;
+            error = null;
+          }
+        }
+        if (!error && data) return hydrateCustomerKhata({ ...data, ...updates });
       } catch (err) {
         console.warn('[API] Could not update customer in Supabase, updating mock state:', err);
       }
     }
     const idx = mockCustomers.findIndex(c => c.id === id);
     if (idx !== -1) {
-      mockCustomers[idx] = { ...mockCustomers[idx], ...updates, updated_at: new Date().toISOString() };
+      mockCustomers[idx] = hydrateCustomerKhata({
+        ...mockCustomers[idx],
+        ...payload,
+        updated_at: new Date().toISOString(),
+      });
       return mockCustomers[idx];
     }
     throw new Error('Customer not found');

@@ -116,7 +116,11 @@ const generateWhatsAppReceiptText = (slip: OfflineCollectionItem): string => {
   const kacharaRate = slip.kachara_rate ?? (slip.rate_per_kg || 45);
   const kacharaTotal = slip.kachara_total ?? Math.round(kacharaNet * kacharaRate);
 
-  let text = `*🐔 SHAN POULTRY PROTEIN 🐔*\n`;
+  const receiptTitle =
+    (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
+    '🐔 SHAN POULTRY PROTEIN - رسید 🐔';
+
+  let text = `*${receiptTitle}*\n`;
   text += `*شان پولٹری پروٹین - وصولی رسید*\n`;
   text += `────────────────────\n`;
   text += `*رسید نمبر (Slip #):* ${slip.receipt_no}\n`;
@@ -158,7 +162,10 @@ const generateWhatsAppReceiptText = (slip: OfflineCollectionItem): string => {
   text += `*💰 کل بل (TOTAL BILL): Rs. ${slip.total_amount.toLocaleString()}*\n`;
   text += `────────────────────\n`;
   if (slip.notes) text += `*نوٹ (Note):* ${slip.notes}\n`;
-  text += `_شکریہ! شان پولٹری پروٹین_\n`;
+  const phoneSetting =
+    (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
+    '0300-0000000';
+  text += `Shan Contact: ${phoneSetting}\n`;
 
   return text;
 };

@@ -66,9 +66,13 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
           {/* Header Banner */}
           <div className="border-b-2 border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-center sm:text-left">
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">SHAN POULTRY PROTEIN</h2>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight font-mono">
+                {(typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) || '🐔 SHAN POULTRY PROTEIN - رسید 🐔'}
+              </h2>
               <h3 className="text-sm font-bold text-blue-700 font-urdu mt-0.5">شان پولٹری پروٹین — ماہانہ بل رسید</h3>
-              <p className="text-[11px] text-slate-500 mt-1">B2B Poultry Protein Materials • Burewala & Gaggoo Mandi</p>
+              <p className="text-[11px] text-slate-500 mt-1">
+                B2B Poultry Protein Materials • Shan Contact: {(typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) || '0300-0000000'}
+              </p>
             </div>
             <div className="text-center sm:text-right">
               <span className="inline-block px-3 py-1 bg-blue-50 border border-blue-200 text-blue-800 font-bold rounded-lg text-xs font-mono">

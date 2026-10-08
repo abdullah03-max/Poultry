@@ -46,6 +46,21 @@ export interface Customer {
   created_by?: string;
   created_at: string;
   updated_at: string;
+
+  // Chicken Shop Financial & Inventory Account Fields
+  dokan_khata?: string | null;          // دکان کھاتہ (Shop Account # / Description)
+  customer_khata?: string | null;       // کسٹمر کھاتہ (Customer Ledger / Account Reference)
+  boles_weight?: number | null;         // بونلیس وزن (Boles Weight / Quantity in KG)
+  boles_rate?: number | null;           // بونلیس ریٹ (Boles Rate per KG)
+  boles_total?: number | null;          // بونلیس کل رقم (Boles Total PKR)
+  thai_weight?: number | null;          // تھائی وزن (Thai Weight / Quantity in KG)
+  thai_rate?: number | null;            // تھائی ریٹ (Thai Rate per KG)
+  thai_total?: number | null;           // تھائی کل رقم (Thai Total PKR)
+  gosht_weight?: number | null;         // گوشت وزن (Gosht Weight / Quantity in KG)
+  gosht_rate?: number | null;           // گوشت ریٹ (Gosht Rate per KG)
+  gosht_total?: number | null;          // گوشت کل رقم (Gosht Total PKR)
+  bakaya_raqam?: number | null;         // بقایہ رقم (Previous Outstanding Balance)
+  total_raqam?: number | null;          // کل رقم (Total Amount = Boles + Thai + Gosht + Bakaya)
 }
 
 export interface WorkerLocation {
@@ -162,6 +177,9 @@ export interface BusinessSettings {
   common_collection_end_time?: string;   // e.g. '14:00'
   locked_sections?: string[];            // e.g. ['factories', 'expenses', 'reports']
   section_lock_pin?: string;             // e.g. '1234'
+  receipt_title?: string;                // Default: '🐔 SHAN POULTRY PROTEIN - رسید 🐔'
+  receipt_tagline?: string;              // e.g. 'Official B2B Weigh-in Collection & Factory Supply Receipt'
+  receipt_footer_phone?: string;         // Dedicated Shan contact on receipt
   updated_at: string;
   updated_by: string | null;
 }

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { Factory, FactoryTransaction } from '../types/database';
+import { Factory, FactoryTransaction, BusinessSettings } from '../types/database';
 import { formatCurrency, formatWeight, formatDate } from '../utils/formatters';
 import {
   Factory as FactoryIcon,
@@ -31,6 +31,7 @@ export const FactoriesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'deliveries' | 'directory'>('deliveries');
   const [factories, setFactories] = useState<Factory[]>([]);
   const [transactions, setTransactions] = useState<FactoryTransaction[]>([]);
+  const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
 
@@ -46,12 +47,14 @@ export const FactoriesPage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [fList, txList] = await Promise.all([
+      const [fList, txList, bSettings] = await Promise.all([
         api.getFactories(),
         api.getFactoryTransactions(),
+        api.getSettings().catch(() => null),
       ]);
       setFactories(fList);
       setTransactions(txList);
+      if (bSettings) setSettings(bSettings);
     } catch (err) {
       console.error('Failed to load factory data:', err);
     } finally {
@@ -216,7 +219,17 @@ export const FactoriesPage: React.FC = () => {
     if (cleanPhone.startsWith('03')) cleanPhone = '92' + cleanPhone.substring(1);
     else if (cleanPhone.startsWith('3') && cleanPhone.length === 10) cleanPhone = '92' + cleanPhone;
 
-    const message = `*🏢 شان پولٹری پروٹین — فیکٹری سپلائی رسید 🏢*
+    const receiptTitle =
+      settings?.receipt_title ||
+      (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
+      '🐔 SHAN POULTRY PROTEIN - رسید 🐔';
+
+    const shanPhone =
+      settings?.business_phone ||
+      (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
+      '0300-0000000';
+
+    const message = `*${receiptTitle}*
 *انوائس نمبر:* ${tx.invoice_no}
 *تاریخ:* ${formatDate(tx.transaction_date)}
 *فیکٹری:* ${f?.name || 'Factory'}
@@ -232,7 +245,7 @@ export const FactoriesPage: React.FC = () => {
 *بقایا رقم:* Rs. ${tx.remaining_balance.toLocaleString()}
 *اسٹیٹس:* ${tx.payment_status === 'paid' ? 'مکمل ادا شدہ (PAID)' : tx.payment_status === 'partial' ? 'جزوی ادائیگی (PARTIAL)' : 'غیر ادا شدہ (UNPAID)'}
 
-شکریہ! حاجی شان — 0300-0000000`;
+Shan Contact: ${shanPhone}`;
 
     const encoded = encodeURIComponent(message);
     const waUrl = cleanPhone.length >= 10
@@ -909,14 +922,14 @@ export const FactoriesPage: React.FC = () => {
                 </div>
 
                 {/* Grand Summary of Weights & Bill */}
-                <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-2 font-mono text-xs shadow-md">
-                  <div className="flex justify-between items-center text-slate-300">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 font-mono text-xs">
+                  <div className="flex justify-between items-center text-slate-600">
                     <span className="font-sans font-bold">⚖️ کل سپلائی وزن (Total Net Weight):</span>
-                    <span className="text-sm font-black text-blue-400">{netWeight.toFixed(2)} KG</span>
+                    <span className="text-sm font-black text-blue-700">{netWeight.toFixed(2)} KG</span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-slate-100">
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-slate-900">
                     <span className="font-sans font-extrabold text-sm">💰 کل بل رقم (Total Bill):</span>
-                    <span className="text-base font-black text-amber-400">Rs. {grandTotal.toLocaleString()}</span>
+                    <span className="text-base font-black text-amber-700">Rs. {grandTotal.toLocaleString()}</span>
                   </div>
                 </div>
 

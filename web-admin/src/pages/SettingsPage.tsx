@@ -166,7 +166,18 @@ export const SettingsPage: React.FC = () => {
 
   const handleSelectAllSections = () => {
     if (!settings) return;
-    const allSecIds = ['factories', 'expenses', 'reports', 'monthly-register', 'customers', 'workers'];
+    const allSecIds = [
+      'settings',
+      'dashboard',
+      'monthly-register',
+      'factories',
+      'expenses',
+      'daily-records',
+      'collections',
+      'customers',
+      'workers',
+      'reports',
+    ];
     setSettings({ ...settings, locked_sections: allSecIds });
   };
 
@@ -327,7 +338,105 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Section Lock System */}
+      {/* 2. Receipt & Branding Settings (رسید ترتیبات و برانڈنگ) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+              <Building className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">
+                Receipt & WhatsApp Branding (رسید و برانڈنگ ترتیبات)
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                گاہکوں اور فیکٹریوں کے لیے معیاری رسید کا عنوان، رابطہ نمبر اور برانڈنگ
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            Standard B2B Receipt
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Standard Receipt Title */}
+          <div className="md:col-span-2">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Standard Receipt Title (رسید کا آفیشل عنوان) *
+            </label>
+            <input
+              type="text"
+              value={settings.receipt_title || '🐔 SHAN POULTRY PROTEIN - رسید 🐔'}
+              onChange={e => setSettings({ ...settings, receipt_title: e.target.value })}
+              className="w-full bg-blue-50/30 border border-blue-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-mono"
+              placeholder="🐔 SHAN POULTRY PROTEIN - رسید 🐔"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              یہ عنوان تمام کسٹمر اور فیکٹری رسیدوں (پرنٹ، واٹس ایپ امیج اور ٹیکسٹ) پر سب سے اوپر ظاہر ہو گا۔
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Shan Official Contact (شان رابطہ نمبر) *
+            </label>
+            <input
+              type="text"
+              value={settings.business_phone || ''}
+              onChange={e => setSettings({ ...settings, business_phone: e.target.value })}
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 font-mono font-bold"
+              placeholder="+92 300 1234567"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">
+              فیکٹری واٹس ایپ میسج کے اختتام پر "Shan Contact: [نمبر]" کے طور پر جائے گا۔
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Receipt Tagline / Subtitle (رسید سب ٹائٹل)
+            </label>
+            <input
+              type="text"
+              value={settings.receipt_tagline || 'Official B2B Weigh-in Collection & Factory Supply Receipt'}
+              onChange={e => setSettings({ ...settings, receipt_tagline: e.target.value })}
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+              placeholder="Official B2B Weigh-in Collection & Factory Supply Receipt"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Receipt Logo Image URL (رسید لوگو تصویر کا لنک)
+            </label>
+            <input
+              type="text"
+              value={settings.logo_url || ''}
+              onChange={e => setSettings({ ...settings, logo_url: e.target.value })}
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 font-mono"
+              placeholder="https://example.com/logo.png"
+            />
+          </div>
+        </div>
+
+        {/* Live Preview Box */}
+        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+            رسید کا لائیو پیش منظر (Receipt Header Preview):
+          </span>
+          <div className="bg-white p-3 rounded-lg border border-slate-200 text-center space-y-1">
+            <span className="font-extrabold text-sm sm:text-base text-slate-900 block tracking-tight font-mono">
+              {settings.receipt_title || '🐔 SHAN POULTRY PROTEIN - رسید 🐔'}
+            </span>
+            <span className="text-[11px] text-slate-500 block">
+              {settings.business_name_urdu || 'شان پولٹری پروٹین'} — رابطہ: {settings.business_phone || '+92 300 1234567'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Section Lock System */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
           <div className="flex items-center gap-2">
@@ -481,12 +590,16 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {[
+              { id: 'settings', name: 'System Settings (سسٹم ترتیبات)', desc: 'Branding, security, PINs & rules' },
+              { id: 'dashboard', name: 'Dashboard (مرکزی ڈیش بورڈ)', desc: 'KPI cards, daily overview & charts' },
+              { id: 'monthly-register', name: 'Monthly Register (ماہانہ رجسٹر)', desc: 'Monthly customer statements & billing' },
               { id: 'factories', name: 'Factories (فیکٹریاں و سپلائی ریکارڈ)', desc: 'Factory ledgers, sales & rates' },
               { id: 'expenses', name: 'Expenses (اخراجات و کیش)', desc: 'Staff wages, fuel, maintenance' },
-              { id: 'reports', name: 'Reports & P&L (رپورٹس و منافع)', desc: 'Financial profit & loss analytics' },
-              { id: 'monthly-register', name: 'Monthly Register (ماہانہ رجسٹر)', desc: 'Monthly customer statements' },
-              { id: 'customers', name: 'Customers (کسٹمرز ڈائریکٹری)', desc: 'Shop directory & agreed rates' },
+              { id: 'daily-records', name: 'Daily Records (روزانہ ریکارڈ)', desc: 'Daily collections & day-end closure' },
+              { id: 'collections', name: 'All Collections (کلیکشن ریکارڈز)', desc: 'Individual weigh-in slip entries' },
+              { id: 'customers', name: 'Customers (کسٹمرز ڈائریکٹری)', desc: 'Shop directory, Khata & agreed rates' },
               { id: 'workers', name: 'Workers (ملازمین و کلیکٹرز)', desc: 'Collector staff & credentials' },
+              { id: 'reports', name: 'Reports & P&L (رپورٹس و منافع)', desc: 'Financial profit & loss analytics' },
             ].map(sec => {
               const isLocked = (settings.locked_sections || []).includes(sec.id);
               return (
@@ -701,7 +814,7 @@ export const SettingsPage: React.FC = () => {
             type="button"
             onClick={handleUpdateAdminCredentials}
             disabled={credLoading}
-            className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center justify-center gap-2"
           >
             {credLoading ? <Check className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
             <span>{credLoading ? 'Updating Credentials...' : 'Update Admin Credentials'}</span>

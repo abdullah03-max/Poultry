@@ -221,16 +221,20 @@ export async function generateReceiptImageBlob(rawSlip: OfflineCollectionItem | 
     curY += 20;
   }
 
-  // Company Name
+  // Receipt Official Header / Title
+  const receiptTitle =
+    (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
+    '🐔 SHAN POULTRY PROTEIN - رسید 🐔';
+
   ctx.textAlign = 'center';
   ctx.fillStyle = '#0F172A'; // slate-900
-  ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
-  ctx.fillText('SHAN POULTRY PROTEIN', width / 2, curY);
+  ctx.font = 'bold 23px system-ui, -apple-system, sans-serif';
+  ctx.fillText(receiptTitle, width / 2, curY);
   curY += 26;
 
   // Urdu Subtitle
   ctx.fillStyle = '#2563EB'; // brand blue
-  ctx.font = 'bold 20px "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", system-ui, sans-serif';
+  ctx.font = 'bold 18px "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", system-ui, sans-serif';
   ctx.fillText('شان پولٹری پروٹین — آفیشل وصولی رسید', width / 2, curY);
   curY += 22;
 
@@ -497,15 +501,19 @@ export async function generateReceiptImageBlob(rawSlip: OfflineCollectionItem | 
   drawDashedLine(ctx, margin + 20, curY, width - margin - 20, curY);
   curY += 22;
 
+  const shanContact =
+    (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
+    '0300-0000000';
+
   ctx.textAlign = 'center';
   ctx.fillStyle = '#475569';
   ctx.font = 'bold 13px system-ui, sans-serif';
-  ctx.fillText('شکریہ! شان پولٹری پروٹین کے ساتھ کاروبار کرنے کا', width / 2, curY);
+  ctx.fillText(`Shan Contact: ${shanContact}`, width / 2, curY);
   curY += 20;
 
   ctx.fillStyle = '#94A3B8';
   ctx.font = '11px system-ui, sans-serif';
-  ctx.fillText('Shan Poultry Protein ERP • Burewala, Gaggoo Mandi, Vehari • Helpline: 0300-0000000', width / 2, curY);
+  ctx.fillText('Shan Poultry Protein ERP • Burewala, Gaggoo Mandi, Vehari', width / 2, curY);
 
   // Return canvas as PNG Blob with safe fallback
   return new Promise((resolve, reject) => {

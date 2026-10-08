@@ -42,7 +42,11 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
     const kacharaRate = collection.kachara_rate ?? (collection.rate_per_kg || 45);
     const kacharaTotal = collection.kachara_total ?? Math.round(kacharaNet * kacharaRate);
 
-    let text = `*🐔 SHAN POULTRY PROTEIN 🐔*\n`;
+    const receiptTitle =
+      (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
+      '🐔 SHAN POULTRY PROTEIN - رسید 🐔';
+
+    let text = `*${receiptTitle}*\n`;
     text += `*شان پولٹری پروٹین - وصولی رسید*\n`;
     text += `────────────────────\n`;
     text += `*رسید نمبر (Slip #):* ${collection.receipt_no}\n`;
@@ -84,7 +88,10 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
     text += `*💰 کل بل (TOTAL BILL): Rs. ${collection.total_amount.toLocaleString()}*\n`;
     text += `────────────────────\n`;
     if (collection.notes) text += `*نوٹ (Note):* ${collection.notes}\n`;
-    text += `_شکریہ! شان پولٹری پروٹین_\n`;
+    const phoneSetting =
+      (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
+      '0300-0000000';
+    text += `Shan Contact: ${phoneSetting}\n`;
 
     let phone = (collection.customer?.phone || '').replace(/[^0-9]/g, '');
     if (phone.startsWith('03')) {
@@ -366,7 +373,7 @@ export const CollectionDetailModal: React.FC<CollectionDetailModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="flex-1 sm:flex-initial px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition text-center"
+              className="flex-1 sm:flex-initial px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-300 transition text-center"
             >
               Close
             </button>

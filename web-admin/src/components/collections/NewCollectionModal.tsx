@@ -373,14 +373,14 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
           </div>
 
           {/* Auto Computed Totals Badge */}
-          <div className="p-4 bg-slate-900 text-white rounded-xl shadow-sm flex items-center justify-between font-mono">
+          <div className="p-4 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl shadow-xs flex items-center justify-between font-mono">
             <div>
-              <p className="text-[10px] uppercase font-bold text-slate-400">TOTAL NET WEIGHT (کل خالص وزن)</p>
-              <p className="text-xl font-black text-blue-400 mt-0.5">{effectiveNetWeight.toFixed(1)} KG</p>
+              <p className="text-[10px] uppercase font-bold text-slate-500">TOTAL NET WEIGHT (کل خالص وزن)</p>
+              <p className="text-xl font-black text-blue-700 mt-0.5">{effectiveNetWeight.toFixed(1)} KG</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] uppercase font-bold text-slate-400">TOTAL BILL (کل رقم)</p>
-              <p className="text-xl font-black text-amber-400 mt-0.5">Rs. {totalAmount.toLocaleString()}</p>
+              <p className="text-[10px] uppercase font-bold text-slate-500">TOTAL BILL (کل رقم)</p>
+              <p className="text-xl font-black text-amber-700 mt-0.5">Rs. {totalAmount.toLocaleString()}</p>
             </div>
           </div>
 
