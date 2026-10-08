@@ -1,11 +1,11 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Factories & Buyer Management Page
-// Industrial buyers of Charbi (چربی) & Kachara (کچرا), deliveries, payments & WhatsApp
+// Industrial buyers of Charbi (چربی) & Kachara (کچرا), deliveries, advances, settlements & WhatsApp
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { Factory, FactoryTransaction, BusinessSettings } from '../types/database';
+import { Factory, FactoryTransaction, BusinessSettings, Collection } from '../types/database';
 import { formatCurrency, formatWeight, formatDate } from '../utils/formatters';
 import {
   Factory as FactoryIcon,
@@ -23,7 +23,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Printer
+  Printer,
+  Scale,
+  RefreshCcw,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 
@@ -35,6 +39,10 @@ export const FactoriesPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
 
+  // Today's auto-detected collection weights
+  const [todayCharbiWeight, setTodayCharbiWeight] = useState<number>(0);
+  const [todayKacharaWeight, setTodayKacharaWeight] = useState<number>(0);
+
   // Modals
   const [factoryModalOpen, setFactoryModalOpen] = useState<boolean>(false);
   const [editingFactory, setEditingFactory] = useState<Partial<Factory> | null>(null);
@@ -42,19 +50,64 @@ export const FactoriesPage: React.FC = () => {
   const [transactionModalOpen, setTransactionModalOpen] = useState<boolean>(false);
   const [editingTransaction, setEditingTransaction] = useState<Partial<FactoryTransaction> | null>(null);
 
+  // Settlement Modal State
+  const [settlementModalOpen, setSettlementModalOpen] = useState<boolean>(false);
+  const [settlingTransaction, setSettlingTransaction] = useState<FactoryTransaction | null>(null);
+  const [addCharbiWeight, setAddCharbiWeight] = useState<number | ''>('');
+  const [addCharbiRate, setAddCharbiRate] = useState<number | ''>('');
+  const [addKacharaWeight, setAddKacharaWeight] = useState<number | ''>('');
+  const [addKacharaRate, setAddKacharaRate] = useState<number | ''>('');
+  const [addNewAdvance, setAddNewAdvance] = useState<number | ''>('');
+  const [enableNewAdvance, setEnableNewAdvance] = useState<boolean>(false);
+  const [settlementNotes, setSettlementNotes] = useState<string>('');
+
   const [saving, setSaving] = useState<boolean>(false);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [fList, txList, bSettings] = await Promise.all([
+      const [fList, txList, bSettings, colResult] = await Promise.all([
         api.getFactories(),
         api.getFactoryTransactions(),
         api.getSettings().catch(() => null),
+        api.getCollections({ limit: 1000 }).catch(() => ({ collections: [] as Collection[], totalCount: 0 })),
       ]);
       setFactories(fList);
       setTransactions(txList);
       if (bSettings) setSettings(bSettings);
+
+      // Detect today's collected Charbi and Kachara weights
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayCols = (colResult?.collections || []).filter(c => c.collection_date === todayStr);
+
+      let cWeight = 0;
+      let kWeight = 0;
+      todayCols.forEach(c => {
+        if (c.charbi_net && c.charbi_net > 0) {
+          cWeight += Number(c.charbi_net);
+        } else if (c.items && c.items.length > 0) {
+          c.items.forEach(it => {
+            if (it.category?.code === 'charbi' || it.category_code === 'charbi') {
+              cWeight += Number(it.weight || 0);
+            }
+          });
+        }
+
+        if (c.kachara_net && c.kachara_net > 0) {
+          kWeight += Number(c.kachara_net);
+        } else if (c.items && c.items.length > 0) {
+          c.items.forEach(it => {
+            if (it.category?.code === 'kachara' || it.category_code === 'kachara') {
+              kWeight += Number(it.weight || 0);
+            }
+          });
+        } else if (!c.charbi_net && c.total_net_weight > 0) {
+          kWeight += Number(c.total_net_weight);
+        }
+      });
+
+      setTodayCharbiWeight(Number(cWeight.toFixed(2)));
+      setTodayKacharaWeight(Number(kWeight.toFixed(2)));
     } catch (err) {
       console.error('Failed to load factory data:', err);
     } finally {
@@ -69,8 +122,8 @@ export const FactoriesPage: React.FC = () => {
   // Compute overall KPIs
   const totalSuppliedWeight = transactions.reduce((acc, t) => acc + (t.total_weight || 0), 0);
   const totalBilledAmount = transactions.reduce((acc, t) => acc + (t.total_amount || 0), 0);
-  const totalReceivedAmount = transactions.reduce((acc, t) => acc + (t.received_amount || 0), 0);
-  const totalBalanceDue = Math.max(0, totalBilledAmount - totalReceivedAmount);
+  const totalAdvanceTaken = transactions.reduce((acc, t) => acc + (t.advance_amount || 0), 0);
+  const totalBalanceDue = Math.max(0, totalBilledAmount - totalAdvanceTaken);
 
   // Save Factory
   const handleSaveFactory = async (e: React.FormEvent) => {
@@ -117,7 +170,32 @@ export const FactoriesPage: React.FC = () => {
     }
   };
 
-  // Save Transaction
+  // Open New Delivery modal with auto-detected weights
+  const handleOpenNewDelivery = () => {
+    const firstFactory = factories[0];
+    setEditingTransaction({
+      factory_id: firstFactory?.id || '',
+      transaction_date: new Date().toISOString().split('T')[0],
+      invoice_no: `SPP-FAC-${Math.floor(1000 + Math.random() * 9000)}`,
+      vehicle_no: '',
+      driver_name: '',
+      charbi_weight: todayCharbiWeight,
+      charbi_rate: firstFactory?.rate_charbi || 75,
+      charbi_total: Math.round(todayCharbiWeight * (firstFactory?.rate_charbi || 75)),
+      kachara_weight: todayKacharaWeight,
+      kachara_rate: firstFactory?.rate_kachara || 60,
+      kachara_total: Math.round(todayKacharaWeight * (firstFactory?.rate_kachara || 60)),
+      total_weight: Number((todayCharbiWeight + todayKacharaWeight).toFixed(2)),
+      total_amount: Math.round(todayCharbiWeight * (firstFactory?.rate_charbi || 75) + todayKacharaWeight * (firstFactory?.rate_kachara || 60)),
+      advance_amount: 0,
+      received_amount: 0,
+      remaining_balance: 0,
+      payment_status: 'unpaid',
+    });
+    setTransactionModalOpen(true);
+  };
+
+  // Save Transaction (Delivery)
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTransaction?.factory_id) {
@@ -138,13 +216,14 @@ export const FactoriesPage: React.FC = () => {
       const totW = Number((cWeight + kWeight).toFixed(2));
       const totAmt = cAmt + kAmt;
 
-      const advRec = parseFloat(String(editingTransaction.advance_amount || 0)) || 0;
-      const recAmt = parseFloat(String(editingTransaction.received_amount || 0)) || 0;
-      const balAmt = Math.max(0, totAmt - (advRec + recAmt));
+      const advTaken = parseFloat(String(editingTransaction.advance_amount || 0)) || 0;
+      // Remaining advance reminder: Advance - Bill
+      // Remaining balance due (if Bill > Advance): Bill - Advance
+      const balAmt = Math.max(0, totAmt - advTaken);
 
       let payStatus: 'paid' | 'partial' | 'unpaid' = 'unpaid';
-      if (balAmt === 0 && totAmt > 0) payStatus = 'paid';
-      else if ((advRec + recAmt) > 0) payStatus = 'partial';
+      if (advTaken >= totAmt && totAmt > 0) payStatus = 'paid';
+      else if (advTaken > 0) payStatus = 'partial';
 
       const payload: Partial<FactoryTransaction> = {
         ...editingTransaction,
@@ -156,8 +235,8 @@ export const FactoriesPage: React.FC = () => {
         kachara_total: kAmt,
         total_weight: totW,
         total_amount: totAmt,
-        advance_amount: advRec,
-        received_amount: recAmt,
+        advance_amount: advTaken,
+        received_amount: advTaken,
         remaining_balance: balAmt,
         payment_status: payStatus,
       };
@@ -180,8 +259,8 @@ export const FactoriesPage: React.FC = () => {
           kachara_total: kAmt,
           total_weight: totW,
           total_amount: totAmt,
-          advance_amount: advRec,
-          received_amount: recAmt,
+          advance_amount: advTaken,
+          received_amount: advTaken,
           remaining_balance: balAmt,
           payment_status: payStatus,
           notes: editingTransaction.notes || null,
@@ -195,6 +274,85 @@ export const FactoriesPage: React.FC = () => {
     } catch (err: any) {
       console.error('Save transaction error:', err);
       alert('Error saving delivery record: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Open Settlement Modal
+  const handleOpenSettlement = (tx: FactoryTransaction) => {
+    setSettlingTransaction(tx);
+    setAddCharbiWeight('');
+    setAddCharbiRate(tx.charbi_rate || 75);
+    setAddKacharaWeight('');
+    setAddKacharaRate(tx.kachara_rate || 60);
+    setAddNewAdvance('');
+    setEnableNewAdvance(false);
+    setSettlementNotes(`سپلائی سیٹلمنٹ بمطابق تاریخ ${new Date().toISOString().split('T')[0]}`);
+    setSettlementModalOpen(true);
+  };
+
+  // Save Settlement (Add weights / prices / new advance until exhausted)
+  const handleSaveSettlement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settlingTransaction) return;
+
+    try {
+      setSaving(true);
+      const prevCWeight = Number(settlingTransaction.charbi_weight || 0);
+      const prevKWeight = Number(settlingTransaction.kachara_weight || 0);
+      const prevAdv = Number(settlingTransaction.advance_amount || 0);
+
+      const extraCWeight = parseFloat(String(addCharbiWeight || 0)) || 0;
+      const cRate = parseFloat(String(addCharbiRate || settlingTransaction.charbi_rate || 75)) || 75;
+      const extraCAmt = Math.round(extraCWeight * cRate);
+
+      const extraKWeight = parseFloat(String(addKacharaWeight || 0)) || 0;
+      const kRate = parseFloat(String(addKacharaRate || settlingTransaction.kachara_rate || 60)) || 60;
+      const extraKAmt = Math.round(extraKWeight * kRate);
+
+      const extraAdv = enableNewAdvance ? (parseFloat(String(addNewAdvance || 0)) || 0) : 0;
+
+      const newCWeight = Number((prevCWeight + extraCWeight).toFixed(2));
+      const newKWeight = Number((prevKWeight + extraKWeight).toFixed(2));
+      const newTotWeight = Number((newCWeight + newKWeight).toFixed(2));
+
+      const newCTotal = Math.round(newCWeight * cRate);
+      const newKTotal = Math.round(newKWeight * kRate);
+      const newTotAmt = newCTotal + newKTotal;
+
+      const newAdvTotal = prevAdv + extraAdv;
+      const remainingBalance = Math.max(0, newTotAmt - newAdvTotal);
+
+      let payStatus: 'paid' | 'partial' | 'unpaid' = 'unpaid';
+      if (newAdvTotal >= newTotAmt && newTotAmt > 0) payStatus = 'paid';
+      else if (newAdvTotal > 0) payStatus = 'partial';
+
+      const logEntry = `[${new Date().toISOString().split('T')[0]}] سیٹلمنٹ: +${extraCWeight} KG چربی, +${extraKWeight} KG کچرا (اضافی بل: Rs. ${(extraCAmt + extraKAmt).toLocaleString()})${extraAdv > 0 ? `, نیا ایڈوانس: +Rs. ${extraAdv.toLocaleString()}` : ''}`;
+      const updatedNotes = settlingTransaction.notes ? `${settlingTransaction.notes}\n${logEntry}` : logEntry;
+
+      const updated = await api.updateFactoryTransaction(settlingTransaction.id, {
+        charbi_weight: newCWeight,
+        charbi_rate: cRate,
+        charbi_total: newCTotal,
+        kachara_weight: newKWeight,
+        kachara_rate: kRate,
+        kachara_total: newKTotal,
+        total_weight: newTotWeight,
+        total_amount: newTotAmt,
+        advance_amount: newAdvTotal,
+        received_amount: newAdvTotal,
+        remaining_balance: remainingBalance,
+        payment_status: payStatus,
+        notes: updatedNotes,
+      });
+
+      setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t));
+      setSettlementModalOpen(false);
+      setSettlingTransaction(null);
+      await fetchData();
+    } catch (err: any) {
+      alert('سیٹلمنٹ محفوظ کرنے میں خرابی: ' + (err.message || 'Error'));
     } finally {
       setSaving(false);
     }
@@ -229,6 +387,10 @@ export const FactoriesPage: React.FC = () => {
       (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
       '0300-0000000';
 
+    const adv = tx.advance_amount || 0;
+    const bill = tx.total_amount || 0;
+    const remainingAdvance = adv - bill;
+
     const message = `*${receiptTitle}*
 *انوائس نمبر:* ${tx.invoice_no}
 *تاریخ:* ${formatDate(tx.transaction_date)}
@@ -240,10 +402,12 @@ export const FactoriesPage: React.FC = () => {
 • کچرا وزن: ${tx.kachara_weight} KG @ Rs. ${tx.kachara_rate} = Rs. ${tx.kachara_total.toLocaleString()}
 
 *کل وزن:* ${tx.total_weight} KG
-*کل رقم بل:* Rs. ${tx.total_amount.toLocaleString()}
-*وصول شدہ:* Rs. ${(tx.received_amount || 0).toLocaleString()}
-*بقایا رقم:* Rs. ${tx.remaining_balance.toLocaleString()}
-*اسٹیٹس:* ${tx.payment_status === 'paid' ? 'مکمل ادا شدہ (PAID)' : tx.payment_status === 'partial' ? 'جزوی ادائیگی (PARTIAL)' : 'غیر ادا شدہ (UNPAID)'}
+*کل رقم بل:* Rs. ${bill.toLocaleString()}
+*فیکٹری ایڈوانس رقم:* Rs. ${adv.toLocaleString()}
+${remainingAdvance >= 0
+  ? `*باقی ماندہ ایڈوانس ریمائنڈر:* Rs. ${remainingAdvance.toLocaleString()} (کریڈٹ موجود ہے)`
+  : `*ایڈوانس ختم! بقایا واجب الادا:* Rs. ${Math.abs(remainingAdvance).toLocaleString()}`}
+*اسٹیٹس:* ${remainingAdvance >= 0 ? 'ایڈوانس سے ایڈجسٹ شدہ (ADJUSTED)' : 'بقایا واجب الادا (BALANCE DUE)'}
 
 Shan Contact: ${shanPhone}`;
 
@@ -278,7 +442,7 @@ Shan Contact: ${shanPhone}`;
               Factories & Industrial Buyers (فیکٹریاں و سپلائی ریکارڈ)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Manage buyers of Charbi & Kachara, track dispatch ledgers, rates, payments, and WhatsApp statements.
+              فیکٹری ایڈوانس رقم، چربی و کچرا سپلائی وزن، خودکار کٹوتی، ریمائنڈر اور سیٹلمنٹ مینجمنٹ
             </p>
           </div>
         </div>
@@ -286,28 +450,7 @@ Shan Contact: ${shanPhone}`;
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              setEditingTransaction({
-                factory_id: factories[0]?.id || '',
-                transaction_date: new Date().toISOString().split('T')[0],
-                invoice_no: `SPP-FAC-${Math.floor(1000 + Math.random() * 9000)}`,
-                vehicle_no: '',
-                driver_name: '',
-                charbi_weight: 0,
-                charbi_rate: factories[0]?.rate_charbi || 75,
-                charbi_total: 0,
-                kachara_weight: 0,
-                kachara_rate: factories[0]?.rate_kachara || 60,
-                kachara_total: 0,
-                total_weight: 0,
-                total_amount: 0,
-                advance_amount: 0,
-                received_amount: 0,
-                remaining_balance: 0,
-                payment_status: 'unpaid',
-              });
-              setTransactionModalOpen(true);
-            }}
+            onClick={handleOpenNewDelivery}
             className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs font-semibold rounded-xl shadow-sm transition"
           >
             <Plus className="w-4 h-4" />
@@ -350,7 +493,7 @@ Shan Contact: ${shanPhone}`;
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-card">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">کل مالیت (بل)</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">کل سپلائی مالیت (بل)</span>
             <DollarSign className="w-4 h-4 text-blue-600" />
           </div>
           <p className="text-xl font-black text-blue-700 font-mono">{formatCurrency(totalBilledAmount)}</p>
@@ -359,20 +502,20 @@ Shan Contact: ${shanPhone}`;
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-card">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">وصول شدہ رقم</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">فیکٹری ایڈوانس پول</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-xl font-black text-emerald-700 font-mono">{formatCurrency(totalReceivedAmount)}</p>
-          <p className="text-[10px] text-slate-400 mt-1">ایڈوانس + نقد وصولیاں</p>
+          <p className="text-xl font-black text-emerald-700 font-mono">{formatCurrency(totalAdvanceTaken)}</p>
+          <p className="text-[10px] text-slate-400 mt-1">فیکٹریوں سے وصول شدہ ایڈوانس رقم</p>
         </div>
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-card">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">واجب الادا بقایا</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">بقایا واجب الادا</span>
             <AlertTriangle className="w-4 h-4 text-amber-600" />
           </div>
           <p className="text-xl font-black text-amber-700 font-mono">{formatCurrency(totalBalanceDue)}</p>
-          <p className="text-[10px] text-slate-400 mt-1">فیکٹریوں سے وصول طلب رقم</p>
+          <p className="text-[10px] text-slate-400 mt-1">ایڈوانس سے زائد مال کی رقم</p>
         </div>
       </div>
 
@@ -388,7 +531,7 @@ Shan Contact: ${shanPhone}`;
           }`}
         >
           <Truck className="w-3.5 h-3.5" />
-          <span>سپلائی و سیلز لیجر (Delivery Ledger) ({transactions.length})</span>
+          <span>سپلائی و ایڈوانس لیجر (Delivery Ledger) ({transactions.length})</span>
         </button>
         <button
           type="button"
@@ -430,9 +573,9 @@ Shan Contact: ${shanPhone}`;
                   <th className="py-3 px-3 text-right">چربی (KG)</th>
                   <th className="py-3 px-3 text-right">کچرا (KG)</th>
                   <th className="py-3 px-3 text-right">کل وزن</th>
-                  <th className="py-3 px-3 text-right">ٹوٹل رقم</th>
-                  <th className="py-3 px-3 text-right">وصول شدہ</th>
-                  <th className="py-3 px-3 text-right">بقایا</th>
+                  <th className="py-3 px-3 text-right">ٹوٹل بل</th>
+                  <th className="py-3 px-3 text-right">فیکٹری ایڈوانس</th>
+                  <th className="py-3 px-3 text-right">بقایا ایڈوانس / ریمائنڈر</th>
                   <th className="py-3 px-3 text-center">اسٹیٹس</th>
                   <th className="py-3 px-3 text-center">ایکشن</th>
                 </tr>
@@ -440,7 +583,9 @@ Shan Contact: ${shanPhone}`;
               <tbody className="divide-y divide-slate-100 font-mono">
                 {filteredTransactions.map(tx => {
                   const f = factories.find(fac => fac.id === tx.factory_id) || tx.factory;
-                  const receivedTotal = tx.received_amount || 0;
+                  const adv = tx.advance_amount || 0;
+                  const bill = tx.total_amount || 0;
+                  const remAdvance = adv - bill;
 
                   return (
                     <tr key={tx.id} className="hover:bg-slate-50">
@@ -460,22 +605,49 @@ Shan Contact: ${shanPhone}`;
                         <span className="text-[10px] text-slate-400 block">@{tx.kachara_rate}</span>
                       </td>
                       <td className="py-3 px-3 text-right font-black text-slate-900">{tx.total_weight} KG</td>
-                      <td className="py-3 px-3 text-right font-black text-blue-700">{formatCurrency(tx.total_amount)}</td>
-                      <td className="py-3 px-3 text-right font-bold text-emerald-700">{formatCurrency(receivedTotal)}</td>
-                      <td className="py-3 px-3 text-right font-black text-amber-700">{formatCurrency(tx.remaining_balance)}</td>
+                      <td className="py-3 px-3 text-right font-black text-blue-700">{formatCurrency(bill)}</td>
+                      <td className="py-3 px-3 text-right font-bold text-emerald-700">{formatCurrency(adv)}</td>
+                      <td className="py-3 px-3 text-right">
+                        {remAdvance >= 0 ? (
+                          <div>
+                            <span className="font-black text-emerald-700 block">
+                              +{formatCurrency(remAdvance)}
+                            </span>
+                            <span className="text-[9px] font-sans font-bold text-emerald-600 bg-emerald-50 px-1 rounded">
+                              ایڈوانس باقی
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="font-black text-rose-700 block">
+                              -{formatCurrency(Math.abs(remAdvance))}
+                            </span>
+                            <span className="text-[9px] font-sans font-bold text-rose-600 bg-rose-50 px-1 rounded">
+                              واجب الادا
+                            </span>
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3 px-3 text-center font-sans">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          tx.payment_status === 'paid'
+                          remAdvance >= 0
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : tx.payment_status === 'partial'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
-                          {tx.payment_status}
+                          {remAdvance >= 0 ? 'ADJUSTED' : 'OVER ADVANCE'}
                         </span>
                       </td>
                       <td className="py-3 px-3 text-center font-sans">
                         <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSettlement(tx)}
+                            className="px-2 py-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition flex items-center gap-1 shadow-2xs"
+                            title="ایڈوانس سیٹلمنٹ کریں یا مزید سپلائی ڈالیں"
+                          >
+                            <Scale className="w-3 h-3 text-purple-600" />
+                            <span>سیٹلمنٹ</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleSendWhatsApp(tx)}
@@ -526,78 +698,65 @@ Shan Contact: ${shanPhone}`;
       {activeTab === 'directory' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {factories.map(f => (
-            <div
-              key={f.id}
-              className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-card hover:shadow-card-hover transition flex flex-col justify-between space-y-4"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100">
-                    {f.area || 'City'}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                    f.status === 'active'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {f.status}
-                  </span>
-                </div>
-
+            <div key={f.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-card hover:border-purple-300 transition">
+              <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-bold text-base text-slate-900">{f.name}</h3>
-                  {f.contact_person && (
-                    <p className="text-xs text-slate-500 font-medium">رابطہ شخص: {f.contact_person}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1.5 text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{f.phone}</span>
-                  </div>
-                  {f.whatsapp_no && (
-                    <div className="flex items-center gap-2 text-emerald-700">
-                      <Share2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>WhatsApp: {f.whatsapp_no}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="truncate">{f.address || 'Standard Plant Address'}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-semibold">
-                  <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-lg">
-                    چربی ریٹ: {f.rate_charbi} PKR/KG
+                  <h3 className="font-bold text-slate-900 text-sm">{f.name}</h3>
+                  <span className="text-[10px] font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                    {f.factory_code}
                   </span>
-                  <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-lg">
-                    کچرا ریٹ: {f.rate_kachara} PKR/KG
-                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingFactory(f);
+                      setFactoryModalOpen(true);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteFactory(f)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingFactory(f);
-                    setFactoryModalOpen(true);
-                  }}
-                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
-                  title="ایڈٹ کریں"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteFactory(f)}
-                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                  title="حذف کریں"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+              <div className="mt-3 space-y-1.5 text-xs text-slate-600">
+                {f.contact_person && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">رابطہ کار:</span>
+                    <span className="font-semibold">{f.contact_person}</span>
+                  </div>
+                )}
+                {f.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-mono">{f.phone}</span>
+                  </div>
+                )}
+                {f.area && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{f.area}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-emerald-800 block font-sans">چربی ریٹ</span>
+                  <span className="font-black text-emerald-900">Rs. {f.rate_charbi}/KG</span>
+                </div>
+                <div className="bg-amber-50/70 p-2 rounded-xl border border-amber-200">
+                  <span className="text-[10px] text-amber-800 block font-sans">کچرا ریٹ</span>
+                  <span className="font-black text-amber-900">Rs. {f.rate_kachara}/KG</span>
+                </div>
               </div>
             </div>
           ))}
@@ -608,8 +767,8 @@ Shan Contact: ${shanPhone}`;
       <Modal
         isOpen={factoryModalOpen}
         onClose={() => setFactoryModalOpen(false)}
-        title={editingFactory?.id ? 'Edit Factory' : 'Add New Factory (نئی فیکٹری شامل کریں)'}
-        subtitle="Manage buyer profile, location, and standard buying rates"
+        title={editingFactory?.id ? 'Edit Factory' : 'نئی فیکٹری شامل کریں (New Buyer Factory)'}
+        subtitle="Manage industrial poultry processing plant, default rates, and contact details"
         maxWidth="md"
       >
         <form onSubmit={handleSaveFactory} className="space-y-4 text-xs">
@@ -620,7 +779,7 @@ Shan Contact: ${shanPhone}`;
             <input
               type="text"
               required
-              placeholder="e.g. Al-Hamd Protein Plant"
+              placeholder="e.g. Shan Protein Feeds, Gujranwala"
               value={editingFactory?.name || ''}
               onChange={e => setEditingFactory(prev => ({ ...(prev || {}), name: e.target.value }))}
               className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-600"
@@ -630,11 +789,11 @@ Shan Contact: ${shanPhone}`;
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                Contact Person (رابطہ شخص)
+                Contact Person (نمائندہ)
               </label>
               <input
                 type="text"
-                placeholder="e.g. Sheikh Zahid"
+                placeholder="e.g. Haji Munir Sahib"
                 value={editingFactory?.contact_person || ''}
                 onChange={e => setEditingFactory(prev => ({ ...(prev || {}), contact_person: e.target.value }))}
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-600"
@@ -642,11 +801,11 @@ Shan Contact: ${shanPhone}`;
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                City / Location (شہر)
+                Area / City (شہر)
               </label>
               <input
                 type="text"
-                placeholder="e.g. Lahore / Sheikhupura"
+                placeholder="e.g. Multan, Lahore, Faisalabad"
                 value={editingFactory?.area || ''}
                 onChange={e => setEditingFactory(prev => ({ ...(prev || {}), area: e.target.value }))}
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-600"
@@ -670,7 +829,7 @@ Shan Contact: ${shanPhone}`;
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                WhatsApp Number (واٹس ایپ)
+                WhatsApp No (واٹس ایپ)
               </label>
               <input
                 type="text"
@@ -741,15 +900,41 @@ Shan Contact: ${shanPhone}`;
         </form>
       </Modal>
 
-      {/* MODAL 2: ADD / EDIT DELIVERY TRANSACTION */}
+      {/* MODAL 2: ADD / EDIT DELIVERY TRANSACTION WITH ADVANCE SUBTRACTION */}
       <Modal
         isOpen={transactionModalOpen}
         onClose={() => setTransactionModalOpen(false)}
         title={editingTransaction?.id ? 'Edit Delivery Receipt' : 'نئی سپلائی ڈلیوری ریکارڈ (New Factory Delivery)'}
-        subtitle="Record Charbi & Kachara supply weights, rates, total bill, and received payments"
+        subtitle="فیکٹری ایڈوانس رقم، آج کا کلیکشن وزن، قیمتیں اور بقایا ریمائنڈر"
         maxWidth="lg"
       >
         <form onSubmit={handleSaveTransaction} className="space-y-4 text-xs">
+          {/* Auto-detected Today's Collection Banner */}
+          <div className="p-3 bg-purple-50/80 border border-purple-200 rounded-2xl flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold text-purple-900 block flex items-center gap-1.5 font-urdu">
+                <Zap className="w-3.5 h-3.5 text-purple-600" />
+                آج کی کلیکشن کا وزن (Auto-detected from Today's Collections):
+              </span>
+              <span className="text-[11px] text-purple-700 font-mono">
+                چربی: <strong>{todayCharbiWeight} KG</strong> | کچرا: <strong>{todayKacharaWeight} KG</strong> (کل: {(todayCharbiWeight + todayKacharaWeight).toFixed(2)} KG)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTransaction(prev => ({
+                  ...(prev || {}),
+                  charbi_weight: todayCharbiWeight,
+                  kachara_weight: todayKacharaWeight,
+                }));
+              }}
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition font-urdu shadow-2xs"
+            >
+              ⚡ یہ وزن درج کریں
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -835,26 +1020,25 @@ Shan Contact: ${shanPhone}`;
             const grandTotal = cTotal + kTotal;
 
             const adv = parseFloat(String(editingTransaction?.advance_amount || 0)) || 0;
-            const rec = parseFloat(String(editingTransaction?.received_amount || 0)) || 0;
-            const totalPaid = adv + rec;
-            const remaining = Math.max(0, grandTotal - totalPaid);
+            const remainingAdvance = adv - grandTotal;
+            const isExhausted = remainingAdvance < 0;
 
             return (
               <>
                 {/* Charbi Weights & Rates */}
                 <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-emerald-950">🟢 چربی وزن و ریٹ (Charbi Weight & Rate):</span>
+                    <span className="font-bold text-xs text-emerald-950 font-urdu">🟢 چربی وزن و ریٹ (Charbi Weight & Rate):</span>
                     <span className="font-mono font-bold text-xs text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-lg border border-emerald-200">
                       کل چربی رقم: Rs. {cTotal.toLocaleString()}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">چربی وزن (KG)</label>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 font-urdu">چربی وزن (KG) *</label>
                       <input
                         type="number"
-                        step="0.1"
+                        step="any"
                         min="0"
                         placeholder="0.0"
                         value={editingTransaction?.charbi_weight || ''}
@@ -863,10 +1047,10 @@ Shan Contact: ${shanPhone}`;
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">چربی ریٹ (PKR/KG)</label>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 font-urdu">چربی ریٹ (PKR/KG) *</label>
                       <input
                         type="number"
-                        step="0.5"
+                        step="any"
                         min="0"
                         placeholder="75"
                         value={editingTransaction?.charbi_rate || ''}
@@ -884,17 +1068,17 @@ Shan Contact: ${shanPhone}`;
                 {/* Kachara Weights & Rates */}
                 <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-amber-950">🟠 کچرا وزن و ریٹ (Kachara Weight & Rate):</span>
+                    <span className="font-bold text-xs text-amber-950 font-urdu">🟠 کچرا وزن و ریٹ (Kachara Weight & Rate):</span>
                     <span className="font-mono font-bold text-xs text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-lg border border-amber-200">
                       کل کچرا رقم: Rs. {kTotal.toLocaleString()}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">کچرا وزن (KG)</label>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 font-urdu">کچرا وزن (KG) *</label>
                       <input
                         type="number"
-                        step="0.1"
+                        step="any"
                         min="0"
                         placeholder="0.0"
                         value={editingTransaction?.kachara_weight || ''}
@@ -903,10 +1087,10 @@ Shan Contact: ${shanPhone}`;
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">کچرا ریٹ (PKR/KG)</label>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 font-urdu">کچرا ریٹ (PKR/KG) *</label>
                       <input
                         type="number"
-                        step="0.5"
+                        step="any"
                         min="0"
                         placeholder="60"
                         value={editingTransaction?.kachara_rate || ''}
@@ -928,72 +1112,81 @@ Shan Contact: ${shanPhone}`;
                     <span className="text-sm font-black text-blue-700">{netWeight.toFixed(2)} KG</span>
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-slate-900">
-                    <span className="font-sans font-extrabold text-sm">💰 کل بل رقم (Total Bill):</span>
-                    <span className="text-base font-black text-amber-700">Rs. {grandTotal.toLocaleString()}</span>
+                    <span className="font-sans font-extrabold text-sm">💰 کل سپلائی بل (Total Delivery Price):</span>
+                    <span className="text-base font-black text-blue-700">Rs. {grandTotal.toLocaleString()}</span>
                   </div>
                 </div>
 
-                {/* Payment & Advance */}
-                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
-                  <span className="font-bold text-xs text-blue-950 block">💳 ادائیگی و نقد وصولی (Payments & Balance):</span>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">ایڈوانس رقم (Advance PKR)</label>
-                      <input
-                        type="number"
-                        step="100"
-                        min="0"
-                        placeholder="0"
-                        value={editingTransaction?.advance_amount || ''}
-                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), advance_amount: parseFloat(e.target.value) || 0 }))}
-                        className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600 shadow-2xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">مزید وصولی (Received PKR)</label>
-                      <input
-                        type="number"
-                        step="100"
-                        min="0"
-                        placeholder="0"
-                        value={editingTransaction?.received_amount || ''}
-                        onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), received_amount: parseFloat(e.target.value) || 0 }))}
-                        className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600 shadow-2xs"
-                      />
-                    </div>
+                {/* Factory Advance Definition & Subtraction */}
+                <div className="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-purple-950 block font-urdu">
+                      💵 فیکٹری ایڈوانس رقم (Factory Advance Taken):
+                    </span>
+                    <span className="text-[11px] text-purple-700 font-urdu">
+                      ایڈوانس سے کل بل خودکار منہا ہو گا
+                    </span>
                   </div>
 
-                  {/* Auto-Calculated Remaining Balance (Reminder Box) */}
-                  <div className="p-3 bg-white border-2 border-amber-300 rounded-xl flex items-center justify-between shadow-2xs">
-                    <div>
-                      <span className="text-xs font-black text-slate-900 block">بقایا رقم / ریمائنڈر (Remaining Balance):</span>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        Rs. {grandTotal.toLocaleString()} - (Rs. {adv.toLocaleString()} + Rs. {rec.toLocaleString()})
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-lg font-black font-mono text-amber-900 block">
-                        Rs. {remaining.toLocaleString()}
-                      </span>
-                      {remaining === 0 && grandTotal > 0 ? (
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
-                          مکمل ادا شدہ (Fully Paid)
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1 font-urdu">
+                      فیکٹری سے لیا گیا ایڈوانس (Factory Advance Amount PKR) *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="e.g. 100000"
+                      value={editingTransaction?.advance_amount || ''}
+                      onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), advance_amount: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600 shadow-2xs"
+                    />
+                  </div>
+
+                  {/* Auto-Calculated Remaining Advance Reminder Box */}
+                  <div className={`p-3.5 rounded-xl border-2 transition ${
+                    isExhausted
+                      ? 'bg-rose-50/90 border-rose-300 text-rose-900'
+                      : 'bg-emerald-50/90 border-emerald-300 text-emerald-900'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-extrabold block font-urdu">
+                          {isExhausted
+                            ? '⚠️ فیکٹری کا ایڈوانس ختم ہو چکا ہے! (Advance Exhausted)'
+                            : '✓ فیکٹری کا بقایا ایڈوانس ریمائنڈر (Remaining Advance Reminder):'}
                         </span>
-                      ) : totalPaid > 0 ? (
-                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
-                          جزوی ادائیگی (Partial)
+                        <span className="text-[10px] opacity-80 font-mono">
+                          ایڈوانس (Rs. {adv.toLocaleString()}) - کل بل (Rs. {grandTotal.toLocaleString()})
                         </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md">
-                          غیر ادا شدہ (Unpaid)
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-lg font-black font-mono block ${isExhausted ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          Rs. {Math.abs(remainingAdvance).toLocaleString()}
                         </span>
-                      )}
+                        <span className="text-[10px] font-bold uppercase font-urdu">
+                          {isExhausted ? 'فیکٹری کے ذمے بقایا (Due from Factory)' : 'ایڈوانس ابھی باقی ہے (Credit Remaining)'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </>
             );
           })()}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              Notes & Dispatch Details (اضافی تفصیل یا ریمارکس)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Cleared via Bank / Advance deduction note"
+              value={editingTransaction?.notes || ''}
+              onChange={e => setEditingTransaction(prev => ({ ...(prev || {}), notes: e.target.value }))}
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-600"
+            />
+          </div>
 
           <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
             <button
@@ -1008,10 +1201,260 @@ Shan Contact: ${shanPhone}`;
               disabled={saving}
               className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-sm transition disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save Delivery Receipt'}
+              {saving ? 'Saving...' : 'Save Delivery & Invoice'}
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* MODAL 3: FACTORY ADVANCE SETTLEMENT MODAL (سیٹلمنٹ و مزید سپلائی) */}
+      <Modal
+        isOpen={settlementModalOpen}
+        onClose={() => setSettlementModalOpen(false)}
+        title="فیکٹری ایڈوانس سیٹلمنٹ (Factory Advance Settlement & Supply)"
+        subtitle="ایڈوانس ختم ہونے تک مزید چربی و کچرا کا وزن یا ریٹ شامل کریں، یا نیا ایڈوانس درج کریں"
+        maxWidth="lg"
+      >
+        {settlingTransaction && (
+          <form onSubmit={handleSaveSettlement} className="space-y-4 text-xs">
+            {/* Current Advance Status Snapshot */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-slate-900 text-sm block">
+                    {factories.find(f => f.id === settlingTransaction.factory_id)?.name || settlingTransaction.factory?.name || 'Factory'}
+                  </span>
+                  <span className="text-[11px] text-purple-700 font-mono font-semibold">
+                    انوائس نمبر: {settlingTransaction.invoice_no} ({formatDate(settlingTransaction.transaction_date)})
+                  </span>
+                </div>
+                <div className="text-right font-mono">
+                  <span className="text-[10px] text-slate-500 block">موجودہ ایڈوانس رقم:</span>
+                  <span className="text-base font-black text-purple-800">
+                    Rs. {(settlingTransaction.advance_amount || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200 grid grid-cols-3 gap-2 text-center font-mono">
+                <div className="bg-white p-2 rounded-xl border border-slate-200">
+                  <span className="text-[10px] text-slate-500 block font-sans">پہلے سپلائی شدہ بل</span>
+                  <span className="font-bold text-blue-700">
+                    Rs. {(settlingTransaction.total_amount || 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="bg-white p-2 rounded-xl border border-slate-200">
+                  <span className="text-[10px] text-slate-500 block font-sans">سپلائی شدہ وزن</span>
+                  <span className="font-bold text-slate-800">
+                    {settlingTransaction.total_weight} KG
+                  </span>
+                </div>
+                <div className="bg-white p-2 rounded-xl border border-slate-200">
+                  <span className="text-[10px] text-slate-500 block font-sans">باقی ایڈوانس بیلنس</span>
+                  <span className={`font-black ${
+                    (settlingTransaction.advance_amount || 0) >= (settlingTransaction.total_amount || 0)
+                      ? 'text-emerald-700'
+                      : 'text-rose-700'
+                  }`}>
+                    Rs. {Math.abs((settlingTransaction.advance_amount || 0) - (settlingTransaction.total_amount || 0)).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Supply Form */}
+            <div className="p-3.5 bg-purple-50/60 border border-purple-200 rounded-2xl space-y-3">
+              <span className="font-bold text-xs text-purple-950 block font-urdu">
+                ➕ اس ایڈوانس کے تحت مزید سپلائی شامل کریں (Add Extra Supply):
+              </span>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-emerald-900 mb-1 font-urdu">
+                    اضافی چربی وزن (KG)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0.0"
+                    value={addCharbiWeight}
+                    onChange={e => setAddCharbiWeight(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-emerald-900 mb-1 font-urdu">
+                    چربی ریٹ (PKR/KG)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="75"
+                    value={addCharbiRate}
+                    onChange={e => setAddCharbiRate(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-amber-900 mb-1 font-urdu">
+                    اضافی کچرا وزن (KG)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0.0"
+                    value={addKacharaWeight}
+                    onChange={e => setAddKacharaWeight(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-amber-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-amber-900 mb-1 font-urdu">
+                    کچرا ریٹ (PKR/KG)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="60"
+                    value={addKacharaRate}
+                    onChange={e => setAddKacharaRate(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-amber-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* If Advance is Over / Adding New Advance Toggle */}
+            <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enableNewAdvance}
+                    onChange={e => setEnableNewAdvance(e.target.checked)}
+                    className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                  />
+                  <span className="font-bold text-xs text-blue-950 font-urdu">
+                    + فیکٹری سے نیا ایڈوانس شامل کریں (Add New Factory Advance)
+                  </span>
+                </label>
+                <span className="text-[10px] text-blue-700 font-urdu">
+                  اگر ایڈوانس ختم ہو چکا ہو
+                </span>
+              </div>
+
+              {enableNewAdvance && (
+                <div className="pt-2 animate-fadeIn">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1 font-urdu">
+                    نیا اضافی ایڈوانس رقم (New Advance Amount PKR) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    required={enableNewAdvance}
+                    placeholder="e.g. 50000"
+                    value={addNewAdvance}
+                    onChange={e => setAddNewAdvance(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="w-full bg-white border border-blue-400 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600 shadow-2xs"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Real-time Settlement Calculation Preview */}
+            {(() => {
+              const prevTotAmt = Number(settlingTransaction.total_amount || 0);
+              const prevAdv = Number(settlingTransaction.advance_amount || 0);
+
+              const extraCWeight = parseFloat(String(addCharbiWeight || 0)) || 0;
+              const cRate = parseFloat(String(addCharbiRate || settlingTransaction.charbi_rate || 75)) || 75;
+              const extraCAmt = Math.round(extraCWeight * cRate);
+
+              const extraKWeight = parseFloat(String(addKacharaWeight || 0)) || 0;
+              const kRate = parseFloat(String(addKacharaRate || settlingTransaction.kachara_rate || 60)) || 60;
+              const extraKAmt = Math.round(extraKWeight * kRate);
+
+              const extraBill = extraCAmt + extraKAmt;
+              const extraAdv = enableNewAdvance ? (parseFloat(String(addNewAdvance || 0)) || 0) : 0;
+
+              const finalTotAmt = prevTotAmt + extraBill;
+              const finalAdvAmt = prevAdv + extraAdv;
+              const finalRemainingAdvance = finalAdvAmt - finalTotAmt;
+              const isFinalExhausted = finalRemainingAdvance < 0;
+
+              return (
+                <div className={`p-4 rounded-2xl border-2 transition ${
+                  isFinalExhausted
+                    ? 'bg-rose-50/90 border-rose-300 text-rose-950'
+                    : 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-xs font-urdu">
+                      📊 سیٹلمنٹ کے بعد نیا خلاصہ (Settlement Result Preview):
+                    </span>
+                    <span className="font-mono text-xs font-bold">
+                      اضافی بل: +Rs. {extraBill.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono border-t border-slate-200/50 pt-2">
+                    <div>
+                      <span className="text-[10px] block opacity-75 font-sans">نیا کل سپلائی بل:</span>
+                      <span className="font-bold">Rs. {finalTotAmt.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] block opacity-75 font-sans">نیا کل ایڈوانس پول:</span>
+                      <span className="font-bold">Rs. {finalAdvAmt.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-2 border-t border-slate-200/50 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-black block font-urdu">
+                        {isFinalExhausted
+                          ? '⚠️ ایڈوانس ختم! فیکٹری پر بقایا واجب الادا:'
+                          : '✓ فیکٹری کا نیا باقی ماندہ ایڈوانس ریمائنڈر:'}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xl font-black font-mono block ${isFinalExhausted ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        Rs. {Math.abs(finalRemainingAdvance).toLocaleString()}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase font-urdu">
+                        {isFinalExhausted ? 'فیکٹری نے دینا ہے' : 'ایڈوانس ابھی موجود ہے'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSettlementModalOpen(false)}
+                className="px-4 py-2 font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-sm transition disabled:opacity-50 font-urdu"
+              >
+                {saving ? 'سیٹلمنٹ محفوظ ہو رہی ہے...' : 'سیٹلمنٹ محفوظ کریں (Save Settlement)'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

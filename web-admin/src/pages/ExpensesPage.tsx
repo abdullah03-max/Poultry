@@ -353,8 +353,8 @@ export const ExpensesPage: React.FC = () => {
               </label>
               <input
                 type="number"
-                step="10"
-                min="1"
+                step="any"
+                min="0"
                 required
                 placeholder="e.g. 5000"
                 value={editingExpense?.amount || ''}

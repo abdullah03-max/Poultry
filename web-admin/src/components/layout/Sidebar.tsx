@@ -61,7 +61,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'daily-records', label: 'Daily Records', urdu: 'روزانہ ریکارڈ', icon: CalendarCheck },
     { id: 'collections', label: 'All Collections', urdu: 'کلیکشن ریکارڈز', icon: Scale },
     { id: 'customers', label: 'Customers', urdu: 'ویسٹ گاہک و دکانیں', icon: Users },
-    { id: 'chicken-shop', label: 'Chicken Shop (چکن شاپ)', urdu: 'چکن شاپ و کھاتہ', icon: Store },
     { id: 'workers', label: 'Workers Management', urdu: 'ورکرز مینجمنٹ', icon: UserCheck, badge: 'Admin' },
     { id: 'reports', label: 'Reports & P&L', urdu: 'رپورٹس و منافع', icon: FileSpreadsheet },
     { id: 'settings', label: 'System Settings', urdu: 'ترتیبات', icon: Settings },

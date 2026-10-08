@@ -320,6 +320,9 @@ const AdminApp: React.FC = () => {
           latestEvent={latestLiveEvent}
           onViewCollection={setSelectedSlipForModal}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
+          onOpenChickenShop={() => handleSelectTab('chicken-shop')}
+          isChickenShopMode={activeTab === 'chicken-shop'}
+          onBackToWaste={() => handleSelectTab('dashboard')}
         />
 
         {/* Live Event Realtime Toast Notification */}
@@ -384,7 +387,9 @@ const AdminApp: React.FC = () => {
 
           {activeTab === 'customers' && <CustomersPage />}
 
-          {activeTab === 'chicken-shop' && <ChickenShopPage />}
+          {activeTab === 'chicken-shop' && (
+            <ChickenShopPage onBackToWaste={() => handleSelectTab('dashboard')} />
+          )}
 
           {activeTab === 'workers' && <WorkersPage />}
 

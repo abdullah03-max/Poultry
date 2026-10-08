@@ -32,9 +32,14 @@ import {
   ArrowDownLeft,
   ChevronRight,
   TrendingUp,
-  History
+  History,
+  ArrowLeft
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+
+interface ChickenShopPageProps {
+  onBackToWaste?: () => void;
+}
 
 interface CustomerKhataSummary {
   customer_name: string;
@@ -49,7 +54,7 @@ interface CustomerKhataSummary {
   last_record_date: string;
 }
 
-export const ChickenShopPage: React.FC = () => {
+export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste }) => {
   const [records, setRecords] = useState<ChickenShopRecord[]>([]);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -648,7 +653,17 @@ export const ChickenShopPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          {onBackToWaste && (
+            <button
+              onClick={onBackToWaste}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition font-urdu"
+              title="پولٹری ویسٹ مینجمنٹ پر واپس جائیں"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-600" />
+              <span>🔙 واپس ویسٹ سسٹم</span>
+            </button>
+          )}
           <button
             onClick={() => handleOpenWasooliModal()}
             className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition font-urdu"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Plus, Printer, Menu, Download } from 'lucide-react';
+import { Clock, Plus, Printer, Menu, Download, Store, ArrowLeft } from 'lucide-react';
 import { triggerPrint } from '../../utils/exportUtils';
 import { NotificationBell } from './NotificationBell';
 import { Collection } from '../../types/database';
@@ -19,6 +19,9 @@ interface HeaderProps {
   } | null;
   onViewCollection?: (collection: Collection) => void;
   onToggleMobileSidebar?: () => void;
+  onOpenChickenShop?: () => void;
+  isChickenShopMode?: boolean;
+  onBackToWaste?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,6 +34,9 @@ export const Header: React.FC<HeaderProps> = ({
   latestEvent,
   onViewCollection,
   onToggleMobileSidebar,
+  onOpenChickenShop,
+  isChickenShopMode = false,
+  onBackToWaste,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
   const { isInstalled, triggerInstall } = usePWAInstall();
@@ -116,8 +122,33 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
+        {/* Chicken Shop Management / Back to Waste Switch Button */}
+        {isChickenShopMode ? (
+          <button
+            onClick={onBackToWaste}
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+            title="پولٹری ویسٹ سسٹم پر واپس جائیں"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-300" />
+            <span className="hidden sm:inline">🔙 واپس ویسٹ سسٹم</span>
+            <span className="sm:hidden">ویسٹ سسٹم</span>
+          </button>
+        ) : (
+          onOpenChickenShop && (
+            <button
+              onClick={onOpenChickenShop}
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+              title="چکن شاپ سیلز، گوشت وزن، نقد و ادھار کسٹمر کھاتہ"
+            >
+              <Store className="w-4 h-4 text-amber-200 shrink-0" />
+              <span className="hidden sm:inline">🍗 چکن شاپ مینجمنٹ</span>
+              <span className="sm:hidden">🍗 چکن شاپ</span>
+            </button>
+          )
+        )}
+
         {/* Action Button: New Collection */}
-        {onOpenNewCollection && (
+        {!isChickenShopMode && onOpenNewCollection && (
           <button
             onClick={onOpenNewCollection}
             className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition active:scale-95"

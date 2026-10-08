@@ -168,11 +168,17 @@ public class WorkerLocationService extends Service implements LocationListener {
                 );
             }
 
-            // Also send last known location immediately
+            // Also send last known location immediately if fresh and accurate
             Location lastGps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
             Location lastNet = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            Location best = lastGps != null ? lastGps : lastNet;
-            if (best != null) {
+            Location best = null;
+            long now = System.currentTimeMillis();
+            if (lastGps != null && (now - lastGps.getTime() < 120000L)) {
+                best = lastGps;
+            } else if (lastNet != null && (now - lastNet.getTime() < 120000L)) {
+                best = lastNet;
+            }
+            if (best != null && (!best.hasAccuracy() || best.getAccuracy() <= 250f)) {
                 onLocationChanged(best);
             }
 
@@ -186,6 +192,24 @@ public class WorkerLocationService extends Service implements LocationListener {
     @Override
     public void onLocationChanged(Location location) {
         if (location == null) return;
+
+        // 1. Ignore location with zero coordinates
+        if (Math.abs(location.getLatitude()) < 0.0001 && Math.abs(location.getLongitude()) < 0.0001) {
+            return;
+        }
+
+        // 2. Ignore inaccurate locations (> 250 meters)
+        if (location.hasAccuracy() && location.getAccuracy() > 250f) {
+            Log.d(TAG, "Skipping inaccurate location fix: " + location.getAccuracy() + "m");
+            return;
+        }
+
+        // 3. Ignore stale cached locations (> 2 minutes old)
+        long locationAge = System.currentTimeMillis() - location.getTime();
+        if (locationAge > 120000L) {
+            Log.d(TAG, "Skipping stale location age: " + locationAge + "ms");
+            return;
+        }
 
         long now = System.currentTimeMillis();
         if (now - lastUploadTimestamp < MIN_INTERVAL_MS) {
