@@ -129,7 +129,38 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return assetLoader.shouldInterceptRequest(request.getUrl());
+                WebResourceResponse response = assetLoader.shouldInterceptRequest(request.getUrl());
+                if (response == null) {
+                    String path = request.getUrl().getPath();
+                    if (path != null) {
+                        String sub = path.startsWith("/") ? path.substring(1) : path;
+                        String[] candidatePaths = new String[]{
+                            "www/" + sub,
+                            "www/assets/" + (sub.startsWith("assets/") ? sub.substring(7) : sub),
+                            sub
+                        };
+                        for (String cand : candidatePaths) {
+                            try {
+                                java.io.InputStream is = getAssets().open(cand);
+                                String mimeType = "application/octet-stream";
+                                if (cand.endsWith(".js")) mimeType = "application/javascript";
+                                else if (cand.endsWith(".css")) mimeType = "text/css";
+                                else if (cand.endsWith(".html")) mimeType = "text/html";
+                                else if (cand.endsWith(".png")) mimeType = "image/png";
+                                else if (cand.endsWith(".svg")) mimeType = "image/svg+xml";
+                                else if (cand.endsWith(".json")) mimeType = "application/json";
+                                return new WebResourceResponse(mimeType, "UTF-8", is);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+                return response;
+            }
+
+            @Override
+            public void onReceivedError(WebView view, android.webkit.WebResourceRequest request, android.webkit.WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                android.util.Log.e("ShanWorkerWeb", "WebView Error: " + error.getDescription() + " for " + request.getUrl());
             }
 
             @Override
@@ -156,6 +187,13 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage consoleMessage) {
+                android.util.Log.d("ShanWorkerWeb", consoleMessage.message() + " -- Line "
+                        + consoleMessage.lineNumber() + " of " + consoleMessage.sourceId());
+                return true;
+            }
+
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
                 if (newProgress < 100) {

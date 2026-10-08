@@ -190,4 +190,4 @@ ${g}`}class Y extends Error{constructor({message:e,code:r,cause:n,name:s}){var i
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const A0=Q("X",[["path",{d:"M18 6 6 18",key:"1bl5f8"}],["path",{d:"m6 6 12 12",key:"d8bk6v"}]]),O0="/assets/app_icon-oxOlpnHV.png";export{c0 as C,h0 as D,f0 as E,p0 as F,g0 as L,y0 as M,m0 as N,_0 as P,k0 as R,S0 as S,T0 as T,C0 as U,A0 as X,O0 as a,b0 as b,Q as c,R0 as d,v0 as e,n0 as f,ff as g,u0 as h,o0 as i,i0 as j,w0 as k,l0 as l,E0 as m,d0 as n,Pl as o,s0 as p,Ot as r,a0 as s};
+ */const A0=Q("X",[["path",{d:"M18 6 6 18",key:"1bl5f8"}],["path",{d:"m6 6 12 12",key:"d8bk6v"}]]),O0=""+new URL("app_icon-oxOlpnHV.png",import.meta.url).href;export{c0 as C,h0 as D,f0 as E,p0 as F,g0 as L,y0 as M,m0 as N,_0 as P,k0 as R,S0 as S,T0 as T,C0 as U,A0 as X,O0 as a,b0 as b,Q as c,R0 as d,v0 as e,n0 as f,ff as g,u0 as h,o0 as i,i0 as j,w0 as k,l0 as l,E0 as m,d0 as n,Pl as o,s0 as p,Ot as r,a0 as s};
