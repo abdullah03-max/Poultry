@@ -293,6 +293,8 @@ export interface ChickenShopRecord {
   dokan_khata?: string | null;          // دکان کھاتہ (Shop Account # / Reference)
   customer_khata?: string | null;       // کسٹمر کھاتہ (Customer Ledger Reference)
   record_date: string;                  // YYYY-MM-DD
+  transaction_type?: 'sale' | 'payment_recovery'; // نوعیت: سیلز یا کھاتہ وصولی
+  payment_mode?: 'cash' | 'credit' | 'partial';   // طریقہ ادائیگی: نقد یا ادھار یا جزوی
   
   // Boles (بونلس)
   boles_weight: number;                 // وزن KG
