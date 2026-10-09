@@ -12,6 +12,7 @@ import {
   ChickenStockLog,
   ChickenShopLedgerEntry,
   FreshChickenArrival,
+  ChickenExpense,
 } from './types';
 
 export const FRESH_CHICKEN_PRODUCT_ID = 'prod-fresh-chicken';
@@ -174,6 +175,7 @@ const STORAGE_KEYS = {
   payments: 'cs_portal_payments',
   stockLogs: 'cs_portal_stock_logs',
   freshArrivals: 'cs_portal_fresh_arrivals',
+  expenses: 'cs_portal_expenses',
 };
 
 export const chickenShopApi = {
@@ -987,6 +989,95 @@ export const chickenShopApi = {
         ...fcProd,
         rate_per_kg: newRate,
       });
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // SHOP EXPENSES (FOR NET PROFIT & LOSS)
+  // ---------------------------------------------------------------------------
+  async getExpenses(): Promise<ChickenExpense[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_expenses')
+          .select('*')
+          .order('date', { ascending: false });
+        if (!error && data && data.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(data));
+          return data as ChickenExpense[];
+        }
+      } catch (e) {
+        console.warn('[CS API] Supabase expenses read fallback:', e);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.expenses);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+
+    const initialExpenses: ChickenExpense[] = [
+      {
+        id: 'exp-01',
+        date: new Date().toISOString().split('T')[0],
+        category: 'ice_cutting',
+        category_urdu: 'برف و کٹنگ خرچہ',
+        title: 'برف اور کٹنگ ضرورت',
+        amount: 800,
+        payment_method: 'cash',
+        notes: 'روزانہ دکان ضرورت',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'exp-02',
+        date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        category: 'packaging',
+        category_urdu: 'شاپر و پیکنگ',
+        title: 'شاپر بیگز بنڈل',
+        amount: 1500,
+        payment_method: 'cash',
+        notes: '5kg اور 1kg بیگز',
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ];
+
+    localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(initialExpenses));
+    return initialExpenses;
+  },
+
+  async saveExpense(exp: Omit<ChickenExpense, 'id' | 'created_at'>): Promise<ChickenExpense> {
+    const newExp: ChickenExpense = {
+      ...exp,
+      id: `exp-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
+
+    const expenses = await this.getExpenses();
+    expenses.unshift(newExp);
+    localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(expenses));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_expenses').insert([newExp]);
+      } catch (e) {
+        console.warn('[CS API] Supabase expense insert fallback:', e);
+      }
+    }
+
+    return newExp;
+  },
+
+  async deleteExpense(id: string): Promise<void> {
+    const expenses = await this.getExpenses();
+    const filtered = expenses.filter(e => e.id !== id);
+    localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(filtered));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_expenses').delete().eq('id', id);
+      } catch (e) {
+        console.warn('[CS API] Supabase expense delete fallback:', e);
+      }
     }
   },
 };

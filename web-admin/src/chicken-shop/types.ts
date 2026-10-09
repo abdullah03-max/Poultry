@@ -118,3 +118,15 @@ export interface FreshChickenArrival {
   notes?: string | null;
   created_at: string;
 }
+
+export interface ChickenExpense {
+  id: string;
+  date: string; // YYYY-MM-DD
+  category: string; // e.g. electricity, rent, wages, ice_cutting, packaging, transport, other
+  category_urdu?: string;
+  title: string;
+  amount: number;
+  payment_method?: 'cash' | 'bank' | 'online';
+  notes?: string | null;
+  created_at: string;
+}

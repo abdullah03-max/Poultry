@@ -13,6 +13,7 @@ import {
   ChickenPayment,
   ChickenStockLog,
   FreshChickenArrival,
+  ChickenExpense,
 } from './types';
 import {
   chickenShopApi,
@@ -27,6 +28,8 @@ import { StockModal } from './StockModal';
 import { CustomerEditModal } from './CustomerEditModal';
 import { ProductEditModal } from './ProductEditModal';
 import { FreshChickenArrivalModal } from './FreshChickenArrivalModal';
+import { ExpenseModal } from './ExpenseModal';
+import { ProfitLossTab } from './ProfitLossTab';
 import { formatDate } from '../utils/formatters';
 import {
   Store,
@@ -61,6 +64,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Calendar,
+  BarChart3,
 } from 'lucide-react';
 
 interface ChickenShopAppProps {
@@ -68,7 +72,7 @@ interface ChickenShopAppProps {
   standalone?: boolean;
 }
 
-type TabType = 'dashboard' | 'pos' | 'fresh_chicken' | 'customers' | 'products' | 'stock' | 'sales_history';
+type TabType = 'dashboard' | 'pos' | 'fresh_chicken' | 'customers' | 'products' | 'stock' | 'sales_history' | 'profit_loss';
 
 export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, standalone = false }) => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -81,6 +85,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const [payments, setPayments] = useState<ChickenPayment[]>([]);
   const [stockLogs, setStockLogs] = useState<ChickenStockLog[]>([]);
   const [freshArrivals, setFreshArrivals] = useState<FreshChickenArrival[]>([]);
+  const [expenses, setExpenses] = useState<ChickenExpense[]>([]);
 
   // Modals State
   const [receiptModalSale, setReceiptModalSale] = useState<ChickenSale | null>(null);
@@ -97,6 +102,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const [newFreshSellingRate, setNewFreshSellingRate] = useState<string>('');
   const [freshSubTab, setFreshSubTab] = useState<'arrivals' | 'sales'>('arrivals');
   const [freshSalesFilter, setFreshSalesFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [expenseModalOpen, setExpenseModalOpen] = useState<boolean>(false);
 
   // POS State
   const [posCustomerType, setPosCustomerType] = useState<'walkin' | 'registered'>('walkin');
@@ -147,13 +153,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const loadAllData = async () => {
     try {
       setLoading(true);
-      const [pList, cList, sList, payList, logs, fArrivals] = await Promise.all([
+      const [pList, cList, sList, payList, logs, fArrivals, expList] = await Promise.all([
         chickenShopApi.getProducts(),
         chickenShopApi.getCustomers(),
         chickenShopApi.getSales(),
         chickenShopApi.getPayments(),
         chickenShopApi.getStockLogs(),
         chickenShopApi.getFreshChickenArrivals(),
+        chickenShopApi.getExpenses(),
       ]);
       setProducts(pList);
       setCustomers(cList);
@@ -161,6 +168,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       setPayments(payList);
       setStockLogs(logs);
       setFreshArrivals(fArrivals);
+      setExpenses(expList);
 
       // Set default product in POS if available
       if (pList.length > 0 && posItems.length === 1 && !posItems[0].weight_kg) {
@@ -350,6 +358,16 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         rate_per_kg: String(freshProd.rate_per_kg),
       },
     ]);
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm('کیا آپ واقعی یہ خرچہ حذف کرنا چاہتے ہیں؟')) return;
+    try {
+      await chickenShopApi.deleteExpense(id);
+      await loadAllData();
+    } catch (err: any) {
+      alert(`خرچہ حذف کرنے میں مسئلہ: ${err.message || 'Error deleting expense'}`);
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -738,6 +756,18 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
             >
               <History className="w-4 h-4" />
               <span>سیلز رجسٹر و ریکارڈز (Sales History)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('profit_loss')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition shrink-0 ${
+                activeTab === 'profit_loss'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>نفع و نقصان (P&L Reports)</span>
             </button>
           </nav>
         </div>
@@ -1481,31 +1511,45 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 {/* Header Banner */}
                 <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center text-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center text-2xl shrink-0">
                         🐔
                       </div>
                       <div>
-                        <h2 className="text-base sm:text-xl font-black text-slate-900 font-urdu tracking-tight flex items-center gap-2">
-                          <span>تازہ چکن اسٹاک و روزانہ سیلز رجسٹر</span>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-sans px-2 py-0.5 rounded-full font-bold">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-base sm:text-xl font-black text-slate-900 font-urdu tracking-tight">
+                            تازہ چکن اسٹاک و روزانہ سیلز رجسٹر
+                          </h2>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-sans px-2.5 py-0.5 rounded-full font-bold">
                             Live Broiler Stock
                           </span>
-                        </h2>
-                        <p className="text-xs text-slate-500 font-urdu mt-0.5">
-                          دستیاب وزن: <strong className="text-slate-900 font-mono">{freshKpis.stockKg} KG</strong> • موجودہ فروخت ریٹ: <strong className="text-amber-700 font-mono">Rs. {freshKpis.currentSellingRate}/KG</strong> • اسٹاک کی کل مالیت: <strong className="text-emerald-700 font-mono">Rs. {freshKpis.currentStockValue.toLocaleString()}</strong>
-                        </p>
+                        </div>
+                        {/* 3 clean metric pills */}
+                        <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                            <span className="font-urdu text-slate-500">دستیاب اسٹاک:</span>
+                            <span dir="ltr" className="font-mono font-black text-slate-900">{freshKpis.stockKg} KG</span>
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs">
+                            <span className="font-urdu text-amber-800">موجودہ فروخت ریٹ:</span>
+                            <span dir="ltr" className="font-mono font-black text-amber-800">Rs. {freshKpis.currentSellingRate}/KG</span>
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs">
+                            <span className="font-urdu text-emerald-800">اسٹاک مالیت:</span>
+                            <span dir="ltr" className="font-mono font-black text-emerald-800">Rs. {freshKpis.currentStockValue.toLocaleString()}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <button
                       onClick={() => setFreshArrivalModalOpen(true)}
                       className="flex items-center gap-1.5 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>+ نیا تازہ چکن آمد (Arrival)</span>
+                      <span>نیا فارم آمد (Arrival)</span>
                     </button>
 
                     <button
@@ -1524,104 +1568,122 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-black rounded-xl shadow-xs transition active:scale-95 font-urdu"
                     >
                       <ShoppingCart className="w-4 h-4" />
-                      <span>+ نیا تازہ چکن بل بنائیں</span>
+                      <span>نیا بل بنائیں (Sale)</span>
                     </button>
                   </div>
                 </div>
 
                 {/* 4 Stats KPI Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                  {/* Current Available Stock */}
-                  <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Card 1: Available Stock */}
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition flex flex-col justify-between min-h-[150px]">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-urdu">
+                      <span className="text-xs font-bold text-slate-600 font-urdu">
                         موجودہ دستیاب اسٹاک
                       </span>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         freshKpis.stockKg <= 25 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
                       }`}>
                         {freshKpis.stockKg <= 25 ? 'کم اسٹاک الرٹ' : 'اسٹاک مناسب'}
                       </span>
                     </div>
-                    <div className="mt-2">
-                      <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">
-                        {freshKpis.stockKg} <span className="text-xs font-sans text-slate-500 font-normal">KG</span>
-                      </p>
-                      <p className="text-xs font-black text-emerald-700 font-mono mt-1">
-                        کل مالیت: Rs. {freshKpis.currentStockValue.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] text-amber-700 font-bold mt-0.5 font-urdu">
-                        فروخت ریٹ: Rs. {freshKpis.currentSellingRate}/KG
-                      </p>
+                    <div className="my-2">
+                      <div dir="ltr" className="text-3xl font-black text-slate-900 font-mono tracking-tight text-right">
+                        {freshKpis.stockKg} <span className="text-sm font-sans text-slate-500 font-normal">KG</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-urdu text-slate-500">کل مالیت:</span>
+                        <span dir="ltr" className="font-mono font-black text-emerald-700">Rs. {freshKpis.currentStockValue.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-urdu text-slate-500">فروخت ریٹ:</span>
+                        <span dir="ltr" className="font-mono font-bold text-amber-700">Rs. {freshKpis.currentSellingRate}/KG</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Today's Farm Arrival */}
-                  <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition">
+                  {/* Card 2: Today's Farm Arrival */}
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition flex flex-col justify-between min-h-[150px]">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider font-urdu">
+                      <span className="text-xs font-bold text-blue-700 font-urdu">
                         آج کی فارم آمد (Inflow)
                       </span>
-                      <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                         <Truck className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="mt-2">
-                      <p className="text-2xl font-black text-blue-700 font-mono tracking-tight">
-                        {freshKpis.todayArrivalKg} <span className="text-xs font-sans text-slate-500 font-normal">KG</span>
-                      </p>
-                      <p className="text-xs font-bold text-slate-700 font-mono mt-1">
-                        خرید لاگت: Rs. {freshKpis.todayArrivalCost.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] text-blue-600 mt-0.5 font-urdu">
-                        اوسط خرید ریٹ: Rs. {freshKpis.todayAvgPurchaseRate}/KG
-                      </p>
+                    <div className="my-2">
+                      <div dir="ltr" className="text-3xl font-black text-blue-700 font-mono tracking-tight text-right">
+                        {freshKpis.todayArrivalKg} <span className="text-sm font-sans text-slate-500 font-normal">KG</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-urdu text-slate-500">خرید لاگت:</span>
+                        <span dir="ltr" className="font-mono font-black text-slate-800">Rs. {freshKpis.todayArrivalCost.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-urdu text-slate-500">اوسط خرید ریٹ:</span>
+                        <span dir="ltr" className="font-mono font-bold text-blue-600">Rs. {freshKpis.todayAvgPurchaseRate}/KG</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Today's Total Sold */}
-                  <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition">
+                  {/* Card 3: Today's Sold */}
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition flex flex-col justify-between min-h-[150px]">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider font-urdu">
+                      <span className="text-xs font-bold text-emerald-700 font-urdu">
                         آج کی کل فروخت (Sold)
                       </span>
-                      <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                         <ShoppingCart className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="mt-2">
-                      <p className="text-2xl font-black text-emerald-700 font-mono tracking-tight">
-                        {freshKpis.todaySoldKg} <span className="text-xs font-sans text-slate-500 font-normal">KG</span>
-                      </p>
-                      <p className="text-xs font-bold text-slate-700 font-mono mt-1">
-                        سیل وصولی: Rs. {freshKpis.todaySoldRevenue.toLocaleString()}
-                      </p>
-                      <p className="text-[10px] text-emerald-700 mt-0.5 font-urdu">
-                        {freshKpis.todaySalesCount} بلز • اوسط فروخت: Rs. {freshKpis.todayAvgSellingRate}/KG
-                      </p>
+                    <div className="my-2">
+                      <div dir="ltr" className="text-3xl font-black text-emerald-700 font-mono tracking-tight text-right">
+                        {freshKpis.todaySoldKg} <span className="text-sm font-sans text-slate-500 font-normal">KG</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-urdu text-slate-500">سیل رقم:</span>
+                        <span dir="ltr" className="font-mono font-black text-slate-800">Rs. {freshKpis.todaySoldRevenue.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-urdu text-slate-500">{freshKpis.todaySalesCount} بلز فروخت</span>
+                        <span dir="ltr" className="font-mono font-bold text-emerald-700">Rs. {freshKpis.todayAvgSellingRate}/KG</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Estimated Gross Margin / Profit */}
-                  <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition">
+                  {/* Card 4: Estimated Gross Margin */}
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition flex flex-col justify-between min-h-[150px]">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider font-urdu">
+                      <span className="text-xs font-bold text-purple-700 font-urdu">
                         آج کا متوقع منافع (Margin)
                       </span>
-                      <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                         <TrendingUp className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="mt-2">
-                      <p className={`text-2xl font-black font-mono tracking-tight ${freshKpis.todayGrossMargin >= 0 ? 'text-purple-700' : 'text-rose-700'}`}>
+                    <div className="my-2">
+                      <div dir="ltr" className={`text-3xl font-black font-mono tracking-tight text-right ${freshKpis.todayGrossMargin >= 0 ? 'text-purple-700' : 'text-rose-700'}`}>
                         Rs. {freshKpis.todayGrossMargin.toLocaleString()}
-                      </p>
-                      <p className="text-xs font-bold text-purple-700 font-mono mt-1">
-                        مارجن: {freshKpis.todayMarginPerKg >= 0 ? `+Rs.${freshKpis.todayMarginPerKg}` : `-Rs.${Math.abs(freshKpis.todayMarginPerKg)}`}/KG
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-urdu">
-                        (فروخت رقم منہا خرید لاگت)
-                      </p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-urdu text-slate-500">مارجن فی کلو:</span>
+                        <span dir="ltr" className={`font-mono font-black ${freshKpis.todayMarginPerKg >= 0 ? 'text-purple-700' : 'text-rose-700'}`}>
+                          {freshKpis.todayMarginPerKg >= 0 ? `+Rs. ${freshKpis.todayMarginPerKg}` : `-Rs. ${Math.abs(freshKpis.todayMarginPerKg)}`}/KG
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span className="font-urdu">سیل منہا فارم خرید لاگت</span>
+                        <span className="font-mono font-semibold text-purple-600">Gross Margin</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1781,14 +1843,22 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                         </div>
                       ) : (
                         <div>
-                          <div className="p-3 bg-amber-50/70 border-b border-amber-200/60 flex items-center justify-between text-xs px-4">
-                            <span className="font-urdu text-amber-900 font-bold">
-                              مجموعی فروخت خلاصہ ({freshSalesFilter === 'today' ? 'آج' : freshSalesFilter === 'week' ? '7 دن' : freshSalesFilter === 'month' ? '30 دن' : 'تمام'}):
-                            </span>
-                            <div className="flex items-center gap-4 font-mono font-black text-amber-950">
-                              <span>کل وزن: {freshKpis.filteredSoldKg} KG</span>
-                              <span>•</span>
-                              <span>کل وصولی: Rs. {freshKpis.filteredSoldRevenue.toLocaleString()}</span>
+                          <div className="p-3.5 bg-amber-50/90 border-b border-amber-200 flex flex-wrap items-center justify-between gap-3 text-xs px-5">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                              <span className="font-urdu text-amber-950 font-bold">
+                                مجموعی فروخت کا خلاصہ ({freshSalesFilter === 'today' ? 'آج' : freshSalesFilter === 'week' ? 'گزشتہ 7 دن' : freshSalesFilter === 'month' ? 'گزشتہ 30 دن' : 'تمام ریکارڈز'}):
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-amber-300 rounded-xl shadow-2xs">
+                                <span className="font-urdu text-slate-600 font-medium">کل فروخت وزن:</span>
+                                <span dir="ltr" className="font-mono font-black text-slate-900">{freshKpis.filteredSoldKg} KG</span>
+                              </div>
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-amber-300 rounded-xl shadow-2xs">
+                                <span className="font-urdu text-slate-600 font-medium">کل وصول رقم:</span>
+                                <span dir="ltr" className="font-mono font-black text-emerald-700">Rs. {freshKpis.filteredSoldRevenue.toLocaleString()}</span>
+                              </div>
                             </div>
                           </div>
 
@@ -2417,6 +2487,21 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 </div>
               </div>
             )}
+
+            {/* =============================================================== */}
+            {/* TAB 8: PROFIT & LOSS REPORTS                                    */}
+            {/* =============================================================== */}
+            {activeTab === 'profit_loss' && (
+              <ProfitLossTab
+                sales={sales}
+                freshArrivals={freshArrivals}
+                products={products}
+                expenses={expenses}
+                customers={customers}
+                onAddExpense={() => setExpenseModalOpen(true)}
+                onDeleteExpense={handleDeleteExpense}
+              />
+            )}
           </>
         )}
       </main>
@@ -2549,6 +2634,13 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
           </div>
         </div>
       )}
+
+      {/* Shop Expense Recording Modal */}
+      <ExpenseModal
+        isOpen={expenseModalOpen}
+        onClose={() => setExpenseModalOpen(false)}
+        onSuccess={loadAllData}
+      />
     </div>
   );
 };
