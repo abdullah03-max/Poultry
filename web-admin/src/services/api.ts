@@ -19,6 +19,7 @@ import {
   CustomerAdvanceRecord,
 } from '../types/database';
 import { getDaysInMonth } from '../utils/formatters';
+import { calculateCustomerAdvanceBalance } from '../utils/advanceUtils';
 
 // -----------------------------------------------------------------------------
 // In-Memory Seed State for Instant Demonstrability
@@ -2104,6 +2105,11 @@ export const api = {
     dailyTotals: number[];
     grandTotalWeight: number;
     grandTotalAmount: number;
+    totalCharbiWeight: number;
+    totalKacharaWeight: number;
+    totalCustomersAdvance: number;
+    totalRemainingAdvance: number;
+    activeSuppliersCount: number;
   }> {
     const daysInMonth = getDaysInMonth(year, monthIndex);
     const startDate = `${year}-${String(monthIndex + 1).padStart(2, '0')}-01`;
@@ -2175,6 +2181,29 @@ export const api = {
 
     const grandTotalWeight = rows.reduce((acc, r) => acc + r.totalWeight, 0);
     const grandTotalAmount = rows.reduce((acc, r) => acc + r.totalAmount, 0);
+    const totalCharbiWeight = rows.reduce((acc, r) => acc + (r.totalCharbiWeight || 0), 0);
+    const totalKacharaWeight = rows.reduce((acc, r) => acc + (r.totalKacharaWeight || 0), 0);
+    const activeSuppliersCount = rows.filter(r => r.totalWeight > 0).length;
+
+    // Calculate accurate customer advance metrics
+    let totalCustomersAdvance = 0;
+    let totalRemainingAdvance = 0;
+    try {
+      const advRecords = await this.getCustomerAdvances();
+      const { collections: allCollections } = await this.getCollections({ limit: 10000 });
+      customers.forEach(cust => {
+        const bal = calculateCustomerAdvanceBalance(cust, allCollections, advRecords);
+        totalCustomersAdvance += bal.totalAdvance;
+        totalRemainingAdvance += bal.remainingAdvance;
+      });
+    } catch (advErr) {
+      console.warn('[API] Error calculating customer advances for register stats:', advErr);
+      customers.forEach(cust => {
+        const adv = Number(cust.advance_amount || 0);
+        totalCustomersAdvance += adv;
+        totalRemainingAdvance += adv;
+      });
+    }
 
     return {
       rows,
@@ -2182,6 +2211,11 @@ export const api = {
       dailyTotals,
       grandTotalWeight: Number(grandTotalWeight.toFixed(2)),
       grandTotalAmount: Number(grandTotalAmount.toFixed(2)),
+      totalCharbiWeight: Number(totalCharbiWeight.toFixed(2)),
+      totalKacharaWeight: Number(totalKacharaWeight.toFixed(2)),
+      totalCustomersAdvance: Math.round(totalCustomersAdvance),
+      totalRemainingAdvance: Math.round(totalRemainingAdvance),
+      activeSuppliersCount,
     };
   },
 
