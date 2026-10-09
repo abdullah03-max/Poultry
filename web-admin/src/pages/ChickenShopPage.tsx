@@ -1337,7 +1337,7 @@ export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste 
                   <label className="block text-[9px] font-bold text-slate-500 uppercase font-urdu">وزن (Weight KG)</label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0"
                     placeholder="0.0"
                     disabled={!itemEnabled.boles}
@@ -1351,7 +1351,7 @@ export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste 
                   <label className="block text-[9px] font-bold text-slate-500 uppercase font-urdu">ریٹ (Rate PKR)</label>
                   <input
                     type="number"
-                    step="1"
+                    step="any"
                     min="0"
                     placeholder="0"
                     disabled={!itemEnabled.boles}
@@ -1390,7 +1390,7 @@ export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste 
                   <label className="block text-[9px] font-bold text-slate-500 uppercase font-urdu">وزن (Weight KG)</label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0"
                     placeholder="0.0"
                     disabled={!itemEnabled.thai}
@@ -1404,7 +1404,7 @@ export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste 
                   <label className="block text-[9px] font-bold text-slate-500 uppercase font-urdu">ریٹ (Rate PKR)</label>
                   <input
                     type="number"
-                    step="1"
+                    step="any"
                     min="0"
                     placeholder="0"
                     disabled={!itemEnabled.thai}
@@ -1443,7 +1443,7 @@ export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste 
                   <label className="block text-[9px] font-bold text-slate-500 uppercase font-urdu">وزن (Weight KG)</label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0"
                     placeholder="0.0"
                     disabled={!itemEnabled.gosht}
@@ -1457,7 +1457,7 @@ export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste 
                   <label className="block text-[9px] font-bold text-slate-500 uppercase font-urdu">ریٹ (Rate PKR)</label>
                   <input
                     type="number"
-                    step="1"
+                    step="any"
                     min="0"
                     placeholder="0"
                     disabled={!itemEnabled.gosht}
@@ -1593,7 +1593,7 @@ export const ChickenShopPage: React.FC<ChickenShopPageProps> = ({ onBackToWaste 
                 </div>
                 <input
                   type="number"
-                  step="1"
+                  step="any"
                   min="0"
                   placeholder="0"
                   value={editingRecord?.received_amount ?? ''}

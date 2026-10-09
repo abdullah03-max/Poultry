@@ -3,6 +3,7 @@
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { api } from '../services/api';
 import { Customer, Collection, CustomerAdvanceRecord } from '../types/database';
 import { formatWeight, formatCurrency, formatDate } from '../utils/formatters';
@@ -29,6 +30,11 @@ import {
   AlertTriangle,
   DollarSign,
   Wallet,
+  Eye,
+  FileText,
+  Printer,
+  Download,
+  RefreshCw,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 
@@ -47,7 +53,7 @@ export const CustomersPage: React.FC = () => {
   const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
   const [customerSlips, setCustomerSlips] = useState<Collection[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
-  const [active360Tab, setActive360Tab] = useState<'ledger' | 'slips'>('ledger');
+  const [active360Tab, setActive360Tab] = useState<'ledger' | 'slips' | 'advances' | 'profile'>('ledger');
 
   // Quick Add Advance Modal State
   const [advanceModalCustomer, setAdvanceModalCustomer] = useState<Customer | null>(null);
@@ -85,9 +91,9 @@ export const CustomersPage: React.FC = () => {
     }
   };
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const todayPktDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
       const [data, sett, todayColRes, allColRes, advRecords] = await Promise.all([
         api.getCustomers(true),
@@ -107,12 +113,33 @@ export const CustomersPage: React.FC = () => {
     } catch (err) {
       console.error('Error fetching customers:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCustomers();
+    fetchCustomers(true);
+
+    // Real-Time subscription: Automatically reload collections & adjust balances when worker adds entries
+    const channel = supabase
+      .channel('admin-customers-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'collections' }, () => {
+        fetchCustomers(false);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+        fetchCustomers(false);
+      })
+      .subscribe();
+
+    // 15s fallback poll
+    const interval = setInterval(() => {
+      fetchCustomers(false);
+    }, 15000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, []);
 
   const openCustomer360 = async (cust: Customer) => {
@@ -120,8 +147,15 @@ export const CustomersPage: React.FC = () => {
     setActive360Tab('ledger');
     try {
       setLoadingHistory(true);
-      const res = await api.getCollections({ customerId: cust.id, limit: 200 });
-      setCustomerSlips(res.collections);
+      const [res, advs] = await Promise.all([
+        api.getCollections({ customerId: cust.id, limit: 1000 }),
+        api.getCustomerAdvances(cust.id),
+      ]);
+      setCustomerSlips(res.collections || []);
+      setAdvanceRecords(prev => [
+        ...prev.filter(r => r.customer_id !== cust.id),
+        ...(advs || []),
+      ]);
     } catch (err) {
       console.error('Error loading customer history:', err);
     } finally {
@@ -296,9 +330,118 @@ export const CustomersPage: React.FC = () => {
     try {
       await api.deleteCustomerAdvance(advId);
       await fetchCustomers();
+      if (viewCustomer) {
+        const advs = await api.getCustomerAdvances(viewCustomer.id);
+        setAdvanceRecords(prev => [
+          ...prev.filter(r => r.customer_id !== viewCustomer.id),
+          ...(advs || []),
+        ]);
+      }
     } catch (err: any) {
       alert('ایڈوانس ڈیلیٹ کرنے میں مسئلہ: ' + (err.message || 'Error'));
     }
+  };
+
+  const handlePrintCustomerStatement = (cust: Customer) => {
+    const bal = calculateCustomerAdvanceBalance(cust, allCollections, advanceRecords);
+    const ledger = getCustomerAdvanceLedger(cust, customerSlips, advanceRecords);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Pop-up blocked. Please allow pop-ups to print statement.');
+      return;
+    }
+    const html = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ur">
+      <head>
+        <meta charset="utf-8" />
+        <title>Customer Ledger - ${cust.name}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 25px; margin: 0; color: #1e293b; direction: rtl; }
+          .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 12px; margin-bottom: 20px; }
+          .header h1 { margin: 0; font-size: 24px; color: #0f766e; }
+          .header p { margin: 4px 0; font-size: 13px; color: #64748b; }
+          .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; text-align: center; }
+          .stat-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: #f8fafc; }
+          .stat-box .title { font-size: 11px; color: #64748b; font-weight: bold; margin-bottom: 4px; }
+          .stat-box .val { font-size: 16px; font-weight: bold; color: #0f172a; font-family: monospace; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 15px; }
+          th { background: #f1f5f9; padding: 8px 10px; border: 1px solid #cbd5e1; text-align: right; }
+          td { padding: 8px 10px; border: 1px solid #e2e8f0; text-align: right; }
+          .credit { color: #047857; font-weight: bold; font-family: monospace; }
+          .debit { color: #b45309; font-weight: bold; font-family: monospace; }
+          .balance { font-weight: bold; font-family: monospace; }
+          .negative { color: #be123c; }
+          .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px dashed #cbd5e1; padding-top: 10px; }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>شان پولٹری پروٹین (SHAN POULTRY PROTEIN)</h1>
+          <p>گاہک ایڈوانس و روزانہ ویسٹ کٹوتی کھاتہ (Customer Advance & Daily Deduction Statement)</p>
+          <p style="font-weight: bold; color: #0f172a; margin-top: 6px;">
+            دکان: ${cust.name} (${cust.customer_code}) • فون: ${cust.phone || '—'} • علاقہ: ${cust.area || '—'}
+          </p>
+          <p style="font-size: 11px;">تاریخ پرنٹ: ${new Date().toLocaleString()}</p>
+        </div>
+
+        <div class="summary-grid">
+          <div class="stat-box">
+            <div class="title">کل ایڈوانس ادائیگی</div>
+            <div class="val">Rs. ${bal.totalAdvance.toLocaleString()}</div>
+          </div>
+          <div class="stat-box">
+            <div class="title">کل وصول شدہ ویسٹ وزن</div>
+            <div class="val">${bal.totalWasteWeight} KG</div>
+          </div>
+          <div class="stat-box">
+            <div class="title">کل کٹوتی ویسٹ رقم</div>
+            <div class="val">Rs. ${bal.totalWasteAmount.toLocaleString()}</div>
+          </div>
+          <div class="stat-box">
+            <div class="title">موجودہ باقی ایڈوانس بیلنس</div>
+            <div class="val ${bal.remainingAdvance <= 0 ? 'negative' : ''}">Rs. ${bal.remainingAdvance.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>تاریخ (Date)</th>
+              <th>تفصیل (Transaction / Slip)</th>
+              <th>وزن (KG)</th>
+              <th>ایڈوانس جمع (+)</th>
+              <th>ویسٹ کٹوتی (-)</th>
+              <th>باقی بیلنس (Running Balance)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ledger.map(e => `
+              <tr>
+                <td>${formatDate(e.date)}</td>
+                <td>${e.title} - ${e.description}</td>
+                <td>${e.weightKg != null ? e.weightKg + ' KG' : '—'}</td>
+                <td class="credit">${e.credit ? '+Rs. ' + e.credit.toLocaleString() : '—'}</td>
+                <td class="debit">${e.debit ? '-Rs. ' + e.debit.toLocaleString() : '—'}</td>
+                <td class="balance ${e.runningBalance <= 0 ? 'negative' : ''}">Rs. ${e.runningBalance.toLocaleString()}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <p>Shan Poultry Protein Management System • کمپیوٹرائزڈ لیجر اسٹیٹمنٹ</p>
+        </div>
+        <script>window.onload = function() { window.print(); };</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   const areas = Array.from(new Set(customers.map(c => c.area))).filter(Boolean);
@@ -699,11 +842,13 @@ export const CustomersPage: React.FC = () => {
               {/* Actions Bar */}
               <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
                 <button
+                  type="button"
                   onClick={() => openCustomer360(cust)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-800 transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95"
+                  title="گاہک کی مکمل تفصیلات، وزن، رقم و ایڈوانس کھاتہ دیکھیں"
                 >
-                  <History className="w-3.5 h-3.5" />
-                  <span>View Ledger & History</span>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>تفصیلات (Details)</span>
                 </button>
 
                 <div className="flex items-center gap-1">
@@ -743,53 +888,104 @@ export const CustomersPage: React.FC = () => {
       </div>
       )}
 
-      {/* Customer 360 History Modal */}
+      {/* Complete Customer Details & 360 Financial History Modal */}
       <Modal
         isOpen={!!viewCustomer}
         onClose={() => setViewCustomer(null)}
-        title={viewCustomer ? `${viewCustomer.name} (${viewCustomer.customer_code})` : 'Customer History'}
-        subtitle={`Lifetime Profile & Running Advance Ledger — ${viewCustomer?.area}`}
-        maxWidth="2xl"
+        title={viewCustomer ? `${viewCustomer.name} (${viewCustomer.customer_code})` : 'Customer Details'}
+        subtitle={`مکمل کسٹمر پروفائل، روزانہ وصولی وزن، کٹوتی رقم و ایڈوانس کھاتہ — ${viewCustomer?.area || 'General'}`}
+        maxWidth="4xl"
       >
         {viewCustomer && (() => {
           const bal = calculateCustomerAdvanceBalance(viewCustomer, allCollections, advanceRecords);
           const ledgerEntries = getCustomerAdvanceLedger(viewCustomer, customerSlips, advanceRecords);
+          const custAdvances = advanceRecords.filter(r => r.customer_id === viewCustomer.id);
 
           return (
             <div className="space-y-4">
-              {/* Advance Summary Snapshot */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase font-semibold">کل ایڈوانس رقم</p>
-                  <p className="text-base font-bold text-slate-900 font-mono mt-0.5">
+              {/* Customer Quick Header & Contact Bar */}
+              <div className="p-3.5 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-slate-500 bg-white px-2 py-0.5 rounded-lg border border-slate-200">{viewCustomer.customer_code}</span>
+                    <h3 className="font-black text-slate-900 text-sm">{viewCustomer.name}</h3>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${viewCustomer.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                      {viewCustomer.status === 'active' ? 'فعال (ACTIVE)' : 'غیر فعال (INACTIVE)'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-600 text-[11px]">
+                    <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {viewCustomer.phone || 'فون درج نہیں'}</span>
+                    <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /> {viewCustomer.area}</span>
+                    <span>چربی ریٹ: <strong className="text-emerald-700 font-mono">Rs. {viewCustomer.rate_charbi ?? 55}</strong>/KG</span>
+                    <span>کچرا ریٹ: <strong className="text-amber-700 font-mono">Rs. {viewCustomer.rate_kachara ?? (viewCustomer.rate_per_kg ?? 45)}</strong>/KG</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handlePrintCustomerStatement(viewCustomer)}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs active:scale-95"
+                    title="گاہک کا مکمل کھاتہ پرنٹ کریں"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-slate-500" />
+                    <span>پرنٹ کھاتہ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdvanceModalCustomer(viewCustomer);
+                      setNewAdvanceAmount('');
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1 active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ نیا ایڈوانس دیں</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Financial & Collection KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
+                <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs">
+                  <p className="text-[10px] text-slate-500 uppercase font-semibold">کل دیا گیا ایڈوانس</p>
+                  <p className="text-base font-black text-slate-900 font-mono mt-0.5">
                     Rs. {bal.totalAdvance.toLocaleString()}
                   </p>
+                  <span className="text-[9px] text-slate-400">کل پیشگی رقم</span>
                 </div>
-                <div>
-                  <p className="text-[10px] text-amber-700 uppercase font-bold">وصول شدہ ویسٹ مال</p>
-                  <p className="text-base font-bold text-amber-700 font-mono mt-0.5">
+                <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs">
+                  <p className="text-[10px] text-blue-700 uppercase font-bold">کل وصول شدہ وزن</p>
+                  <p className="text-base font-black text-blue-700 font-mono mt-0.5">
+                    {bal.totalWasteWeight} <span className="text-xs font-bold">KG</span>
+                  </p>
+                  <span className="text-[9px] text-blue-600">چربی + کچرا</span>
+                </div>
+                <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs">
+                  <p className="text-[10px] text-amber-700 uppercase font-bold">کل کٹوتی ویسٹ رقم</p>
+                  <p className="text-base font-black text-amber-700 font-mono mt-0.5">
                     Rs. {bal.totalWasteAmount.toLocaleString()}
                   </p>
+                  <span className="text-[9px] text-amber-600">{customerSlips.length} پرچیاں وصول</span>
                 </div>
-                <div>
-                  <p className="text-[10px] text-blue-700 uppercase font-bold">کل وزن کٹوتی</p>
-                  <p className="text-base font-bold text-blue-700 font-mono mt-0.5">
-                    {bal.totalWasteWeight} KG
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold">باقی ایڈوانس ریمائنڈر</p>
+                <div className={`p-3 rounded-2xl border shadow-2xs ${
+                  bal.isExhausted ? 'bg-rose-50 border-rose-300' : 'bg-emerald-50 border-emerald-300'
+                }`}>
+                  <p className="text-[10px] uppercase font-black text-slate-700">موجودہ باقی ایڈوانس</p>
                   <p className={`text-base font-black font-mono mt-0.5 ${
                     bal.isExhausted ? 'text-rose-700' : 'text-emerald-700'
                   }`}>
                     Rs. {bal.remainingAdvance.toLocaleString()}
                   </p>
+                  <span className={`text-[9px] font-bold ${bal.isExhausted ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {bal.isExhausted ? '⚠️ ختم (بقایا بل واجب الادا)' : '✓ کریڈٹ فعال (باقی بیلنس)'}
+                  </span>
                 </div>
               </div>
 
-              {/* Action row & Tab Switcher */}
+              {/* Tab Switcher */}
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     type="button"
                     onClick={() => setActive360Tab('ledger')}
@@ -800,7 +996,7 @@ export const CustomersPage: React.FC = () => {
                     }`}
                   >
                     <Wallet className="w-3.5 h-3.5" />
-                    <span>ایڈوانس و کٹوتی کھاتہ (Advance Ledger)</span>
+                    <span>خودکار کٹوتی لیجر (Advance Ledger)</span>
                   </button>
                   <button
                     type="button"
@@ -812,24 +1008,36 @@ export const CustomersPage: React.FC = () => {
                     }`}
                   >
                     <Scale className="w-3.5 h-3.5" />
-                    <span>وصولی پرچیاں ({customerSlips.length})</span>
+                    <span>تمام وصولی پرچیاں ({customerSlips.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActive360Tab('advances')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      active360Tab === 'advances'
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>ایڈوانس ادائیگیاں ({custAdvances.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActive360Tab('profile')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      active360Tab === 'profile'
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>دکان معلومات و ریٹس</span>
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdvanceModalCustomer(viewCustomer);
-                    setNewAdvanceAmount('');
-                  }}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ نیا ایڈوانس شامل کریں</span>
-                </button>
               </div>
 
-              {/* Tab 1: Advance & Daily Deductions Ledger */}
+              {/* Tab 1: Advance & Auto Deductions Ledger */}
               {active360Tab === 'ledger' && (
                 <div>
                   {loadingHistory ? (
@@ -837,9 +1045,9 @@ export const CustomersPage: React.FC = () => {
                       <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
                     </div>
                   ) : (
-                    <div className="max-h-72 overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl">
-                      <table className="w-full min-w-[550px] text-left text-xs border-collapse">
-                        <thead className="bg-slate-50 sticky top-0">
+                    <div className="max-h-80 overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full min-w-[620px] text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 sticky top-0 shadow-2xs">
                           <tr className="border-b border-slate-200 text-slate-600 font-bold text-[10px] uppercase">
                             <th className="py-2.5 px-3">تاریخ (Date)</th>
                             <th className="py-2.5 px-3">تفصیل (Transaction)</th>
@@ -858,7 +1066,7 @@ export const CustomersPage: React.FC = () => {
                                 <span className={`font-bold block ${e.type === 'ADVANCE_GIVEN' ? 'text-emerald-800' : 'text-slate-800'}`}>
                                   {e.title}
                                 </span>
-                                <span className="text-[10px] text-slate-400 block truncate max-w-[200px]">{e.description}</span>
+                                <span className="text-[10px] text-slate-400 block truncate max-w-[240px]">{e.description}</span>
                               </td>
                               <td className="py-2.5 px-3 text-right text-slate-900 font-bold">
                                 {e.weightKg != null ? `${e.weightKg} KG` : '—'}
@@ -891,7 +1099,7 @@ export const CustomersPage: React.FC = () => {
                           {ledgerEntries.length === 0 && (
                             <tr>
                               <td colSpan={7} className="py-8 text-center text-slate-400 font-sans">
-                                کوئی ایڈوانس یا وصولی ریکارڈ موجود نہیں ہے۔
+                                کوئی ایڈوانس یا وصولی ریکارڈ موجود نہیں ہے۔ ورکر جیسے ہی کلیکشن درج کرے گا، کٹوتی یہاں خود بخود ظاہر ہو جائے گی۔
                               </td>
                             </tr>
                           )}
@@ -910,31 +1118,40 @@ export const CustomersPage: React.FC = () => {
                       <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
                     </div>
                   ) : (
-                    <div className="max-h-72 overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl">
-                      <table className="w-full min-w-[500px] text-left text-xs border-collapse">
-                        <thead className="bg-slate-50 sticky top-0">
+                    <div className="max-h-80 overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full min-w-[550px] text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 sticky top-0 shadow-2xs">
                           <tr className="border-b border-slate-200 text-slate-600 font-bold text-[10px] uppercase">
                             <th className="py-2.5 px-3">Receipt No</th>
                             <th className="py-2.5 px-3">Date</th>
                             <th className="py-2.5 px-3">Collector</th>
+                            <th className="py-2.5 px-3">Breakdown</th>
                             <th className="py-2.5 px-3 text-right">Net (KG)</th>
                             <th className="py-2.5 px-3 text-right">Amount (PKR)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-mono">
-                          {customerSlips.map(s => (
-                            <tr key={s.id} className="hover:bg-slate-50">
-                              <td className="py-2.5 px-3 text-brand-700 font-bold">{s.receipt_no}</td>
-                              <td className="py-2.5 px-3 text-slate-700 font-sans">{formatDate(s.collection_date)}</td>
-                              <td className="py-2.5 px-3 text-slate-700 font-sans">{s.worker?.full_name || 'System / Admin'}</td>
-                              <td className="py-2.5 px-3 text-right text-slate-900 font-bold">{s.total_net_weight}</td>
-                              <td className="py-2.5 px-3 text-right text-amber-700 font-bold">{s.total_amount.toLocaleString()}</td>
-                            </tr>
-                          ))}
+                          {customerSlips.map(s => {
+                            const cNet = Number(s.charbi_net || 0);
+                            const kNet = Number(s.kachara_net || (cNet === 0 ? s.total_net_weight : 0));
+                            return (
+                              <tr key={s.id} className="hover:bg-slate-50">
+                                <td className="py-2.5 px-3 text-brand-700 font-bold">{s.receipt_no}</td>
+                                <td className="py-2.5 px-3 text-slate-700 font-sans">{formatDate(s.collection_date)}</td>
+                                <td className="py-2.5 px-3 text-slate-700 font-sans">{s.worker?.full_name || 'Field Worker'}</td>
+                                <td className="py-2.5 px-3 text-slate-600 font-sans text-[10px]">
+                                  {cNet > 0 && <span className="text-emerald-700 font-bold mr-1">چربی: {cNet}KG</span>}
+                                  {kNet > 0 && <span className="text-amber-700 font-bold">کچرا: {kNet}KG</span>}
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-slate-900 font-bold">{s.total_net_weight}</td>
+                                <td className="py-2.5 px-3 text-right text-amber-700 font-bold">Rs. {s.total_amount.toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
                           {customerSlips.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="py-8 text-center text-slate-400 font-sans">
-                                No collection history for this customer.
+                              <td colSpan={6} className="py-8 text-center text-slate-400 font-sans">
+                                اس گاہک کا کوئی وصولی ریکارڈ موجود نہیں ہے۔
                               </td>
                             </tr>
                           )}
@@ -942,6 +1159,94 @@ export const CustomersPage: React.FC = () => {
                       </table>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Tab 3: Advance Payments History */}
+              {active360Tab === 'advances' && (
+                <div>
+                  <div className="max-h-80 overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full min-w-[500px] text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 sticky top-0 shadow-2xs">
+                        <tr className="border-b border-slate-200 text-slate-600 font-bold text-[10px] uppercase">
+                          <th className="py-2.5 px-3">تاریخ (Date)</th>
+                          <th className="py-2.5 px-3">ایڈوانس رقم (Amount)</th>
+                          <th className="py-2.5 px-3">طریقہ کار (Method)</th>
+                          <th className="py-2.5 px-3">تفصیل / رسید نمبر</th>
+                          <th className="py-2.5 px-2 text-center">کارروائی</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-mono">
+                        {custAdvances.map(a => (
+                          <tr key={a.id} className="hover:bg-slate-50">
+                            <td className="py-2.5 px-3 text-slate-700 font-sans">{formatDate(a.date)}</td>
+                            <td className="py-2.5 px-3 text-emerald-700 font-bold">Rs. {Number(a.amount).toLocaleString()}</td>
+                            <td className="py-2.5 px-3 text-slate-700 font-sans capitalize">{a.payment_method || 'Cash'}</td>
+                            <td className="py-2.5 px-3 text-slate-600 font-sans">{a.notes || '—'}</td>
+                            <td className="py-2.5 px-2 text-center">
+                              {a.id.startsWith('adv-') && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAdvance(a.id)}
+                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                  title="یہ ایڈوانس ڈیلیٹ کریں"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {custAdvances.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-slate-400 font-sans">
+                              کوئی ایڈوانس ادائیگی درج نہیں ہے۔
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 4: Customer Profile & Rates */}
+              {active360Tab === 'profile' && (
+                <div className="bg-slate-50 p-4 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">دکان کا نام (Shop Name)</span>
+                    <span className="font-bold text-slate-900 text-sm">{viewCustomer.name}</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">کسٹمر کوڈ (Customer Code)</span>
+                    <span className="font-mono font-bold text-slate-900">{viewCustomer.customer_code}</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">رابطہ فون (Primary Phone)</span>
+                    <span className="font-mono font-bold text-slate-900">{viewCustomer.phone || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">متبادل فون (Alternate Phone)</span>
+                    <span className="font-mono font-bold text-slate-900">{viewCustomer.alternate_phone || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">علاقہ و پتہ (Area / Address)</span>
+                    <span className="font-bold text-slate-900">{viewCustomer.area} • {viewCustomer.address || 'Standard Address'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">اوقاتِ کار (Collection Hours)</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {viewCustomer.collection_start_time || commonStartTime} تا {viewCustomer.collection_end_time || commonEndTime}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">طے شدہ چربی ریٹ (Charbi Rate)</span>
+                    <span className="font-mono font-bold text-emerald-700">Rs. {viewCustomer.rate_charbi ?? 55} PKR/KG</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-semibold text-[10px]">طے شدہ کچرا ریٹ (Kachara Rate)</span>
+                    <span className="font-mono font-bold text-amber-700">Rs. {viewCustomer.rate_kachara ?? (viewCustomer.rate_per_kg ?? 45)} PKR/KG</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -997,10 +1302,10 @@ export const CustomersPage: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  step="100"
-                  min="1"
+                  step="any"
+                  min="0"
                   required
-                  placeholder="مثلاً: 20000 یا 50000"
+                  placeholder="مثلاً: 70000 یا کوئی بھی رقم"
                   value={newAdvanceAmount}
                   onChange={e => setNewAdvanceAmount(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-mono font-black text-emerald-700 focus:outline-none focus:border-emerald-600 shadow-2xs"
@@ -1142,7 +1447,7 @@ export const CustomersPage: React.FC = () => {
               </label>
               <input
                 type="number"
-                step="0.5"
+                step="any"
                 min="0"
                 required
                 value={editingCustomer?.rate_charbi ?? 55}
@@ -1159,7 +1464,7 @@ export const CustomersPage: React.FC = () => {
               </label>
               <input
                 type="number"
-                step="0.5"
+                step="any"
                 min="0"
                 required
                 value={editingCustomer?.rate_kachara ?? (editingCustomer?.rate_per_kg ?? 45)}
@@ -1189,7 +1494,7 @@ export const CustomersPage: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  step="100"
+                  step="any"
                   min="0"
                   placeholder="مثلاً: 50000"
                   value={editingCustomer?.advance_amount ?? ''}

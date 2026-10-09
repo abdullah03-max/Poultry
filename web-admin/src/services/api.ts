@@ -883,11 +883,51 @@ export const api = {
   // ---------------------------------------------------------------------------
   async getCustomerAdvances(customerId?: string): Promise<CustomerAdvanceRecord[]> {
     try {
-      const records: CustomerAdvanceRecord[] = JSON.parse(localStorage.getItem('spp_customer_advances') || '[]');
-      if (customerId) {
-        return records.filter(r => r.customer_id === customerId);
+      const recordsMap = new Map<string, CustomerAdvanceRecord>();
+
+      // 1. Load from localStorage
+      try {
+        const stored: CustomerAdvanceRecord[] = JSON.parse(localStorage.getItem('spp_customer_advances') || '[]');
+        stored.forEach(r => recordsMap.set(r.id, r));
+      } catch (err) {
+        console.warn('[API] Could not read customer advances from localStorage:', err);
       }
-      return records;
+
+      // 2. Load from Supabase customers category_rates.advance_history
+      try {
+        const customers = await this.getCustomers(true);
+        customers.forEach(c => {
+          const hist: CustomerAdvanceRecord[] = (c.category_rates as any)?.advance_history || [];
+          hist.forEach(r => recordsMap.set(r.id, r));
+
+          // If customer has base advance_amount but no history records yet, synthesize the base advance
+          const baseAdv = Number(c.advance_amount || 0);
+          if (baseAdv > 0 && hist.length === 0) {
+            const baseId = `base-adv-${c.id}`;
+            recordsMap.set(baseId, {
+              id: baseId,
+              customer_id: c.id,
+              customer_name: c.name,
+              amount: baseAdv,
+              date: c.advance_date || c.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+              payment_method: (c.advance_payment_method as any) || 'cash',
+              notes: c.advance_notes || 'ابتدائی پیشگی ایڈوانس ادائیگی (Initial Advance Given)',
+              created_at: c.created_at || new Date().toISOString(),
+            });
+          }
+        });
+      } catch (supErr) {
+        console.warn('[API] Could not read advance history from Supabase customers:', supErr);
+      }
+
+      const allList = Array.from(recordsMap.values()).sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+
+      if (customerId) {
+        return allList.filter(r => r.customer_id === customerId);
+      }
+      return allList;
     } catch {
       return [];
     }
@@ -921,16 +961,44 @@ export const api = {
       console.warn('Could not save customer advance to localStorage:', e);
     }
 
-    // Only update customer advance amount if not already updated by createCustomer / updateCustomer
+    // Update customer advance amount & history in Supabase
     if (!data.skipCustomerUpdate) {
       const cust = await this.getCustomerById(data.customerId);
       if (cust) {
         const currentAdv = Number(cust.advance_amount || 0);
+        const existingRates = cust.category_rates || {};
+        const existingHistory: CustomerAdvanceRecord[] = (existingRates as any)?.advance_history || [];
+
+        // If customer had an initial advance and history was empty, include base advance
+        if (currentAdv > 0 && existingHistory.length === 0) {
+          existingHistory.push({
+            id: `base-adv-${cust.id}`,
+            customer_id: cust.id,
+            customer_name: cust.name,
+            amount: currentAdv,
+            date: cust.advance_date || cust.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+            payment_method: (cust.advance_payment_method as any) || 'cash',
+            notes: cust.advance_notes || 'ابتدائی پیشگی ایڈوانس ادائیگی (Initial Advance)',
+            created_at: cust.created_at || new Date().toISOString(),
+          });
+        }
+
+        const newTotalAdv = currentAdv + data.amount;
+        const updatedHistory = [advRecord, ...existingHistory];
+
         await this.updateCustomer(cust.id, {
-          advance_amount: currentAdv + data.amount,
+          advance_amount: newTotalAdv,
           advance_date: data.date,
           advance_notes: data.notes,
           advance_payment_method: data.paymentMethod,
+          category_rates: {
+            ...existingRates,
+            advance_amount: newTotalAdv,
+            advance_date: data.date,
+            advance_notes: data.notes,
+            advance_payment_method: data.paymentMethod,
+            advance_history: updatedHistory,
+          },
         });
       }
     }
@@ -966,8 +1034,18 @@ export const api = {
         const cust = await this.getCustomerById(target.customer_id);
         if (cust) {
           const currentAdv = Number(cust.advance_amount || 0);
+          const existingRates = cust.category_rates || {};
+          const existingHistory: CustomerAdvanceRecord[] = (existingRates as any)?.advance_history || [];
+          const updatedHistory = existingHistory.filter(r => r.id !== id);
+          const newAdv = Math.max(0, currentAdv - target.amount);
+
           await this.updateCustomer(cust.id, {
-            advance_amount: Math.max(0, currentAdv - target.amount),
+            advance_amount: newAdv,
+            category_rates: {
+              ...existingRates,
+              advance_amount: newAdv,
+              advance_history: updatedHistory,
+            },
           });
         }
       }

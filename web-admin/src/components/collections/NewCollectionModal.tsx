@@ -320,7 +320,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن KG)</label>
                 <input
                   type="number"
-                  step="0.1"
+                  step="any"
                   min="0"
                   placeholder="0.0"
                   value={charbiGross}
@@ -332,7 +332,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن KG)</label>
                 <input
                   type="number"
-                  step="0.1"
+                  step="any"
                   min="0"
                   placeholder="0.0"
                   value={charbiTare}
@@ -344,7 +344,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate (ریٹ PKR/KG)</label>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0"
                   placeholder="55"
                   value={charbiRate}
@@ -371,7 +371,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن KG)</label>
                 <input
                   type="number"
-                  step="0.1"
+                  step="any"
                   min="0"
                   placeholder="0.0"
                   value={kacharaGross}
@@ -383,7 +383,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن KG)</label>
                 <input
                   type="number"
-                  step="0.1"
+                  step="any"
                   min="0"
                   placeholder="0.0"
                   value={kacharaTare}
@@ -395,7 +395,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate (ریٹ PKR/KG)</label>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0"
                   placeholder="45"
                   value={kacharaRate}

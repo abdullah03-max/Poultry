@@ -987,14 +987,24 @@ export const MobileApp: React.FC = () => {
         return;
       }
 
-      // Persist customer daily completion status in Supabase
+      // Persist customer daily completion status & automatically adjust advance in Supabase
       try {
         const existingRates = selectedCustomer.category_rates || {};
+        const totalAdv = Number(selectedCustomer.advance_amount || existingRates.advance_amount || 0);
+        const prevWasteAmount = Number(existingRates.total_waste_deductions || 0);
+        const prevWasteWeight = Number(existingRates.total_waste_weight || 0);
+        const newTotalWaste = prevWasteAmount + totalAmount;
+        const newTotalWeight = prevWasteWeight + effectiveNetWeight;
+        const remainingAdv = totalAdv - newTotalWaste;
+
         await supabase
           .from('customers')
           .update({
             category_rates: {
               ...existingRates,
+              total_waste_deductions: newTotalWaste,
+              total_waste_weight: newTotalWeight,
+              remaining_advance: remainingAdv,
               daily_record_status: {
                 last_completed_at: newSlip.created_at,
                 last_collection_date: dateStr,
@@ -1003,10 +1013,12 @@ export const MobileApp: React.FC = () => {
                 updated_at: new Date().toISOString(),
               },
             },
+            bakaya_raqam: remainingAdv < 0 ? Math.abs(remainingAdv) : 0,
+            total_raqam: newTotalWaste,
           })
           .eq('id', selectedCustomer.id);
       } catch (custErr) {
-        console.warn('Could not update customer daily status in DB:', custErr);
+        console.warn('Could not update customer daily status & advance balance in DB:', custErr);
       }
 
       // Insert scale photo attachment if captured
@@ -1606,7 +1618,7 @@ export const MobileApp: React.FC = () => {
                     </label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       inputMode="decimal"
                       placeholder="0.0"
                       value={charbiGross}
@@ -1638,7 +1650,7 @@ export const MobileApp: React.FC = () => {
                     </label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       inputMode="decimal"
                       placeholder="0.0"
                       value={charbiTare}
@@ -1703,7 +1715,7 @@ export const MobileApp: React.FC = () => {
                     </label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       inputMode="decimal"
                       placeholder="0.0"
                       value={kacharaGross}
@@ -1735,7 +1747,7 @@ export const MobileApp: React.FC = () => {
                     </label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       inputMode="decimal"
                       placeholder="0.0"
                       value={kacharaTare}
@@ -2703,7 +2715,7 @@ export const MobileApp: React.FC = () => {
                     <label className="text-[11px] font-bold text-slate-600 block mb-0.5">کل وزن (Gross KG)</label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       placeholder="0.0"
                       value={editCharbiGross}
                       onChange={e => setEditCharbiGross(e.target.value)}
@@ -2714,7 +2726,7 @@ export const MobileApp: React.FC = () => {
                     <label className="text-[11px] font-bold text-slate-600 block mb-0.5">تار وزن (Tare KG)</label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       placeholder="0.0"
                       value={editCharbiTare}
                       onChange={e => setEditCharbiTare(e.target.value)}
@@ -2726,7 +2738,7 @@ export const MobileApp: React.FC = () => {
                   <label className="text-[11px] font-bold text-slate-600 block mb-0.5">چربی ریٹ (Rate / KG)</label>
                   <input
                     type="number"
-                    step="0.5"
+                    step="any"
                     value={editCharbiRate}
                     onChange={e => setEditCharbiRate(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold"
@@ -2742,7 +2754,7 @@ export const MobileApp: React.FC = () => {
                     <label className="text-[11px] font-bold text-slate-600 block mb-0.5">کل وزن (Gross KG)</label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       placeholder="0.0"
                       value={editKacharaGross}
                       onChange={e => setEditKacharaGross(e.target.value)}
@@ -2753,7 +2765,7 @@ export const MobileApp: React.FC = () => {
                     <label className="text-[11px] font-bold text-slate-600 block mb-0.5">تار وزن (Tare KG)</label>
                     <input
                       type="number"
-                      step="0.1"
+                      step="any"
                       placeholder="0.0"
                       value={editKacharaTare}
                       onChange={e => setEditKacharaTare(e.target.value)}
@@ -2765,7 +2777,7 @@ export const MobileApp: React.FC = () => {
                   <label className="text-[11px] font-bold text-slate-600 block mb-0.5">کچرا ریٹ (Rate / KG)</label>
                   <input
                     type="number"
-                    step="0.5"
+                    step="any"
                     value={editKacharaRate}
                     onChange={e => setEditKacharaRate(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold"

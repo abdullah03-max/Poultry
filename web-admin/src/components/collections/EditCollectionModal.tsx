@@ -278,7 +278,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن)</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={charbiGross}
                   onChange={e => setCharbiGross(e.target.value)}
@@ -289,7 +289,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن)</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={charbiTare}
                   onChange={e => setCharbiTare(e.target.value)}
@@ -300,7 +300,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate / KG (Rs.)</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   value={charbiRate}
                   onChange={e => setCharbiRate(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-600"
@@ -325,7 +325,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Gross (کل وزن)</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={kacharaGross}
                   onChange={e => setKacharaGross(e.target.value)}
@@ -336,7 +336,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tare (تار / برتن)</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={kacharaTare}
                   onChange={e => setKacharaTare(e.target.value)}
@@ -347,7 +347,7 @@ export const EditCollectionModal: React.FC<EditCollectionModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rate / KG (Rs.)</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   value={kacharaRate}
                   onChange={e => setKacharaRate(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-600"

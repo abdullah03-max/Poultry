@@ -848,7 +848,7 @@ Shan Contact: ${shanPhone}`;
               </label>
               <input
                 type="number"
-                step="0.5"
+                step="any"
                 value={editingFactory?.rate_charbi ?? 75}
                 onChange={e => setEditingFactory(prev => ({ ...(prev || {}), rate_charbi: parseFloat(e.target.value) || 0 }))}
                 className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-600"
@@ -860,7 +860,7 @@ Shan Contact: ${shanPhone}`;
               </label>
               <input
                 type="number"
-                step="0.5"
+                step="any"
                 value={editingFactory?.rate_kachara ?? 60}
                 onChange={e => setEditingFactory(prev => ({ ...(prev || {}), rate_kachara: parseFloat(e.target.value) || 0 }))}
                 className="w-full bg-amber-50/50 border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-amber-600"
