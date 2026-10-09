@@ -4,10 +4,12 @@
 // =============================================================================
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, Trash2, ExternalLink, Scale, User, Clock, AlertTriangle } from 'lucide-react';
+import { Bell, Check, Trash2, ExternalLink, Scale, User, Clock, AlertTriangle, DollarSign } from 'lucide-react';
 import { Collection } from '../../types/database';
 import { playNotificationChime } from '../../utils/audio';
 import { useCollectionScheduleAlerts } from '../../hooks/useCollectionScheduleAlerts';
+import { getExhaustedAdvanceCustomers, CustomerAdvanceBalance } from '../../utils/advanceUtils';
+import { api } from '../../services/api';
 
 export interface AdminNotification {
   id: string;
@@ -37,6 +39,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   onViewCollection,
 }) => {
   const { alerts: scheduleAlerts } = useCollectionScheduleAlerts(collections);
+  const [advanceAlerts, setAdvanceAlerts] = useState<CustomerAdvanceBalance[]>([]);
   const [notifications, setNotifications] = useState<AdminNotification[]>(() => {
     try {
       const saved = localStorage.getItem('spp_admin_notifications');
@@ -102,8 +105,32 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Check customer advance exhausted status
+  useEffect(() => {
+    let isMounted = true;
+    const checkAdvances = async () => {
+      try {
+        const [custList, advList] = await Promise.all([
+          api.getCustomers(),
+          api.getCustomerAdvances(),
+        ]);
+        if (!isMounted) return;
+        const exhausted = getExhaustedAdvanceCustomers(custList, collections, advList);
+        setAdvanceAlerts(exhausted);
+      } catch (err) {
+        console.warn('Could not check advance alerts:', err);
+      }
+    };
+    checkAdvances();
+    const interval = setInterval(checkAdvances, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [collections]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
-  const totalAlertsCount = unreadCount + scheduleAlerts.length;
+  const totalAlertsCount = unreadCount + scheduleAlerts.length + advanceAlerts.length;
 
   const markAllAsRead = () => {
     const updated = notifications.map(n => ({ ...n, read: true }));
@@ -249,9 +276,48 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
             </div>
           )}
 
+          {/* Customer Advance Exhausted Alerts Section */}
+          {advanceAlerts.length > 0 && (
+            <div className="bg-amber-50/90 border-b border-amber-200 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-amber-700" />
+                  <span>ایڈوانس ختم الرٹس ({advanceAlerts.length})</span>
+                </span>
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                  فوری تجدید درکار
+                </span>
+              </div>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {advanceAlerts.map(alert => (
+                  <div
+                    key={alert.customerId}
+                    className="p-2.5 rounded-xl bg-white border border-amber-300 shadow-2xs space-y-1 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-900 text-xs">
+                        {alert.customerName}
+                      </span>
+                      <span className="text-[9px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 uppercase">
+                        ⚠️ Advance Over
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-700 leading-tight">
+                      اس گاہک کا پیشگی ایڈوانس ختم ہو چکا ہے۔ کچرا و چربی وصولی سے بقایا بل <strong>Rs. {Math.abs(alert.remainingAdvance).toLocaleString()}</strong> بن چکا ہے۔
+                    </p>
+                    <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500 font-semibold border-t border-slate-100">
+                      <span>کل ایڈوانس: Rs. {alert.totalAdvance.toLocaleString()}</span>
+                      <span className="text-amber-800 font-bold">وصول شدہ: Rs. {alert.totalWasteAmount.toLocaleString()} ({alert.totalWasteWeight} KG)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Regular Collection Event List */}
           <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-            {notifications.length === 0 && scheduleAlerts.length === 0 ? (
+            {notifications.length === 0 && scheduleAlerts.length === 0 && advanceAlerts.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
                 <Bell className="w-6 h-6 mx-auto mb-2 text-slate-300 stroke-1" />
                 No new notifications

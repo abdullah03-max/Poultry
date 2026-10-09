@@ -531,6 +531,45 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                         Rs. {payingRow.totalAmount.toLocaleString()}
                       </span>
                     </div>
+
+                    {/* Customer Advance Snapshot & Subtraction */}
+                    {(() => {
+                      const custBaseAdv = Number(payingRow.customer.advance_amount || 0);
+                      let totalAdvGiven = custBaseAdv;
+                      try {
+                        const allAdv = JSON.parse(localStorage.getItem('spp_customer_advances') || '[]');
+                        const matching = allAdv.filter((a: any) => a.customer_id === payingRow.customer.id);
+                        if (matching.length > 0) {
+                          totalAdvGiven = Math.max(custBaseAdv, matching.reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0));
+                        }
+                      } catch {}
+
+                      if (totalAdvGiven > 0) {
+                        const remAdv = totalAdvGiven - payingRow.totalAmount;
+                        return (
+                          <div className={`p-2.5 rounded-xl border font-semibold ${
+                            remAdv >= 0
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                              : 'bg-rose-50 border-rose-300 text-rose-950'
+                          }`}>
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span>کل پیشگی ایڈوانس دیا گیا:</span>
+                              <span className="font-mono font-bold">Rs. {totalAdvGiven.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[11px] pt-1">
+                              <span>بل منہا کرنے کے بعد باقی ایڈوانس:</span>
+                              <span className={`font-mono font-black ${remAdv >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {remAdv >= 0
+                                  ? `Rs. ${remAdv.toLocaleString()} (کریڈٹ موجود ہے)`
+                                  : `⚠️ ایڈوانس ختم! بقایا بل: Rs. ${Math.abs(remAdv).toLocaleString()}`}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {alreadyPaid > 0 && (
                       <div className="flex justify-between items-center text-emerald-800 bg-emerald-50 p-2 rounded-xl border border-emerald-200 font-bold">
                         <span>پہلے ادا شدہ رقم ({monthName}):</span>

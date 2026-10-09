@@ -16,6 +16,7 @@ import {
   FactoryTransaction,
   Expense,
   ChickenShopRecord,
+  CustomerAdvanceRecord,
 } from '../types/database';
 import { getDaysInMonth } from '../utils/formatters';
 
@@ -477,6 +478,10 @@ function hydrateCustomerKhata(c: any): Customer {
     gosht_total: c.gosht_total ?? khata.gosht_total ?? (khata.gosht_weight && khata.gosht_rate ? Number((khata.gosht_weight * khata.gosht_rate).toFixed(2)) : null),
     bakaya_raqam: c.bakaya_raqam ?? khata.bakaya_raqam ?? null,
     total_raqam: c.total_raqam ?? khata.total_raqam ?? null,
+    advance_amount: c.advance_amount ?? khata.advance_amount ?? null,
+    advance_date: c.advance_date ?? khata.advance_date ?? null,
+    advance_notes: c.advance_notes ?? khata.advance_notes ?? null,
+    advance_payment_method: c.advance_payment_method ?? khata.advance_payment_method ?? null,
   };
 }
 
@@ -498,6 +503,11 @@ function serializeCustomerKhata(c: any): any {
   const calculatedTotal = (bolesTotal || 0) + (thaiTotal || 0) + (goshtTotal || 0) + (bakayaRaqam || 0);
   const totalRaqam = c.total_raqam != null ? parseFloat(c.total_raqam) : calculatedTotal;
 
+  const advanceAmount = c.advance_amount != null ? parseFloat(c.advance_amount) : null;
+  const advanceDate = c.advance_date || null;
+  const advanceNotes = c.advance_notes || null;
+  const advancePaymentMethod = c.advance_payment_method || null;
+
   const khata = {
     dokan_khata: c.dokan_khata || null,
     customer_khata: c.customer_khata || null,
@@ -512,6 +522,10 @@ function serializeCustomerKhata(c: any): any {
     gosht_total: goshtTotal,
     bakaya_raqam: bakayaRaqam,
     total_raqam: totalRaqam,
+    advance_amount: advanceAmount,
+    advance_date: advanceDate,
+    advance_notes: advanceNotes,
+    advance_payment_method: advancePaymentMethod,
   };
 
   const existingCategoryRates = c.category_rates || {};
@@ -521,6 +535,12 @@ function serializeCustomerKhata(c: any): any {
     category_rates: {
       ...existingCategoryRates,
       chicken_shop_khata: khata,
+      customer_advance: {
+        advance_amount: advanceAmount,
+        advance_date: advanceDate,
+        advance_notes: advanceNotes,
+        advance_payment_method: advancePaymentMethod,
+      },
       ...khata,
     },
   };
@@ -788,6 +808,101 @@ export const api = {
       }
     }
     mockCustomers = mockCustomers.filter(c => c.id !== id);
+  },
+
+  // ---------------------------------------------------------------------------
+  // Customer Advances & Ledger Management
+  // ---------------------------------------------------------------------------
+  async getCustomerAdvances(customerId?: string): Promise<CustomerAdvanceRecord[]> {
+    try {
+      const records: CustomerAdvanceRecord[] = JSON.parse(localStorage.getItem('spp_customer_advances') || '[]');
+      if (customerId) {
+        return records.filter(r => r.customer_id === customerId);
+      }
+      return records;
+    } catch {
+      return [];
+    }
+  },
+
+  async recordCustomerAdvance(data: {
+    customerId: string;
+    customerName: string;
+    amount: number;
+    date: string;
+    paymentMethod: 'cash' | 'online' | 'bank';
+    notes?: string;
+  }): Promise<CustomerAdvanceRecord> {
+    const advRecord: CustomerAdvanceRecord = {
+      id: `adv-${Date.now()}`,
+      customer_id: data.customerId,
+      customer_name: data.customerName,
+      amount: data.amount,
+      date: data.date,
+      payment_method: data.paymentMethod,
+      notes: data.notes,
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      const stored: CustomerAdvanceRecord[] = JSON.parse(localStorage.getItem('spp_customer_advances') || '[]');
+      stored.unshift(advRecord);
+      localStorage.setItem('spp_customer_advances', JSON.stringify(stored));
+    } catch (e) {
+      console.warn('Could not save customer advance to localStorage:', e);
+    }
+
+    // Also update the customer's total advance
+    const cust = await this.getCustomerById(data.customerId);
+    if (cust) {
+      const currentAdv = Number(cust.advance_amount || 0);
+      await this.updateCustomer(cust.id, {
+        advance_amount: currentAdv + data.amount,
+        advance_date: data.date,
+        advance_notes: data.notes,
+        advance_payment_method: data.paymentMethod,
+      });
+    }
+
+    // Also record expense so Cash Book / Accounts accurately reflect advance paid to customer
+    try {
+      await this.createExpense({
+        expense_code: `ADV-${Date.now().toString().slice(-5)}`,
+        category: 'other',
+        category_name_urdu: 'گاہک ایڈوانس',
+        description: `Customer Advance Paid: ${data.customerName}`,
+        amount: data.amount,
+        expense_date: data.date,
+        person_name: data.customerName,
+        payment_method: data.paymentMethod,
+        notes: data.notes || `Advance paid to customer ${data.customerName}`,
+      });
+    } catch (err) {
+      console.warn('Could not record expense for customer advance:', err);
+    }
+
+    return advRecord;
+  },
+
+  async deleteCustomerAdvance(id: string): Promise<void> {
+    try {
+      const stored: CustomerAdvanceRecord[] = JSON.parse(localStorage.getItem('spp_customer_advances') || '[]');
+      const target = stored.find(r => r.id === id);
+      const filtered = stored.filter(r => r.id !== id);
+      localStorage.setItem('spp_customer_advances', JSON.stringify(filtered));
+
+      if (target) {
+        const cust = await this.getCustomerById(target.customer_id);
+        if (cust) {
+          const currentAdv = Number(cust.advance_amount || 0);
+          await this.updateCustomer(cust.id, {
+            advance_amount: Math.max(0, currentAdv - target.amount),
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Could not delete customer advance:', e);
+    }
   },
 
   // ---------------------------------------------------------------------------

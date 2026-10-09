@@ -39,7 +39,7 @@ export interface Customer {
   rate_kachara?: number; // Price per KG for Kachara (کچرا وزن)
   collection_start_time?: string | null; // e.g. "10:00:00"
   collection_end_time?: string | null; // e.g. "12:00:00"
-  category_rates: Record<string, number>;
+  category_rates: Record<string, any>;
   status: 'active' | 'inactive';
   notes: string | null;
   is_deleted: boolean;
@@ -61,6 +61,24 @@ export interface Customer {
   gosht_total?: number | null;          // گوشت کل رقم (Gosht Total PKR)
   bakaya_raqam?: number | null;         // بقایہ رقم (Previous Outstanding Balance)
   total_raqam?: number | null;          // کل رقم (Total Amount = Boles + Thai + Gosht + Bakaya)
+
+  // Customer Advance Fields (گاہک کو دیا گیا ایڈوانس)
+  advance_amount?: number | null;       // کل ایڈوانس رقم (Advance Paid to Customer in PKR)
+  advance_date?: string | null;         // تاریخ ایڈوانس (Date Advance Paid)
+  advance_notes?: string | null;        // ایڈوانس تفصیل (Advance Notes / Receipt #)
+  advance_payment_method?: 'cash' | 'online' | 'bank' | null;
+}
+
+export interface CustomerAdvanceRecord {
+  id: string;
+  customer_id: string;
+  customer_name?: string;
+  amount: number;
+  date: string;
+  payment_method: 'cash' | 'online' | 'bank';
+  notes?: string;
+  receipt_no?: string;
+  created_at: string;
 }
 
 export interface WorkerLocation {
