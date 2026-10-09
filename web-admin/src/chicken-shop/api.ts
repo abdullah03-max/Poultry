@@ -11,10 +11,26 @@ import {
   ChickenPayment,
   ChickenStockLog,
   ChickenShopLedgerEntry,
+  FreshChickenArrival,
 } from './types';
 
-// Default 8 Chicken cuts as explicitly requested
+export const FRESH_CHICKEN_PRODUCT_ID = 'prod-fresh-chicken';
+
+export const DEFAULT_FRESH_CHICKEN_PRODUCT: ChickenProduct = {
+  id: FRESH_CHICKEN_PRODUCT_ID,
+  name: 'Fresh Chicken',
+  urdu_name: 'تازہ مرغی (زندہ / ہول چکن)',
+  category: 'Fresh Live Chicken',
+  unit: 'KG',
+  rate_per_kg: 440,
+  stock_kg: 100.0,
+  min_stock_alert: 25.0,
+  is_active: true,
+};
+
+// Default Chicken cuts + Fresh Chicken as explicitly requested
 export const DEFAULT_CHICKEN_PRODUCTS: ChickenProduct[] = [
+  DEFAULT_FRESH_CHICKEN_PRODUCT,
   {
     id: 'prod-drumsticks',
     name: 'Drumsticks',
@@ -157,6 +173,7 @@ const STORAGE_KEYS = {
   sales: 'cs_portal_sales',
   payments: 'cs_portal_payments',
   stockLogs: 'cs_portal_stock_logs',
+  freshArrivals: 'cs_portal_fresh_arrivals',
 };
 
 export const chickenShopApi = {
@@ -164,6 +181,13 @@ export const chickenShopApi = {
   // PRODUCTS
   // ---------------------------------------------------------------------------
   async getProducts(): Promise<ChickenProduct[]> {
+    const ensureFreshChicken = (list: ChickenProduct[]): ChickenProduct[] => {
+      if (!list.some(p => p.id === FRESH_CHICKEN_PRODUCT_ID)) {
+        list.unshift(DEFAULT_FRESH_CHICKEN_PRODUCT);
+      }
+      return list;
+    };
+
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -171,8 +195,9 @@ export const chickenShopApi = {
           .select('*')
           .order('name');
         if (!error && data && data.length > 0) {
-          localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(data));
-          return data as ChickenProduct[];
+          const merged = ensureFreshChicken(data as ChickenProduct[]);
+          localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(merged));
+          return merged;
         }
       } catch (e) {
         console.warn('[CS API] Supabase products read fallback:', e);
@@ -182,7 +207,10 @@ export const chickenShopApi = {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.products);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        const merged = ensureFreshChicken(parsed);
+        localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(merged));
+        return merged;
       }
     } catch {}
 
@@ -830,5 +858,135 @@ export const chickenShopApi = {
       lowStockProductsCount,
       totalStockKg: Number(totalStockKg.toFixed(2)),
     };
+  },
+
+  // ---------------------------------------------------------------------------
+  // FRESH CHICKEN ARRIVALS & STOCK
+  // ---------------------------------------------------------------------------
+  async getFreshChickenArrivals(): Promise<FreshChickenArrival[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_fresh_arrivals')
+          .select('*')
+          .order('date', { ascending: false });
+        if (!error && data && data.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(data));
+          return data as FreshChickenArrival[];
+        }
+      } catch (e) {
+        console.warn('[CS API] Supabase fresh arrivals fallback:', e);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.freshArrivals);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+
+    const initialArrivals: FreshChickenArrival[] = [
+      {
+        id: 'fca-init-01',
+        date: new Date().toISOString().split('T')[0],
+        time: '08:30:00',
+        weight_kg: 100.0,
+        rate_per_kg: 380,
+        total_cost: 38000,
+        selling_rate_per_kg: 440,
+        supplier_name: 'پنجاب پولٹری فارم (گاڑی 4)',
+        birds_count: 55,
+        vehicle_no: 'FD-1892',
+        notes: 'تازہ مرغی فارم آمد',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(initialArrivals));
+    return initialArrivals;
+  },
+
+  async saveFreshChickenArrival(entry: Omit<FreshChickenArrival, 'id' | 'created_at'>): Promise<FreshChickenArrival> {
+    const newArrival: FreshChickenArrival = {
+      ...entry,
+      id: `fca-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
+
+    const arrivals = await this.getFreshChickenArrivals();
+    arrivals.unshift(newArrival);
+    localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(arrivals));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_fresh_arrivals').insert([newArrival]);
+      } catch (e) {
+        console.warn('[CS API] Supabase fresh arrival insert fallback:', e);
+      }
+    }
+
+    // Ensure Fresh Chicken product exists and increase its stock
+    const products = await this.getProducts();
+    let fcProd = products.find(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
+    if (!fcProd) {
+      fcProd = {
+        ...DEFAULT_FRESH_CHICKEN_PRODUCT,
+        stock_kg: entry.weight_kg,
+        rate_per_kg: entry.selling_rate_per_kg || DEFAULT_FRESH_CHICKEN_PRODUCT.rate_per_kg,
+      };
+      await this.saveProduct(fcProd);
+    } else {
+      await this.updateProductStock(
+        FRESH_CHICKEN_PRODUCT_ID,
+        entry.weight_kg,
+        'purchase',
+        `تازہ چکن فارم آمد: ${entry.supplier_name || 'سپلائر'} (${entry.weight_kg}kg @ Rs.${entry.rate_per_kg})`,
+        newArrival.id
+      );
+      if (entry.selling_rate_per_kg > 0) {
+        await this.saveProduct({
+          ...fcProd,
+          rate_per_kg: entry.selling_rate_per_kg,
+        });
+      }
+    }
+
+    return newArrival;
+  },
+
+  async deleteFreshChickenArrival(id: string): Promise<void> {
+    const arrivals = await this.getFreshChickenArrivals();
+    const target = arrivals.find(a => a.id === id);
+    if (!target) return;
+
+    const filtered = arrivals.filter(a => a.id !== id);
+    localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(filtered));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_fresh_arrivals').delete().eq('id', id);
+      } catch (e) {
+        console.warn('[CS API] Supabase fresh arrival delete fallback:', e);
+      }
+    }
+
+    // Rollback stock
+    await this.updateProductStock(
+      FRESH_CHICKEN_PRODUCT_ID,
+      -target.weight_kg,
+      'adjustment',
+      `حذف شدہ تازہ چکن آمد رول بیک (Reversed ${target.weight_kg}kg)`,
+      id
+    );
+  },
+
+  async updateFreshChickenSellingRate(newRate: number): Promise<void> {
+    const products = await this.getProducts();
+    const fcProd = products.find(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
+    if (fcProd) {
+      await this.saveProduct({
+        ...fcProd,
+        rate_per_kg: newRate,
+      });
+    }
   },
 };

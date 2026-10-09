@@ -103,3 +103,18 @@ export interface ChickenShopLedgerEntry {
   running_balance: number;
   reference_id?: string;
 }
+
+export interface FreshChickenArrival {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm:ss
+  weight_kg: number;
+  rate_per_kg: number; // Purchase / Cost rate per kg
+  total_cost: number;
+  selling_rate_per_kg: number; // Current selling rate per kg
+  supplier_name?: string | null;
+  birds_count?: number | null;
+  vehicle_no?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
