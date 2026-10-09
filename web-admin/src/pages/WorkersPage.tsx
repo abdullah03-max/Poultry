@@ -277,14 +277,14 @@ export const WorkersPage: React.FC = () => {
       <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-card">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-brand-700 text-xs font-semibold mb-2">
-              <UserCheck className="w-3.5 h-3.5" /> Worker Accounts & Permissions
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
+              <UserCheck className="w-3.5 h-3.5" /> ورکر اکاؤنٹس و لائیو ٹریکنگ
             </div>
-            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Field Workers Management
+            <h2 className="text-xl font-black text-slate-900 tracking-tight font-urdu">
+              فیلڈ ورکرز مینجمنٹ (Field Workers & GPS Tracking)
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-xl">
-              Create and manage mobile collector accounts. Generated worker credentials allow employees to log into the Worker Mobile App to record poultry waste collections in the field.
+              موبائل کلیکٹر ملازمین کے اکاؤنٹس بنائیں، پاس ورڈ ری سیٹ کریں، اور فیلڈ لوکیشن ٹریک کریں
             </p>
           </div>
 
@@ -298,10 +298,10 @@ export const WorkersPage: React.FC = () => {
               setActionSuccess(null);
               setIsAddModalOpen(true);
             }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition active:scale-95 shrink-0"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 shrink-0 font-urdu"
           >
             <UserPlus className="w-4 h-4" />
-            <span>Add New Worker</span>
+            <span>+ نیا ورکر شامل کریں (Add Worker)</span>
           </button>
         </div>
 

@@ -46,10 +46,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   // Realtime Collection Schedule Alerts for overdue customer visits today
   const { alerts: scheduleAlerts } = useCollectionScheduleAlerts(collections);
 
+  const [workersCount, setWorkersCount] = useState<number>(2);
+
   useEffect(() => {
-    Promise.all([api.getCustomers(), api.getWeightCategories()]).then(([c, w]) => {
+    Promise.all([
+      api.getCustomers(),
+      api.getWeightCategories(),
+      api.getWorkers().catch(() => []),
+    ]).then(([c, w, wrk]) => {
       setCustomers(c);
       setCategories(w);
+      if (wrk && wrk.length > 0) setWorkersCount(wrk.length);
     });
   }, []);
 
@@ -90,35 +97,106 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="space-y-6 text-slate-800">
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 md:p-8 shadow-card text-slate-900">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-          <div className="space-y-1.5 sm:space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Operations Command Center
+      {/* Sleek Operations Welcome & Status Header */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-5 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
+            SP
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight font-urdu">
+                شان پولٹری پروٹین مینجمنٹ (Shan Poultry Operations)
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Realtime
+              </span>
             </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-              SHAN POULTRY PROTEIN
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 font-normal">
-              Realtime Poultry Waste Collection & Weight Management Portal. Monitoring live field collections across Gaggoo Mandi, Burewala, Vehari, and Sahiwal.
+            <p className="text-xs text-slate-500 mt-0.5">
+              ریئل ٹائم ویسٹ کلیکشن و وزن کنٹرول پورٹل • گگو منڈی، بورے والا، وہاڑی، ساہیوال
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
-            <button
-              onClick={() => onNavigateTab('monthly-register')}
-              className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-300 shadow-xs transition text-center"
-            >
-              Monthly Register
-            </button>
-            <button
-              onClick={onOpenNewCollection}
-              className="flex-1 sm:flex-none px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition active:scale-95 text-center"
-            >
-              + Record Collection
-            </button>
-          </div>
         </div>
+
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <button
+            onClick={() => onNavigateTab('monthly-register')}
+            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200 transition text-center font-urdu"
+          >
+            📅 ماہانہ رجسٹر
+          </button>
+          <button
+            onClick={onOpenNewCollection}
+            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition active:scale-95 text-center font-urdu"
+          >
+            ➕ نئی کلیکشن پرچی
+          </button>
+        </div>
+      </div>
+
+      {/* 4 Master Quick Action Hub Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* 1. Record Slip */}
+        <button
+          onClick={onOpenNewCollection}
+          className="group p-4 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-3xl shadow-sm hover:shadow-md transition-all duration-200 text-left flex items-center gap-3.5 cursor-pointer active:scale-98"
+        >
+          <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Scale className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100 block">فوری اندراج</span>
+            <h4 className="text-sm sm:text-base font-black font-urdu leading-tight">نئی کلیکشن پرچی</h4>
+            <p className="text-[10px] text-blue-100/90 truncate mt-0.5">+ Record Waste Slip</p>
+          </div>
+        </button>
+
+        {/* 2. Monthly Register */}
+        <button
+          onClick={() => onNavigateTab('monthly-register')}
+          className="group p-4 bg-gradient-to-br from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-3xl shadow-sm hover:shadow-md transition-all duration-200 text-left flex items-center gap-3.5 cursor-pointer active:scale-98"
+        >
+          <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <CalendarCheck className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-100 block">کھاتہ رجسٹر</span>
+            <h4 className="text-sm sm:text-base font-black font-urdu leading-tight">ماہانہ رجسٹر شیٹ</h4>
+            <p className="text-[10px] text-emerald-100/90 truncate mt-0.5">Monthly Weight Matrix</p>
+          </div>
+        </button>
+
+        {/* 3. Chicken Shop Management */}
+        <a
+          href="/?page=chicken-management"
+          target="_blank"
+          rel="noreferrer"
+          className="group p-4 bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-3xl shadow-sm hover:shadow-md transition-all duration-200 text-left flex items-center gap-3.5 cursor-pointer active:scale-98"
+        >
+          <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+            🍗
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-100 block">گوشت سیلز و کھاتہ</span>
+            <h4 className="text-sm sm:text-base font-black font-urdu leading-tight">چکن شاپ مینجمنٹ</h4>
+            <p className="text-[10px] text-amber-100/90 truncate mt-0.5">Meat POS & Khata ↗</p>
+          </div>
+        </a>
+
+        {/* 4. Customers Directory */}
+        <button
+          onClick={() => onNavigateTab('customers')}
+          className="group p-4 bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-3xl shadow-sm hover:shadow-md transition-all duration-200 text-left flex items-center gap-3.5 cursor-pointer active:scale-98"
+        >
+          <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Users className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-100 block">گاہک و دکانیں</span>
+            <h4 className="text-sm sm:text-base font-black font-urdu leading-tight">گاہک کھاتہ جات</h4>
+            <p className="text-[10px] text-purple-100/90 truncate mt-0.5">Customers & Advance</p>
+          </div>
+        </button>
       </div>
 
       {/* Scheduled Collection Overdue Alerts Banner */}
@@ -130,8 +208,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <AlertTriangle className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-black text-sm sm:text-base text-rose-950">
-                  وقت وصولی الرٹ (Schedule Collection Alerts) — {scheduleAlerts.length} دکانیں مقررہ وقت سے تاخیر کا شکار
+                <h3 className="font-black text-sm sm:text-base text-rose-950 font-urdu">
+                  وقت وصولی الرٹ (Schedule Alerts) — {scheduleAlerts.length} دکانیں مقررہ وقت سے تاخیر کا شکار
                 </h3>
                 <p className="text-xs text-rose-700">
                   Following shops have passed their scheduled collection deadline without any recorded collection today:
@@ -140,9 +218,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
             <button
               onClick={() => onNavigateTab('customers')}
-              className="text-xs font-bold text-rose-800 bg-rose-100 hover:bg-rose-200 px-3 py-1.5 rounded-xl transition"
+              className="text-xs font-bold text-rose-800 bg-rose-100 hover:bg-rose-200 px-3 py-1.5 rounded-xl transition font-urdu"
             >
-              Manage Schedule →
+              شیڈول دیکھیں →
             </button>
           </div>
 
@@ -179,47 +257,53 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       )}
 
-      {/* KPI Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* 6 Master Bilingual KPI Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
         <StatCard
-          title="Today's Net Weight"
+          title="Today Weight"
+          urduTitle="آج کا کل وزن"
           value={formatWeight(todayTotalWeight)}
-          subtext={`${todayCollections.length} slips recorded`}
+          subtext={`${todayCollections.length} پرچیاں موصول`}
           icon={Scale}
           color="blue"
         />
         <StatCard
-          title="Today's Collections"
+          title="Today Slips"
+          urduTitle="آج کی کلیکشنز"
           value={todayCollections.length}
-          subtext="Field slips today"
+          subtext="فیلڈ پرچیاں آج"
           icon={CalendarCheck}
           color="emerald"
         />
         <StatCard
           title="Active Shops"
+          urduTitle="فعال دکانیں"
           value={customers.filter(c => c.status === 'active').length}
-          subtext="Registered clients"
+          subtext="رجسٹرڈ کلائنٹس"
           icon={Users}
           color="purple"
         />
         <StatCard
           title="Field Workers"
-          value="2"
-          subtext="Mobile collectors"
+          urduTitle="فیلڈ ورکرز"
+          value={workersCount}
+          subtext="موبائل کلیکٹرز"
           icon={HardHat}
           color="amber"
         />
         <StatCard
-          title="Month Net Weight"
+          title="Month Weight"
+          urduTitle="ماہانہ کل وزن"
           value={formatWeight(monthTotalWeight)}
-          subtext="Current month total"
+          subtext="موجودہ مہینے کا ٹوٹل"
           icon={TrendingUp}
           color="blue"
         />
         <StatCard
-          title="Month Total Value"
+          title="Month Value"
+          urduTitle="ماہانہ کل مالیت"
           value={formatCurrency(monthTotalAmount)}
-          subtext="Calculated billing"
+          subtext="حساب شدہ ویسٹ بل"
           icon={DollarSign}
           color="amber"
         />

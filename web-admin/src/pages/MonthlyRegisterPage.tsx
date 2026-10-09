@@ -108,11 +108,11 @@ export const MonthlyRegisterPage: React.FC<MonthlyRegisterPageProps> = ({ refres
             <Calendar className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-              Digitized Monthly Weight Register
+            <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight font-urdu">
+              ماہانہ کلیکشن رجسٹر گرڈ (Monthly Weight Register)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Replaces the physical register sheet. Displays each customer against days 1 to {registerData.daysInMonth}.
+              ہر گاہک کے 1 سے {registerData.daysInMonth} تاریخ تک روزانہ وزن، خودکار ٹوٹل، اور ماہانہ بل
             </p>
           </div>
         </div>

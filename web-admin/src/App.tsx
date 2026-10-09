@@ -262,53 +262,64 @@ const AdminApp: React.FC = () => {
     return <LoginPage />;
   }
 
-  const pageHeaders: Record<NavigationTab, { title: string; subtitle: string; showPrint?: boolean }> = {
+  const pageHeaders: Record<NavigationTab, { title: string; urduTitle: string; subtitle: string; showPrint?: boolean }> = {
     dashboard: {
       title: 'Operations Dashboard',
+      urduTitle: 'ڈیش بورڈ خلاصہ',
       subtitle: 'Realtime collections, daily weights, and regional overview',
     },
     'monthly-register': {
       title: 'Monthly Weight Register',
+      urduTitle: 'ماہانہ رجسٹر گرڈ',
       subtitle: 'Customer vs. Days 1–31 grid matrix with auto-calculated totals',
       showPrint: true,
     },
     factories: {
       title: 'Factories & Industrial Buyers',
+      urduTitle: 'فیکٹریاں و سپلائی',
       subtitle: 'Buyer accounts, delivery ledgers, Charbi & Kachara supply records, and WhatsApp invoices',
     },
     expenses: {
       title: 'Operational Expenses',
+      urduTitle: 'اخراجات و کیش بُک',
       subtitle: 'Driver wages, vehicle fuel/diesel, freight, maintenance, and cash disbursements',
     },
     'daily-records': {
       title: 'Daily Record Sheet',
+      urduTitle: 'روزانہ ریکارڈ شیٹ',
       subtitle: 'Daily customer-by-customer reconciliation and receipts',
       showPrint: true,
     },
     collections: {
       title: 'All Collection Records',
+      urduTitle: 'کلیکشن پرچیاں',
       subtitle: 'Complete searchable and filterable database of weight slips',
     },
     customers: {
       title: 'Customers Directory',
+      urduTitle: 'ویسٹ گاہک و دکانیں',
       subtitle: 'Poultry shops, wholesale dealers, and rate schedules',
     },
     'chicken-shop': {
       title: 'Chicken Shop Management & Khata',
+      urduTitle: 'چکن شاپ و ڈیجیٹل کھاتہ',
       subtitle: 'Boneless, Thai, Gosht sales, Dokan Khata, Customer Khata, and WhatsApp statements',
       showPrint: true,
     },
     workers: {
       title: 'Field Workers & Collectors',
+      urduTitle: 'ورکرز مینجمنٹ',
       subtitle: 'Active mobile employees recording waste weights',
     },
     reports: {
       title: 'Reports & Statements',
+      urduTitle: 'رپورٹس و منافع',
       subtitle: 'Custom date range reports and CSV exports',
       showPrint: true,
     },
     settings: {
       title: 'Business & System Settings',
+      urduTitle: 'سسٹم ترتیبات',
       subtitle: 'Dynamic weight categories, rates, and register parameters',
     },
   };
@@ -327,10 +338,11 @@ const AdminApp: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 ml-0 flex flex-col min-w-0 w-full transition-all duration-300 bg-slate-50">
+      <div className="flex-1 lg:ml-72 ml-0 flex flex-col min-w-0 w-full transition-all duration-300 bg-slate-50">
         {/* Sticky Top Header */}
         <Header
           title={currentHeader.title}
+          urduTitle={currentHeader.urduTitle}
           subtitle={currentHeader.subtitle}
           realtimeActive={realtimeActive}
           collections={collections}

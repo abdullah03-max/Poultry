@@ -7,6 +7,7 @@ import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface HeaderProps {
   title: string;
+  urduTitle?: string;
   subtitle?: string;
   realtimeActive?: boolean;
   collections?: Collection[];
@@ -26,6 +27,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   title,
+  urduTitle,
   subtitle,
   realtimeActive = false,
   collections = [],
@@ -75,11 +77,18 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <div className="min-w-0">
-          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 tracking-tight truncate">
-            {title}
-          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base sm:text-lg lg:text-xl font-black text-slate-900 tracking-tight">
+              {title}
+            </h2>
+            {urduTitle && (
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 text-xs font-urdu font-bold hidden sm:inline">
+                {urduTitle}
+              </span>
+            )}
+          </div>
           {subtitle && (
-            <p className="hidden md:block text-xs text-slate-500 mt-0.5 truncate">{subtitle}</p>
+            <p className="hidden md:block text-xs text-slate-500 font-medium mt-0.5 truncate max-w-xl">{subtitle}</p>
           )}
         </div>
       </div>

@@ -245,9 +245,11 @@ export const SettingsPage: React.FC = () => {
             <Settings className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Business Configuration</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight font-urdu">
+              سسٹم ترتیبات و کنفیگریشن (Business Settings)
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Configure company branding, weight category terminology, billing formulas, and register display rules.
+              کاروباری پروفائل، پرچی ترتیبات، چربی و کچرا ڈیفالٹ ریٹس، اور ایڈمن سیکیورٹی پن
             </p>
           </div>
         </div>
@@ -255,10 +257,10 @@ export const SettingsPage: React.FC = () => {
         <button
           type="submit"
           disabled={saving}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition shrink-0"
+          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition shrink-0 font-urdu active:scale-95"
         >
           {saving ? <Check className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          <span>{saving ? 'Saving Changes...' : 'Save Settings'}</span>
+          <span>{saving ? 'محفوظ ہو رہا ہے...' : 'سیٹنگز محفوظ کریں (Save)'}</span>
         </button>
       </div>
 

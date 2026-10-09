@@ -43,6 +43,14 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         mobile: resolve(__dirname, 'mobile.html'),
       },
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-leaflet': ['leaflet'],
+        },
+      },
     },
   },
   server: {

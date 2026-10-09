@@ -79,18 +79,18 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
   return (
     <div className="space-y-6">
       {/* Date Header & Quick Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-card no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-card no-print">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                Daily Weight Record Sheet
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight font-urdu">
+                روزانہ کلیکشن ریکارڈ شیٹ (Daily Weight Record)
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Reconciles all individual shop collections recorded on {formatDate(selectedDate)}.
+                تاریخ <strong>{formatDate(selectedDate)}</strong> کے تمام ویسٹ کلیکشن اور پرچیوں کا روزنامچہ
               </p>
             </div>
           </div>
@@ -125,17 +125,17 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
 
           <button
             onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition font-urdu"
           >
-            Today
+            📅 آج (Today)
           </button>
 
           <button
             onClick={triggerPrint}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition"
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition font-urdu"
           >
             <Printer className="w-4 h-4" />
-            <span>Print Sheet</span>
+            <span>پرنٹ شیٹ (Print)</span>
           </button>
         </div>
       </div>
@@ -148,51 +148,63 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
       </div>
 
       {/* Summary KPI Badges */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-card">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Net Weight</p>
-            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Net Weight</p>
+              <p className="text-xs font-urdu font-semibold text-slate-800 mt-0.5">آج کا خالص وزن</p>
+            </div>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
               <Scale className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-blue-600 font-mono mt-2">{formatWeight(totalNet)}</p>
-          <p className="text-[11px] text-slate-400 mt-1 font-mono">Gross: {formatWeight(totalGross)} | Tare: -{formatWeight(totalTare)}</p>
+          <p className="text-xl sm:text-2xl font-black text-blue-700 font-mono mt-2">{formatWeight(totalNet)}</p>
+          <p className="text-[10px] text-slate-400 mt-1 font-mono">Gross: {formatWeight(totalGross)} | Tare: -{formatWeight(totalTare)}</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-card">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Day Billing</p>
-            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+            <div>
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Total Day Billing</p>
+              <p className="text-xs font-urdu font-semibold text-amber-900 mt-0.5">کل مالیت رقم</p>
+            </div>
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-amber-600 font-mono mt-2">{formatCurrency(totalAmount)}</p>
-          <p className="text-[11px] text-slate-400 mt-1">Total revenue generated</p>
+          <p className="text-xl sm:text-2xl font-black text-amber-700 font-mono mt-2">{formatCurrency(totalAmount)}</p>
+          <p className="text-[10px] text-amber-600 mt-1">آج کی کل بننے والی رقم</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-card">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Slips Completed</p>
-            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+            <div>
+              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Slips Completed</p>
+              <p className="text-xs font-urdu font-semibold text-emerald-900 mt-0.5">کل موصول پرچیاں</p>
+            </div>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
               <FileSpreadsheet className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900 font-mono mt-2">{collections.length}</p>
-          <p className="text-[11px] text-slate-400 mt-1">Unique customer receipts</p>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 font-mono mt-2">{collections.length}</p>
+          <p className="text-[10px] text-emerald-600 mt-1">مکمل فیلڈ کلیکشن پرچیاں</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-card">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Average / Slip</p>
-            <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+            <div>
+              <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Average / Slip</p>
+              <p className="text-xs font-urdu font-semibold text-purple-900 mt-0.5">اوسط وزن فی دکان</p>
+            </div>
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
               <Scale className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900 font-mono mt-2">
+          <p className="text-xl sm:text-2xl font-black text-purple-700 font-mono mt-2">
             {formatWeight(collections.length > 0 ? totalNet / collections.length : 0)}
           </p>
-          <p className="text-[11px] text-slate-400 mt-1">Per shop average</p>
+          <p className="text-[10px] text-purple-600 mt-1">فی پرچی اوسط مال</p>
         </div>
       </div>
 

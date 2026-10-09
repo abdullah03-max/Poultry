@@ -53,17 +53,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { logout, profile } = useAuth();
   const { isInstalled, triggerInstall } = usePWAInstall();
 
-  const navItems: { id: NavigationTab; label: string; urdu: string; icon: any; badge?: string }[] = [
-    { id: 'dashboard', label: 'Dashboard', urdu: 'ڈیش بورڈ', icon: LayoutDashboard },
-    { id: 'monthly-register', label: 'Monthly Register', urdu: 'ماہانہ رجسٹر', icon: TableProperties },
-    { id: 'factories', label: 'Factories (فیکٹریاں)', urdu: 'فیکٹریاں و سیلز', icon: FactoryIcon },
-    { id: 'expenses', label: 'Expenses (اخراجات)', urdu: 'اخراجات و کیش', icon: ReceiptIcon },
-    { id: 'daily-records', label: 'Daily Records', urdu: 'روزانہ ریکارڈ', icon: CalendarCheck },
-    { id: 'collections', label: 'All Collections', urdu: 'کلیکشن ریکارڈز', icon: Scale },
-    { id: 'customers', label: 'Customers', urdu: 'ویسٹ گاہک و دکانیں', icon: Users },
-    { id: 'workers', label: 'Workers Management', urdu: 'ورکرز مینجمنٹ', icon: UserCheck, badge: 'Admin' },
-    { id: 'reports', label: 'Reports & P&L', urdu: 'رپورٹس و منافع', icon: FileSpreadsheet },
-    { id: 'settings', label: 'System Settings', urdu: 'ترتیبات', icon: Settings },
+  const navSections: {
+    groupTitle: string;
+    groupEnglish: string;
+    items: { id: NavigationTab; label: string; urdu: string; icon: any; badge?: string }[];
+  }[] = [
+    {
+      groupTitle: 'روزمرہ آپریشنز',
+      groupEnglish: 'Core Operations',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', urdu: 'ڈیش بورڈ خلاصہ', icon: LayoutDashboard },
+        { id: 'monthly-register', label: 'Monthly Register', urdu: 'ماہانہ رجسٹر گرڈ', icon: TableProperties },
+        { id: 'daily-records', label: 'Daily Records', urdu: 'روزانہ ریکارڈ شیٹ', icon: CalendarCheck },
+        { id: 'collections', label: 'All Collections', urdu: 'کلیکشن پرچیاں', icon: Scale },
+      ],
+    },
+    {
+      groupTitle: 'کھاتے و مینجمنٹ',
+      groupEnglish: 'Accounts & Management',
+      items: [
+        { id: 'customers', label: 'Waste Customers', urdu: 'ویسٹ گاہک و دکانیں', icon: Users },
+        { id: 'factories', label: 'Factories & Sales', urdu: 'فیکٹریاں و مال سپلائی', icon: FactoryIcon },
+        { id: 'expenses', label: 'Expenses & Cash', urdu: 'اخراجات و کیش بُک', icon: ReceiptIcon },
+        { id: 'workers', label: 'Field Workers', urdu: 'ورکرز مینجمنٹ', icon: UserCheck, badge: 'Admin' },
+      ],
+    },
+    {
+      groupTitle: 'رپورٹس و ترتیبات',
+      groupEnglish: 'System & Reports',
+      items: [
+        { id: 'reports', label: 'Reports & P&L', urdu: 'رپورٹس و اسٹیٹمنٹس', icon: FileSpreadsheet },
+        { id: 'settings', label: 'System Settings', urdu: 'سسٹم ترتیبات', icon: Settings },
+      ],
+    },
   ];
 
   const handleTabClick = (tabId: NavigationTab) => {
@@ -86,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Main Responsive Sidebar Drawer */}
       <aside
-        className={`w-64 bg-white border-r border-slate-200 flex flex-col h-screen fixed left-0 top-0 z-50 no-print select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`w-72 bg-white border-r border-slate-200 flex flex-col h-screen fixed left-0 top-0 z-50 no-print select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
@@ -115,95 +137,128 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Navigation Links */}
-        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto bg-white">
-          <div className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Admin Portal
-          </div>
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            const Icon = item.icon;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleTabClick(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-xs transition-all duration-150 group cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'}`} />
-                  <span className="truncate">{item.label}</span>
-                  {lockedSections.includes(item.id) && (
-                    <LockIcon className="w-3 h-3 text-amber-500 shrink-0" />
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {item.badge && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
-                    }`}>
-                      {item.badge}
-                    </span>
-                  )}
-                  <span className={`text-[10px] font-urdu opacity-85 ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
-                    {item.urdu}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-
-          {/* Dedicated Standalone Chicken Shop & Khata Link (Opens in New Tab) */}
-          <div className="pt-2">
-            <a
-              href="/?page=chicken-management"
-              target="_blank"
-              rel="noreferrer"
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100/70 border border-amber-200 text-amber-900 hover:from-amber-100 hover:to-amber-200 text-xs font-bold transition group"
-              title="نئی ٹیب میں چکن شاپ و ڈیجیٹل کھاتہ کھولیں"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <Store className="w-4 h-4 text-amber-700 shrink-0" />
-                <span className="truncate">🍗 چکن شاپ و کھاتہ</span>
+        {/* Dedicated Standalone Chicken Shop & Khata Link (Prominent Top Card) */}
+        <div className="px-3 pt-3">
+          <a
+            href="/?page=chicken-management"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/20 hover:from-amber-600 hover:to-amber-700 transition-all duration-200 group active:scale-98"
+            title="نئی ٹیب میں چکن شاپ و ڈیجیٹل کھاتہ کھولیں"
+          >
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg shrink-0">
+              🍗
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black tracking-tight text-white truncate">چکن شاپ مینجمنٹ</span>
+                <ExternalLink className="w-3.5 h-3.5 text-amber-100 group-hover:translate-x-0.5 transition-transform shrink-0" />
               </div>
-              <ExternalLink className="w-3.5 h-3.5 text-amber-700 group-hover:translate-x-0.5 transition-transform shrink-0" />
-            </a>
-          </div>
+              <p className="text-[10px] text-amber-100 font-urdu truncate mt-0.5">ڈیجیٹل کھاتہ و گوشت سیلز (New Tab ↗)</p>
+            </div>
+          </a>
+        </div>
 
-          {/* Mobile Worker Quick Link */}
-          <div className="pt-1.5">
+        {/* Navigation Links */}
+        <nav className="flex-1 px-3 py-2 space-y-4 overflow-y-auto bg-white">
+          {navSections.map((section, sIdx) => (
+            <div key={sIdx} className="space-y-1">
+              <div className="px-2.5 pb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span>{section.groupEnglish}</span>
+                <span className="font-urdu text-slate-400 text-[11px] font-semibold">{section.groupTitle}</span>
+              </div>
+
+              {section.items.map(item => {
+                const isActive = activeTab === item.id;
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleTabClick(item.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl transition-all duration-150 group cursor-pointer text-left ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                        : 'text-slate-700 hover:text-slate-950 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div
+                      className={`p-2 rounded-xl shrink-0 transition-colors ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span
+                          className={`text-xs font-bold truncate ${
+                            isActive ? 'text-white' : 'text-slate-900'
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                        {item.badge && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider shrink-0 ${
+                              isActive
+                                ? 'bg-white/20 text-white'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                        {lockedSections.includes(item.id) && (
+                          <LockIcon className="w-3 h-3 text-amber-400 shrink-0" />
+                        )}
+                      </div>
+                      <span
+                        className={`text-[11px] font-urdu block truncate mt-0.5 ${
+                          isActive ? 'text-blue-100' : 'text-slate-400 group-hover:text-slate-600'
+                        }`}
+                      >
+                        {item.urdu}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+
+          {/* Quick Utility Links Divider */}
+          <div className="pt-2 border-t border-slate-100 space-y-1.5">
+            {/* Mobile Worker Quick Link */}
             <a
               href="/mobile.html"
               target="_blank"
               rel="noreferrer"
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-blue-50/70 border border-blue-200/80 text-blue-700 hover:bg-blue-100 text-xs font-bold transition group"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition group"
             >
               <div className="flex items-center gap-2 truncate">
                 <Smartphone className="w-4 h-4 text-blue-600 shrink-0" />
-                <span className="truncate">Worker Web Terminal</span>
+                <span className="truncate">ورکر پورٹل (Worker App)</span>
               </div>
-              <ExternalLink className="w-3.5 h-3.5 text-blue-600 group-hover:translate-x-0.5 transition-transform" />
+              <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
             </a>
-          </div>
 
-          {/* Install Desktop App (PWA) */}
-          <div className="pt-1.5">
+            {/* Install Desktop App (PWA) */}
             <button
               onClick={triggerInstall}
               type="button"
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold transition group cursor-pointer"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold transition group cursor-pointer"
               title="Install as a standalone Windows Desktop Application"
             >
               <div className="flex items-center gap-2 truncate">
                 <Download className="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="truncate">{isInstalled ? 'Desktop App Installed' : 'Install Desktop App'}</span>
+                <span className="truncate">{isInstalled ? 'ایپ انسٹال ہے' : 'انسٹال ڈیسک ٹاپ ایپ'}</span>
               </div>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-mono font-bold">
-                {isInstalled ? 'ACTIVE' : 'DESKTOP'}
+              <span className="text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                {isInstalled ? 'INSTALLED' : 'PWA'}
               </span>
             </button>
           </div>

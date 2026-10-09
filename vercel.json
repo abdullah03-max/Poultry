@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm --prefix web-admin run build",
+  "buildCommand": "NODE_OPTIONS='--max-old-space-size=4096' npm --prefix web-admin run build",
   "outputDirectory": "web-admin/dist",
   "cleanUrls": true,
   "rewrites": [

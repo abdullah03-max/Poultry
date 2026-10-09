@@ -611,9 +611,11 @@ export const CustomersPage: React.FC = () => {
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-card space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Poultry Customers & Suppliers</h2>
+            <h2 className="text-lg font-black text-slate-900 tracking-tight font-urdu">
+              ویسٹ گاہک و دکانیں ڈائریکٹری (Waste Customers & Shops)
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Manage chicken dressing centers, retail shops, agreed rates, and pre-paid advances
+              تمام چکن شاپس، طے شدہ چربی و کچرا ریٹ، اور پیشگی ایڈوانس کھاتے کا انتظام
             </p>
           </div>
           <button
@@ -635,10 +637,10 @@ export const CustomersPage: React.FC = () => {
               });
               setEditModalOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition active:scale-95 shrink-0"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 shrink-0 font-urdu"
           >
             <Plus className="w-4 h-4" />
-            <span>Add New Customer</span>
+            <span>+ نیا گاہک شامل کریں (Add Customer)</span>
           </button>
         </div>
 
