@@ -20,6 +20,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   FileText,
+  Trash2,
 } from 'lucide-react';
 import { formatDate } from '../utils/formatters';
 
@@ -28,6 +29,7 @@ interface CustomerLedgerModalProps {
   onClose: () => void;
   onRecordPayment: (customer: ChickenCustomer) => void;
   onCustomerUpdated?: () => void;
+  onDeleteCustomer?: (customer: ChickenCustomer) => void;
 }
 
 export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
@@ -35,6 +37,7 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
   onClose,
   onRecordPayment,
   onCustomerUpdated,
+  onDeleteCustomer,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [entries, setEntries] = useState<ChickenShopLedgerEntry[]>([]);
@@ -196,9 +199,9 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fadeIn">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-600 to-amber-700 p-4 text-white flex items-center justify-between">
+        <div className="bg-gradient-to-r from-amber-600 to-amber-700 p-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-xl">
+            <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-xl shrink-0">
               📖
             </div>
             <div>
@@ -211,17 +214,17 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-end sm:self-center">
             <button
               onClick={handlePrintStatement}
-              className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+              className="px-2.5 sm:px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>پرنٹ اسٹیٹمنٹ</span>
             </button>
             <button
               onClick={handleShareWhatsApp}
-              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+              className="px-2.5 sm:px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5"
             >
               <Share2 className="w-3.5 h-3.5" />
               <span>WhatsApp</span>
@@ -264,13 +267,13 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
         </div>
 
         {/* Action bar */}
-        <div className="px-4 py-2.5 bg-white border-b border-slate-100 flex items-center justify-between">
+        <div className="px-4 py-2.5 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="text-xs text-slate-500 font-medium">
             کل لین دین اندراجات: <strong className="text-slate-800">{entries.length}</strong>
           </div>
           <button
             onClick={() => onRecordPayment(customer)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>نئی رقم وصولی درج کریں (Receive Payment)</span>
@@ -289,8 +292,8 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
               کوئی لین دین کا ریکارڈ موجود نہیں۔
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-              <table className="w-full text-xs text-right">
+            <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-2xs">
+              <table className="w-full text-xs text-right min-w-[560px]">
                 <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
                     <th className="py-2.5 px-3">تاریخ</th>
@@ -335,7 +338,21 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+          {onDeleteCustomer ? (
+            <button
+              onClick={() => {
+                if (confirm(`کیا آپ واقعی گاہک "${customer.name}" اور اس کا مکمل کھاتہ حذف (Delete) کرنا چاہتے ہیں؟\n\n(Are you sure you want to delete customer "${customer.name}" and their Khata?)`)) {
+                  onDeleteCustomer(customer);
+                  onClose();
+                }
+              }}
+              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 transition flex items-center gap-1.5 font-urdu active:scale-95"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>کھاتہ ڈیلیٹ کریں (Delete Khata)</span>
+            </button>
+          ) : <div />}
           <button
             onClick={onClose}
             className="px-5 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-300 rounded-xl transition"

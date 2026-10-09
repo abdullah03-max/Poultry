@@ -360,6 +360,18 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     });
   }, [customers, searchQuery, customerFilter]);
 
+  const handleDeleteCustomer = async (cust: ChickenCustomer) => {
+    if (!confirm(`کیا آپ واقعی گاہک "${cust.name}" اور اس کا مکمل کھاتہ حذف (Delete) کرنا چاہتے ہیں؟\n\n(Are you sure you want to delete customer "${cust.name}" and their Khata?)`)) {
+      return;
+    }
+    try {
+      await chickenShopApi.deleteCustomer(cust.id);
+      await loadAllData();
+    } catch (err: any) {
+      alert(`گاہک ڈیلیٹ کرنے میں مسئلہ: ${err.message || 'Error deleting customer'}`);
+    }
+  };
+
   // ---------------------------------------------------------------------------
   // Filtered Sales History
   // ---------------------------------------------------------------------------
@@ -466,7 +478,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
           </div>
 
           {/* Navigation Tabs Bar */}
-          <nav className="flex space-x-1 sm:space-x-3 overflow-x-auto py-2 border-t border-slate-100 scrollbar-none text-xs font-bold">
+          <nav className="flex space-x-1 sm:space-x-3 overflow-x-auto py-2 border-t border-slate-100 scrollbar-none text-xs font-bold -mx-4 px-4 sm:mx-0 sm:px-0">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition shrink-0 ${
@@ -645,7 +657,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                   </div>
 
                   {/* Total In-Stock Meat */}
-                  <div className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition">
+                  <div className="col-span-2 sm:col-span-1 bg-white p-4 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">
                         موجودہ گوشت اسٹاک
@@ -1003,68 +1015,70 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                               </select>
                             </div>
 
-                            {/* Weight KG */}
-                            <div className="w-full sm:w-36">
-                              <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                                وزن کلوگرام (KG) *
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min="0.05"
-                                  step="0.05"
-                                  required
-                                  value={item.weight_kg}
-                                  onChange={e => handlePosRowValueChange(index, 'weight_kg', e.target.value)}
-                                  placeholder="0.00"
-                                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
-                                />
-                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
-                                  KG
+                            {/* Weight & Rate Row (2 columns on mobile, inline on desktop) */}
+                            <div className="grid grid-cols-2 gap-2 w-full sm:contents">
+                              <div className="w-full sm:w-36">
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                                  وزن کلوگرام (KG) *
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="0.05"
+                                    step="0.05"
+                                    required
+                                    value={item.weight_kg}
+                                    onChange={e => handlePosRowValueChange(index, 'weight_kg', e.target.value)}
+                                    placeholder="0.00"
+                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                                  />
+                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                    KG
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="w-full sm:w-32">
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                                  ریٹ فی کلو (PKR)
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    required
+                                    value={item.rate_per_kg}
+                                    onChange={e => handlePosRowValueChange(index, 'rate_per_kg', e.target.value)}
+                                    placeholder="450"
+                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Line Total & Remove button */}
+                            <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t border-slate-100 sm:border-0">
+                              <div className="sm:w-28 text-left sm:text-right">
+                                <span className="text-[10px] font-bold text-slate-500 block">
+                                  ٹوٹل رقم
                                 </span>
+                                <div className="text-sm font-mono font-black text-amber-700">
+                                  Rs. {lineTotal.toLocaleString()}
+                                </div>
                               </div>
-                            </div>
 
-                            {/* Rate / KG */}
-                            <div className="w-full sm:w-32">
-                              <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                                ریٹ فی کلو (PKR)
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  step="1"
-                                  required
-                                  value={item.rate_per_kg}
-                                  onChange={e => handlePosRowValueChange(index, 'rate_per_kg', e.target.value)}
-                                  placeholder="450"
-                                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
-                                />
-                              </div>
+                              {posItems.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePosRow(index)}
+                                  className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                                  title="آئٹم حذف کریں"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
-
-                            {/* Line Total */}
-                            <div className="w-full sm:w-32 text-right">
-                              <span className="text-[10px] font-bold text-slate-500 block mb-1">
-                                ٹوٹل رقم
-                              </span>
-                              <div className="py-2 text-xs font-mono font-black text-amber-700">
-                                Rs. {lineTotal.toLocaleString()}
-                              </div>
-                            </div>
-
-                            {/* Remove button */}
-                            {posItems.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePosRow(index)}
-                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition self-end sm:self-center"
-                                title="آئٹم حذف کریں"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
                           </div>
                         );
                       })}
@@ -1329,10 +1343,11 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       </div>
 
                       {/* Action buttons */}
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                      <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2">
                         <button
                           onClick={() => setLedgerCustomer(cust)}
-                          className="flex-1 py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu"
+                          className="py-2 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95"
+                          title="کھاتہ لیجر دیکھیں"
                         >
                           <span>📖 کھاتہ لیجر</span>
                         </button>
@@ -1341,7 +1356,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                             setPaymentCustomer(cust);
                             setPaymentModalOpen(true);
                           }}
-                          className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu"
+                          className="py-2 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95"
                           title="رقم وصولی درج کریں"
                         >
                           <span>💵 وصولی</span>
@@ -1351,10 +1366,19 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                             setEditingCustomer(cust);
                             setCustomerModalOpen(true);
                           }}
-                          className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition"
-                          title="گاہک ایڈٹ کریں"
+                          className="py-2 px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition flex items-center justify-center gap-1 active:scale-95"
+                          title="گاہک تفصیلات ایڈٹ کریں"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
+                          <span>ایڈٹ</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCustomer(cust)}
+                          className="py-2 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 transition flex items-center justify-center gap-1 font-urdu active:scale-95"
+                          title="گاہک و کھاتہ حذف کریں"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>ڈیلیٹ</span>
                         </button>
                       </div>
                     </div>
@@ -1395,8 +1419,8 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 </div>
 
                 {/* Products Table */}
-                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
-                  <table className="w-full text-xs text-right">
+                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-x-auto">
+                  <table className="w-full min-w-[700px] text-xs text-right">
                     <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
                         <th className="py-3 px-4 text-right">پروڈکٹ نام (Name)</th>
@@ -1527,8 +1551,8 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       ابھی تک کوئی لاگ ریکارڈ نہیں ہے۔ نیا اسٹاک شامل کرنے پر یہاں خودکار اندراج ہوگا۔
                     </div>
                   ) : (
-                    <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                      <table className="w-full text-xs text-right">
+                    <div className="border border-slate-200 rounded-2xl overflow-x-auto">
+                      <table className="w-full min-w-[620px] text-xs text-right">
                         <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                           <tr>
                             <th className="py-2.5 px-3">تاریخ</th>
@@ -1641,8 +1665,8 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 </div>
 
                 {/* Sales Table */}
-                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
-                  <table className="w-full text-xs text-right">
+                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-xs text-right">
                     <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
                         <th className="py-3 px-3">انوائس #</th>
@@ -1738,6 +1762,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
           setPaymentModalOpen(true);
         }}
         onCustomerUpdated={loadAllData}
+        onDeleteCustomer={handleDeleteCustomer}
       />
 
       {/* Payment Wasooli Modal */}

@@ -5,11 +5,13 @@
   "rewrites": [
     { "source": "/mobile", "destination": "/mobile.html" },
     { "source": "/mobile.html", "destination": "/mobile.html" },
+    { "source": "/chicken-management", "destination": "/chicken-management/index.html" },
+    { "source": "/chicken-management/(.*)", "destination": "/chicken-management/index.html" },
+    { "source": "/chiken-mangement", "destination": "/chiken-mangement/index.html" },
+    { "source": "/chiken-mangement/(.*)", "destination": "/chiken-mangement/index.html" },
     { "source": "/app_icon.png", "destination": "/app_icon.png" },
     { "source": "/favicon.png", "destination": "/favicon.png" },
     { "source": "/ShanPoultryWorker.apk", "destination": "/ShanPoultryWorker.apk" },
-    { "source": "/chicken-management", "destination": "/index.html" },
-    { "source": "/chiken-mangement", "destination": "/index.html" },
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
