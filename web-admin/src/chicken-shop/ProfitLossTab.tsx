@@ -300,27 +300,32 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
       <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-xl shadow-xs">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-2xl shadow-xs shrink-0">
               📊
             </div>
             <div>
-              <h2 className="text-base sm:text-xl font-black text-slate-900 font-urdu tracking-tight flex items-center gap-2">
-                <span>نفع و نقصان اور مالیاتی رپورٹ (Profit & Loss Reports)</span>
-              </h2>
-              <p className="text-xs text-slate-500 font-urdu mt-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base sm:text-xl font-black text-slate-900 font-urdu tracking-tight">
+                  نفع و نقصان اور مالیاتی رپورٹ
+                </h2>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-sans px-2.5 py-0.5 rounded-full font-bold">
+                  Profit & Loss Statement
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-urdu mt-1">
                 مجموعی فروخت آمدن، لاگتِ مال، دکان اخراجات اور صاف خالص منافع کا مکمل حساب
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             onClick={onAddExpense}
             className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
           >
             <Plus className="w-4 h-4" />
-            <span>+ نیا دکان خرچہ شامل کریں</span>
+            <span>نیا دکان خرچہ درج کریں</span>
           </button>
 
           <button
@@ -328,7 +333,7 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
             className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
           >
             <Printer className="w-4 h-4" />
-            <span>پرنٹ رپورٹ (Print P&L)</span>
+            <span>رپورٹ پرنٹ کریں</span>
           </button>
         </div>
       </div>
@@ -336,23 +341,23 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
       {/* Date Filters Navigation Bar */}
       <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold font-urdu">
-          <span className="text-slate-400 text-[11px] px-1">مدت منتخب کریں:</span>
+          <span className="text-slate-400 text-xs px-1">مدت:</span>
           {[
-            { id: 'today', label: 'آج (Today)' },
-            { id: 'yesterday', label: 'گزشتہ کل (Yesterday)' },
-            { id: 'week', label: '7 دن (Last 7 Days)' },
-            { id: 'month', label: 'موجودہ ماہ (This Month)' },
-            { id: 'last_month', label: 'گزشتہ ماہ (Last Month)' },
-            { id: 'all', label: 'مکمل ریکارڈ (All Time)' },
-            { id: 'custom', label: 'حسب ضرورت تاریخ (Custom)' },
+            { id: 'today', label: 'آج' },
+            { id: 'yesterday', label: 'گزشتہ کل' },
+            { id: 'week', label: 'گزشتہ 7 دن' },
+            { id: 'month', label: 'موجودہ ماہ' },
+            { id: 'last_month', label: 'گزشتہ ماہ' },
+            { id: 'all', label: 'تمام ریکارڈز' },
+            { id: 'custom', label: 'کسٹم تاریخ' },
           ].map(f => (
             <button
               key={f.id}
               onClick={() => setDateFilter(f.id as any)}
-              className={`px-3 py-1.5 rounded-xl transition ${
+              className={`px-3.5 py-1.5 rounded-xl transition text-xs font-bold font-urdu ${
                 dateFilter === f.id
                   ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
               }`}
             >
               {f.label}
@@ -385,124 +390,142 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
       {/* ===================================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Revenue */}
-        <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between min-h-[160px]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 font-urdu">
-              کل فروخت آمدن (Revenue)
+            <span className="text-xs font-bold text-slate-600 font-urdu">
+              کل فروخت آمدن
             </span>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2">
-            <p className="text-xl sm:text-2xl font-black font-mono text-slate-900 tracking-tight">
+          <div className="my-2">
+            <p dir="ltr" className="text-2xl font-black font-mono text-slate-900 tracking-tight text-right">
               Rs. {financials.netSalesRevenue.toLocaleString()}
             </p>
-            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+          </div>
+          <div className="space-y-1 pt-2 border-t border-slate-100 text-xs">
+            <div className="flex items-center justify-between">
               <span className="text-slate-500 font-urdu">کل وزن:</span>
-              <span className="font-mono font-bold text-slate-800">{financials.totalWeightKg} KG</span>
+              <span dir="ltr" className="font-mono font-bold text-slate-800">{financials.totalWeightKg} KG</span>
             </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-              <span>نقد: Rs.{financials.totalCashReceived.toLocaleString()}</span>
-              <span>ادھار: Rs.{financials.totalCreditDue.toLocaleString()}</span>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-400 font-urdu">نقد / ادھار:</span>
+              <span dir="ltr" className="font-mono font-bold text-slate-600">
+                کیش Rs.{financials.totalCashReceived.toLocaleString()} • ادھار Rs.{financials.totalCreditDue.toLocaleString()}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Card 2: Cost of Goods */}
-        <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between min-h-[160px]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 font-urdu">
+            <span className="text-xs font-bold text-slate-600 font-urdu">
               مال کی لاگت (COGS)
             </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
               <Truck className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2">
-            <p className="text-xl sm:text-2xl font-black font-mono text-amber-900 tracking-tight">
+          <div className="my-2">
+            <p dir="ltr" className="text-2xl font-black font-mono text-amber-900 tracking-tight text-right">
               Rs. {financials.totalCostOfGoods.toLocaleString()}
             </p>
-            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-              <span className="text-slate-500 font-urdu">خرید و پروسیسنگ:</span>
-              <span className="font-mono font-bold text-slate-800">
-                {financials.totalWeightKg > 0 ? `Rs.${Math.round(financials.totalCostOfGoods / financials.totalWeightKg)}/kg` : '—'}
+          </div>
+          <div className="space-y-1 pt-2 border-t border-slate-100 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 font-urdu">اوسط لاگت فی کلو:</span>
+              <span dir="ltr" className="font-mono font-bold text-amber-800">
+                {financials.totalWeightKg > 0 ? `Rs. ${Math.round(financials.totalCostOfGoods / financials.totalWeightKg)}/KG` : '—'}
               </span>
             </div>
-            <div className="text-[10px] text-slate-400 mt-0.5 font-urdu truncate">
-              فارم چکن و گوشت کٹنگ لاگت
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span className="font-urdu">لاگت بریک ڈاؤن:</span>
+              <span className="font-mono text-slate-500">فارم چکن و کٹنگ لاگت</span>
             </div>
           </div>
         </div>
 
         {/* Card 3: Gross Profit */}
-        <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between min-h-[160px]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 font-urdu">
-              مجموعی منافع (Gross Profit)
+            <span className="text-xs font-bold text-slate-600 font-urdu">
+              مجموعی منافع (Gross)
             </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2">
-            <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${financials.grossProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+          <div className="my-2">
+            <p dir="ltr" className={`text-2xl font-black font-mono tracking-tight text-right ${financials.grossProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
               Rs. {financials.grossProfit.toLocaleString()}
             </p>
-            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-              <span className="text-slate-500 font-urdu">گراس مارجن:</span>
-              <span className="font-mono font-black text-emerald-700">{financials.grossMarginPct}%</span>
+          </div>
+          <div className="space-y-1 pt-2 border-t border-slate-100 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 font-urdu">گراس منافع مارجن:</span>
+              <span dir="ltr" className="font-mono font-black text-emerald-700">{financials.grossMarginPct}%</span>
             </div>
-            <div className="text-[10px] text-emerald-700 font-mono mt-0.5 font-bold">
-              +Rs. {financials.grossProfitPerKg} / KG منافع
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-500 font-urdu">فی کلو گراس بچت:</span>
+              <span dir="ltr" className="font-mono font-bold text-emerald-700">
+                {financials.grossProfitPerKg >= 0 ? `+Rs. ${financials.grossProfitPerKg}/KG` : `-Rs. ${Math.abs(financials.grossProfitPerKg)}/KG`}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Card 4: Operating Expenses */}
-        <div className="bg-white p-4.5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col justify-between min-h-[160px]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-rose-700 font-urdu">
-              دکان اخراجات (Expenses)
+            <span className="text-xs font-bold text-rose-700 font-urdu">
+              دکان کے اخراجات
             </span>
-            <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2">
-            <p className="text-xl sm:text-2xl font-black font-mono text-rose-700 tracking-tight">
+          <div className="my-2">
+            <p dir="ltr" className="text-2xl font-black font-mono text-rose-700 tracking-tight text-right">
               Rs. {financials.totalExpenses.toLocaleString()}
             </p>
-            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-              <span className="text-slate-500 font-urdu">اخراجات اندراجات:</span>
-              <span className="font-mono font-bold text-slate-800">{filteredExpenses.length} بلز</span>
+          </div>
+          <div className="space-y-1 pt-2 border-t border-slate-100 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 font-urdu">کل اندراجات:</span>
+              <span dir="ltr" className="font-mono font-bold text-slate-800">{filteredExpenses.length} بلز</span>
             </div>
-            <div className="text-[10px] text-slate-400 mt-0.5 font-urdu truncate">
-              برف، شاپر، دیہاڑی، کرایہ وغیرہ
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span className="font-urdu">تفصیل:</span>
+              <span className="font-urdu truncate text-slate-500">برف، شاپر، دیہاڑی، کرایہ</span>
             </div>
           </div>
         </div>
 
         {/* Card 5: Net Profit (صاف بچت) */}
-        <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/60 p-4.5 rounded-3xl border border-emerald-300/80 shadow-2xs flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/70 p-5 rounded-3xl border border-emerald-300 shadow-2xs flex flex-col justify-between min-h-[160px]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black text-emerald-900 font-urdu">
-              خالص منافع (Net Profit)
+            <span className="text-xs font-black text-emerald-950 font-urdu">
+              خالص منافع (صاف بچت)
             </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2">
-            <p className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${financials.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+          <div className="my-2">
+            <p dir="ltr" className={`text-2xl font-black font-mono tracking-tight text-right ${financials.netProfit >= 0 ? 'text-emerald-900' : 'text-rose-700'}`}>
               Rs. {financials.netProfit.toLocaleString()}
             </p>
-            <div className="mt-2 pt-2 border-t border-emerald-200/80 flex items-center justify-between text-[10px]">
-              <span className="text-emerald-900 font-urdu font-bold">نیٹ مارجن:</span>
-              <span className="font-mono font-black text-emerald-900">{financials.netMarginPct}%</span>
+          </div>
+          <div className="space-y-1 pt-2 border-t border-emerald-200/80 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-emerald-900 font-urdu font-bold">خالص مارجن:</span>
+              <span dir="ltr" className="font-mono font-black text-emerald-950">{financials.netMarginPct}%</span>
             </div>
-            <div className="text-[10px] text-emerald-800 font-urdu font-semibold mt-0.5">
-              تمام اخراجات نکال کر صاف بچت
+            <div className="flex items-center justify-between text-[11px] text-emerald-800">
+              <span className="font-urdu">اصل کمائی:</span>
+              <span className="font-urdu font-semibold">تمام اخراجات نکال کر</span>
             </div>
           </div>
         </div>
@@ -524,7 +547,7 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
               }`}
             >
               <FileText className="w-4 h-4" />
-              <span>مالیاتی اسٹیٹمنٹ (P&L Summary)</span>
+              <span>مالیاتی گوشوارہ (P&L Summary)</span>
             </button>
 
             <button
@@ -536,7 +559,7 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
               }`}
             >
               <PieChart className="w-4 h-4" />
-              <span>پروڈکٹ و کٹس وار منافع ({financials.productPerformance.length})</span>
+              <span>پروڈکٹ وار منافع ({financials.productPerformance.length})</span>
             </button>
 
             <button
@@ -548,7 +571,7 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
               }`}
             >
               <Calendar className="w-4 h-4" />
-              <span>روزنامہ نفع و نقصان ({financials.dailyBreakdown.length} دن)</span>
+              <span>روزنامچہ نفع و نقصان ({financials.dailyBreakdown.length} دن)</span>
             </button>
 
             <button

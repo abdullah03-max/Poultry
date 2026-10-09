@@ -937,16 +937,16 @@ export const chickenShopApi = {
       };
       await this.saveProduct(fcProd);
     } else {
-      await this.updateProductStock(
+      const updatedProd = await this.updateProductStock(
         FRESH_CHICKEN_PRODUCT_ID,
         entry.weight_kg,
         'purchase',
         `تازہ چکن فارم آمد: ${entry.supplier_name || 'سپلائر'} (${entry.weight_kg}kg @ Rs.${entry.rate_per_kg})`,
         newArrival.id
       );
-      if (entry.selling_rate_per_kg > 0) {
+      if (entry.selling_rate_per_kg > 0 && updatedProd) {
         await this.saveProduct({
-          ...fcProd,
+          ...updatedProd,
           rate_per_kg: entry.selling_rate_per_kg,
         });
       }

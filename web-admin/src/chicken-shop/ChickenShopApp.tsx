@@ -162,6 +162,37 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         chickenShopApi.getFreshChickenArrivals(),
         chickenShopApi.getExpenses(),
       ]);
+
+      // Automatically sync and repair live Fresh Chicken stock from arrivals minus sales
+      const totalArrivalKg = fArrivals.reduce((sum, a) => sum + (Number(a.weight_kg) || 0), 0);
+      const totalFreshSoldKg = sList.reduce((sum, s) => {
+        return (
+          sum +
+          s.items.reduce((iSum, it) => {
+            if (
+              it.product_id === FRESH_CHICKEN_PRODUCT_ID ||
+              it.product_name.toLowerCase().includes('fresh chicken') ||
+              (it.urdu_name && it.urdu_name.includes('تازہ مرغی'))
+            ) {
+              return iSum + (Number(it.weight_kg) || 0);
+            }
+            return iSum;
+          }, 0)
+        );
+      }, 0);
+
+      const netLiveFreshStock = Math.max(0, Number((totalArrivalKg - totalFreshSoldKg).toFixed(2)));
+      const fcIdx = pList.findIndex(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
+      if (fcIdx !== -1 && fArrivals.length > 0) {
+        if (pList[fcIdx].stock_kg === 0 || pList[fcIdx].stock_kg < netLiveFreshStock) {
+          pList[fcIdx].stock_kg = netLiveFreshStock;
+          chickenShopApi.saveProduct({
+            ...pList[fcIdx],
+            stock_kg: netLiveFreshStock,
+          }).catch(console.error);
+        }
+      }
+
       setProducts(pList);
       setCustomers(cList);
       setSales(sList);
@@ -205,11 +236,43 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     const todayCredit = todaySalesList.reduce((s, r) => s + r.remaining_due, 0);
     const todayWeight = todaySalesList.reduce((s, r) => s + r.total_weight_kg, 0);
     const marketDue = customers.reduce((s, c) => s + (c.current_balance || 0), 0);
-    const totalStock = products.reduce((s, p) => s + (p.stock_kg || 0), 0);
-    const totalStockValuation = products.reduce(
-      (s, p) => s + Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0)),
-      0
-    );
+
+    // Compute fresh chicken live stock to ensure 100% accurate total stock & valuation
+    const totalFreshArrivalKg = freshArrivals.reduce((s, a) => s + (Number(a.weight_kg) || 0), 0);
+    const totalFreshSoldKg = sales.reduce((s, sale) => {
+      return (
+        s +
+        sale.items.reduce((iSum, it) => {
+          if (
+            it.product_id === FRESH_CHICKEN_PRODUCT_ID ||
+            it.product_name.toLowerCase().includes('fresh chicken') ||
+            (it.urdu_name && it.urdu_name.includes('تازہ مرغی'))
+          ) {
+            return iSum + (Number(it.weight_kg) || 0);
+          }
+          return iSum;
+        }, 0)
+      );
+    }, 0);
+    const liveFreshStockKg = freshArrivals.length > 0
+      ? Math.max(0, Number((totalFreshArrivalKg - totalFreshSoldKg).toFixed(2)))
+      : 0;
+
+    const totalStock = products.reduce((s, p) => {
+      if (p.id === FRESH_CHICKEN_PRODUCT_ID && freshArrivals.length > 0) {
+        return s + Math.max(Number(p.stock_kg) || 0, liveFreshStockKg);
+      }
+      return s + (Number(p.stock_kg) || 0);
+    }, 0);
+
+    const totalStockValuation = products.reduce((s, p) => {
+      if (p.id === FRESH_CHICKEN_PRODUCT_ID && freshArrivals.length > 0) {
+        const effStock = Math.max(Number(p.stock_kg) || 0, liveFreshStockKg);
+        return s + Math.round(effStock * (Number(p.rate_per_kg) || 0));
+      }
+      return s + Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
+    }, 0);
+
     const lowStockCount = products.filter(p => p.stock_kg <= p.min_stock_alert).length;
 
     return {
@@ -223,7 +286,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       lowStockCount,
       todayBillsCount: todaySalesList.length,
     };
-  }, [todaySalesList, customers, products]);
+  }, [todaySalesList, customers, products, freshArrivals, sales]);
 
   // ---------------------------------------------------------------------------
   // Fresh Chicken KPIs & Calculations
@@ -260,7 +323,15 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
 
-    const stockKg = Number(freshProd.stock_kg) || 0;
+    const totalArrivalKg = Number(freshArrivals.reduce((s, a) => s + (a.weight_kg || 0), 0).toFixed(2));
+    const totalArrivalCost = freshArrivals.reduce((s, a) => s + (a.total_cost || 0), 0);
+    const totalFreshSoldKg = Number(freshSalesItems.reduce((s, x) => s + (x.item.weight_kg || 0), 0).toFixed(2));
+
+    // Live Available Stock of Fresh Chicken (Accurate live calculation)
+    const liveCalculatedStock = freshArrivals.length > 0
+      ? Math.max(Number(freshProd.stock_kg) || 0, Math.max(0, Number((totalArrivalKg - totalFreshSoldKg).toFixed(2))))
+      : Number(freshProd.stock_kg) || 0;
+    const stockKg = liveCalculatedStock;
     const currentSellingRate = Number(freshProd.rate_per_kg) || 440;
     const currentStockValue = Math.round(stockKg * currentSellingRate);
 
@@ -272,9 +343,6 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       todayArrivalKg > 0
         ? Math.round(todayArrivalCost / todayArrivalKg)
         : freshArrivals[0]?.rate_per_kg || 380;
-
-    const totalArrivalKg = Number(freshArrivals.reduce((s, a) => s + (a.weight_kg || 0), 0).toFixed(2));
-    const totalArrivalCost = freshArrivals.reduce((s, a) => s + (a.total_cost || 0), 0);
 
     // Sales stats
     const todaySales = freshSalesItems.filter(x => x.sale.sale_date === today);
@@ -367,6 +435,21 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       await loadAllData();
     } catch (err: any) {
       alert(`خرچہ حذف کرنے میں مسئلہ: ${err.message || 'Error deleting expense'}`);
+    }
+  };
+
+  const handleDeleteSale = async (sale: ChickenSale) => {
+    const isConfirmed = window.confirm(
+      `کیا آپ واقعی انوائس #${sale.invoice_no} (${sale.customer_name} - Rs.${sale.total_amount.toLocaleString()}) حذف کرنا چاہتے ہیں؟\n\nاس عمل سے بیچے گئے چکن کا اسٹاک واپس بحال ہو جائے گا اور گاہک کے کھاتے کا بقایا بیلنس بھی درست ہو جائے گا۔`
+    );
+    if (!isConfirmed) return;
+
+    try {
+      await chickenShopApi.deleteSale(sale.id);
+      await loadAllData();
+      alert(`انوائس #${sale.invoice_no} کامیابی سے حذف ہو گئی اور اسٹاک بحال ہو گیا۔`);
+    } catch (err: any) {
+      alert(`سیل حذف کرنے میں خرابی: ${err.message || 'Error deleting sale'}`);
     }
   };
 
@@ -1923,13 +2006,22 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                                       )}
                                     </td>
                                     <td className="py-3 px-4 text-center">
-                                      <button
-                                        onClick={() => setReceiptModalSale(sale)}
-                                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition"
-                                        title="رسید دیکھیں"
-                                      >
-                                        پرنٹ
-                                      </button>
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        <button
+                                          onClick={() => setReceiptModalSale(sale)}
+                                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition"
+                                          title="رسید دیکھیں"
+                                        >
+                                          پرنٹ
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteSale(sale)}
+                                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                          title="سیل ڈیلیٹ کریں اور اسٹاک بحال کریں"
+                                        >
+                                          <Trash2 className="w-4 h-4 text-rose-500" />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -2423,61 +2515,87 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                         <th className="py-3 px-3 text-left">ٹوٹل بل رقم</th>
                         <th className="py-3 px-3 text-left">وصول شدہ</th>
                         <th className="py-3 px-3 text-left">بقایا رقم</th>
+                        <th className="py-3 px-3 text-left">تخمینہ منافع</th>
                         <th className="py-3 px-3 text-center">طریقہ</th>
-                        <th className="py-3 px-3 text-center">رسید پرنٹ</th>
+                        <th className="py-3 px-3 text-center">ایکشنز</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredSales.map(sale => (
-                        <tr key={sale.id} className="hover:bg-slate-50/70 transition">
-                          <td className="py-3 px-3 font-mono font-bold text-slate-900">
-                            {sale.invoice_no}
-                          </td>
-                          <td className="py-3 px-3 font-mono text-slate-500 whitespace-nowrap">
-                            {formatDate(sale.sale_date)} <span className="text-[10px] text-slate-400">{sale.sale_time}</span>
-                          </td>
-                          <td className="py-3 px-3 font-semibold text-slate-900">
-                            {sale.customer_name}
-                            {sale.phone && <span className="text-[10px] text-slate-400 block font-mono">{sale.phone}</span>}
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-800">
-                            {sale.total_weight_kg} KG
-                          </td>
-                          <td className="py-3 px-3 text-left font-mono font-black text-slate-900">
-                            Rs. {sale.total_amount.toLocaleString()}
-                          </td>
-                          <td className="py-3 px-3 text-left font-mono font-bold text-emerald-700">
-                            Rs. {sale.received_amount.toLocaleString()}
-                          </td>
-                          <td className="py-3 px-3 text-left font-mono font-bold text-rose-700">
-                            {sale.remaining_due > 0 ? `Rs. ${sale.remaining_due.toLocaleString()}` : '—'}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              sale.payment_method === 'cash'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : sale.payment_method === 'credit'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {sale.payment_method === 'cash' ? 'نقد' : sale.payment_method === 'credit' ? 'ادھار' : 'جزوی'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <button
-                              onClick={() => setReceiptModalSale(sale)}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg transition inline-flex items-center gap-1"
-                              title="رسید پرنٹ کریں"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                              <span>رسید</span>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredSales.map(sale => {
+                        const saleCost = sale.items.reduce((sCost, it) => {
+                          const costRate = (it.product_id === FRESH_CHICKEN_PRODUCT_ID || it.product_name.toLowerCase().includes('fresh chicken'))
+                            ? (freshArrivals[0]?.rate_per_kg || 380)
+                            : Math.round(it.rate_per_kg * 0.82);
+                          return sCost + Math.round((Number(it.weight_kg) || 0) * costRate);
+                        }, 0);
+                        const estProfit = sale.total_amount - saleCost;
+
+                        return (
+                          <tr key={sale.id} className="hover:bg-slate-50/70 transition">
+                            <td className="py-3 px-3 font-mono font-bold text-slate-900">
+                              {sale.invoice_no}
+                            </td>
+                            <td className="py-3 px-3 font-mono text-slate-500 whitespace-nowrap">
+                              {formatDate(sale.sale_date)} <span className="text-[10px] text-slate-400">{sale.sale_time}</span>
+                            </td>
+                            <td className="py-3 px-3 font-semibold text-slate-900">
+                              {sale.customer_name}
+                              {sale.phone && <span className="text-[10px] text-slate-400 block font-mono">{sale.phone}</span>}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-bold text-slate-800">
+                              {sale.total_weight_kg} KG
+                            </td>
+                            <td className="py-3 px-3 text-left font-mono font-black text-slate-900">
+                              Rs. {sale.total_amount.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-left font-mono font-bold text-emerald-700">
+                              Rs. {sale.received_amount.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-left font-mono font-bold text-rose-700">
+                              {sale.remaining_due > 0 ? `Rs. ${sale.remaining_due.toLocaleString()}` : '—'}
+                            </td>
+                            <td className="py-3 px-3 text-left font-mono font-black">
+                              <span className={estProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                                {estProfit >= 0 ? `+Rs. ${estProfit.toLocaleString()}` : `-Rs. ${Math.abs(estProfit).toLocaleString()}`}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                sale.payment_method === 'cash'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : sale.payment_method === 'credit'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {sale.payment_method === 'cash' ? 'نقد' : sale.payment_method === 'credit' ? 'ادھار' : 'جزوی'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => setReceiptModalSale(sale)}
+                                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg transition inline-flex items-center gap-1"
+                                  title="رسید پرنٹ کریں"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                  <span>رسید</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSale(sale)}
+                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg transition inline-flex items-center gap-1"
+                                  title="سیل ڈیلیٹ کریں اور اسٹاک بحال کریں"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>حذف</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                       {filteredSales.length === 0 && (
                         <tr>
-                          <td colSpan={9} className="py-12 text-center text-slate-400 text-xs">
+                          <td colSpan={10} className="py-12 text-center text-slate-400 text-xs">
                             کوئی سیل ریکارڈ نہیں ملا۔
                           </td>
                         </tr>
