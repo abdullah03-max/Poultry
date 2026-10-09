@@ -157,58 +157,13 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
   const [mapType, setMapType] = useState<'google_roadmap' | 'google_satellite' | 'osm'>('google_roadmap');
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
 
-  // Admin Live Geolocation State
-  const [adminPosition, setAdminPosition] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
-
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
-  const adminMarkerRef = useRef<L.Marker | null>(null);
 
-  // Default coordinate center: Burewala / Gaggoo Mandi region in Punjab, Pakistan
-  const DEFAULT_CENTER: [number, number] = [30.2974, 72.8550];
-
-  // Reference location for distance (Admin location if granted, else Default Center / Head Office)
-  const referencePoint = useMemo(() => {
-    if (adminPosition) {
-      return { lat: adminPosition.lat, lng: adminPosition.lng, isLiveAdmin: true };
-    }
-    return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1], isLiveAdmin: false };
-  }, [adminPosition]);
-
-  // Request & Watch Admin Browser Location
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      const handleSuccess = (pos: GeolocationPosition) => {
-        setAdminPosition({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        });
-      };
-
-      const handleError = (err: GeolocationPositionError) => {
-        console.log('Admin browser location not granted or unavailable:', err.message);
-      };
-
-      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 30000,
-      });
-
-      const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 15000,
-      });
-
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-      };
-    }
-  }, []);
+  // Default coordinate center: Gaggoo Mandi / Burewala operational hub
+  const DEFAULT_CENTER: [number, number] = [30.2180, 72.8280];
 
   const fetchWorkersWithLocation = async () => {
     try {
@@ -361,81 +316,12 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
     }
   }, [propWorkerId, workers]);
 
-  // Update Admin Marker on Map
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    if (!adminPosition) {
-      if (adminMarkerRef.current) {
-        adminMarkerRef.current.remove();
-        adminMarkerRef.current = null;
-      }
-      return;
-    }
-
-    const adminLatLng: L.LatLngTuple = [adminPosition.lat, adminPosition.lng];
-
-    const adminIcon = L.divIcon({
-      className: 'custom-admin-pin',
-      html: `
-        <div style="position: relative; width: 50px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-          <div style="position: absolute; width: 44px; height: 44px; border-radius: 50%; background: rgba(37, 99, 235, 0.35); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-          <div style="
-            width: 32px; 
-            height: 32px; 
-            border-radius: 50%; 
-            background: #2563EB; 
-            border: 3px solid white; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 800;
-            font-size: 13px;
-          ">
-            👤
-          </div>
-          <div style="background: rgba(15, 23, 42, 0.9); color: white; padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; white-space: nowrap; margin-top: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
-            آپ (Admin)
-          </div>
-        </div>
-      `,
-      iconSize: [50, 50],
-      iconAnchor: [25, 25],
-    });
-
-    if (adminMarkerRef.current) {
-      adminMarkerRef.current.setLatLng(adminLatLng);
-    } else {
-      const marker = L.marker(adminLatLng, { icon: adminIcon, zIndexOffset: 1000 }).addTo(map);
-      marker.bindPopup(`
-        <div style="font-family: sans-serif; min-width: 170px; padding: 4px;">
-          <div style="font-weight: bold; font-size: 13px; color: #1E40AF; margin-bottom: 2px;">
-            👤 آپ کا مقام (Admin Location)
-          </div>
-          <div style="font-size: 11px; color: #475569;">
-            لائیو GPS پوزیشن فعال ہے
-          </div>
-          <div style="font-size: 10px; color: #64748B; font-family: monospace; margin-top: 4px;">
-            ${adminPosition.lat.toFixed(5)}, ${adminPosition.lng.toFixed(5)}
-          </div>
-        </div>
-      `);
-      adminMarkerRef.current = marker;
-    }
-  }, [adminPosition]);
-
   // Update Markers on Worker Location Change
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const bounds: L.LatLngTuple[] = [];
-    if (adminPosition) {
-      bounds.push([adminPosition.lat, adminPosition.lng]);
-    }
+    const liveBounds: L.LatLngTuple[] = [];
     const activeGpsIds = new Set<string>();
 
     workers.forEach(w => {
@@ -453,7 +339,12 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       const lat = Number(w.current_latitude);
       const lng = Number(w.current_longitude);
       const latlng: L.LatLngTuple = [lat, lng];
-      bounds.push(latlng);
+
+      // Only include online workers with active GPS in auto-fit bounds
+      // so stale days-old coordinates don't distort the camera view
+      if (presence.status === 'online') {
+        liveBounds.push(latlng);
+      }
 
       const initials = w.full_name ? w.full_name.substring(0, 2).toUpperCase() : 'WK';
 
@@ -542,13 +433,17 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       }
     });
 
-    // Auto-fit map to workers bounds if available
-    if (bounds.length > 0 && !selectedWorkerId) {
+    // Auto-fit map to live active workers if available
+    if (liveBounds.length > 0 && !selectedWorkerId) {
       try {
-        map.fitBounds(L.latLngBounds(bounds), { padding: [60, 60], maxZoom: 15 });
+        if (liveBounds.length === 1) {
+          map.setView(liveBounds[0], 15);
+        } else {
+          map.fitBounds(L.latLngBounds(liveBounds), { padding: [50, 50], maxZoom: 16 });
+        }
       } catch (e) {}
     }
-  }, [workers, referencePoint]);
+  }, [workers]);
 
   const handleFocusWorker = (w: Profile) => {
     setSelectedWorkerId(w.id);
@@ -576,38 +471,12 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
     if (onSelectWorker) onSelectWorker(w);
   };
 
-  const handleFocusAdmin = () => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    if (adminPosition) {
-      map.flyTo([adminPosition.lat, adminPosition.lng], 16, { duration: 1 });
-      if (adminMarkerRef.current) {
-        adminMarkerRef.current.openPopup();
-      }
-    } else {
-      // Trigger browser location prompt
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          pos => {
-            setAdminPosition({
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-            });
-            map.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { duration: 1 });
-          },
-          err => alert('لوکیشن کی اجازت فراہم کریں: ' + err.message)
-        );
-      }
-    }
-  };
-
   const handleResetView = () => {
     setSelectedWorkerId(null);
     setGpsNotice(null);
     const map = mapInstanceRef.current;
     if (!map) return;
-    map.flyTo(DEFAULT_CENTER, 12, { duration: 1 });
+    map.flyTo(DEFAULT_CENTER, 14, { duration: 1 });
   };
 
   // Sort workers list: Online active first, then idle, then offline
@@ -680,20 +549,6 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
               🌐 OSM
             </button>
           </div>
-
-          {/* Admin Location Button */}
-          <button
-            onClick={handleFocusAdmin}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border shadow-sm transition ${
-              adminPosition
-                ? 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-            }`}
-            title="ایڈمن کی اپنی پوزیشن دیکھیں"
-          >
-            <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
-            <span>{adminPosition ? 'میری پوزیشن (You)' : 'لوکیشن آن کریں'}</span>
-          </button>
 
           <button
             onClick={handleResetView}
@@ -836,10 +691,6 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
             <div className="flex items-center gap-1.5 text-amber-700">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
               <span className="font-semibold text-[11px]">Amber: Idle (5–30m)</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-blue-700">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-              <span className="font-semibold text-[11px]">Blue: Admin (You)</span>
             </div>
             <div className="flex items-center gap-1.5 text-slate-500">
               <span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span>

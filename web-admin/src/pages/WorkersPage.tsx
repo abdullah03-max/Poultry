@@ -55,24 +55,17 @@ export const WorkersPage: React.FC = () => {
 
   // GPS Tracking state
   const [trackingWorker, setTrackingWorker] = useState<Profile | null>(null);
-  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState<boolean>(false);
   const [showMapSection, setShowMapSection] = useState<boolean>(true);
-  const [adminPosition, setAdminPosition] = useState<{ lat: number; lng: number } | null>(null);
-
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        pos => setAdminPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => {},
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-      );
-    }
-  }, []);
 
   const handleTrackWorker = (worker: Profile) => {
     setTrackingWorker(worker);
     setShowMapSection(true);
-    setIsTrackingModalOpen(true);
+    const mapElement = document.getElementById('worker-live-tracking-map');
+    if (mapElement) {
+      mapElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   // Form states
@@ -347,7 +340,7 @@ export const WorkersPage: React.FC = () => {
       </div>
 
       {/* Live Worker GPS Tracking Section */}
-      <div className="space-y-3">
+      <div id="worker-live-tracking-map" className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-card">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -950,54 +943,6 @@ export const WorkersPage: React.FC = () => {
         isOpen={!!selectedSlip}
         onClose={() => setSelectedSlip(null)}
       />
-
-      {/* Live Worker GPS Tracking Modal */}
-      <Modal
-        isOpen={isTrackingModalOpen}
-        onClose={() => setIsTrackingModalOpen(false)}
-        title="لائیو ورکر لوکیشن ٹریکنگ (Live Worker GPS Tracking)"
-        subtitle={trackingWorker ? `ورکر: ${trackingWorker.full_name} (${trackingWorker.phone || 'فون نمبر موجود نہیں'})` : 'لائیو GPS نقشہ'}
-        maxWidth="4xl"
-      >
-        <div className="space-y-3">
-          {trackingWorker && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl gap-2 text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0">
-                  {trackingWorker.full_name.substring(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-bold text-slate-900 text-sm">{trackingWorker.full_name}</p>
-                  <p className="text-[11px] text-slate-500">
-                    📞 {trackingWorker.phone || 'فون نمبر درج نہیں'} • Role: {trackingWorker.role}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  trackingWorker.is_online
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {trackingWorker.is_online ? '🟢 Live Online' : '⚪ Offline'}
-                </span>
-                {trackingWorker.current_latitude && (
-                  <span className="font-mono text-[10px] text-slate-600 bg-white border border-slate-200 px-2 py-1 rounded-lg">
-                    {Number(trackingWorker.current_latitude).toFixed(4)}, {Number(trackingWorker.current_longitude).toFixed(4)}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-xl overflow-hidden border border-slate-200 shadow-inner">
-            <WorkerTrackingMap
-              selectedWorkerId={trackingWorker?.id}
-              onSelectWorker={(w) => setTrackingWorker(w)}
-            />
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };
