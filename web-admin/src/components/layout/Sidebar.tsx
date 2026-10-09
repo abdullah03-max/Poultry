@@ -157,8 +157,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {/* Mobile Worker Quick Link */}
+          {/* Dedicated Standalone Chicken Shop & Khata Link (Opens in New Tab) */}
           <div className="pt-2">
+            <a
+              href="/chicken-management"
+              target="_blank"
+              rel="noreferrer"
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100/70 border border-amber-200 text-amber-900 hover:from-amber-100 hover:to-amber-200 text-xs font-bold transition group"
+              title="نئی ٹیب میں چکن شاپ و ڈیجیٹل کھاتہ کھولیں"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <Store className="w-4 h-4 text-amber-700 shrink-0" />
+                <span className="truncate">🍗 چکن شاپ و کھاتہ</span>
+              </div>
+              <ExternalLink className="w-3.5 h-3.5 text-amber-700 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </a>
+          </div>
+
+          {/* Mobile Worker Quick Link */}
+          <div className="pt-1.5">
             <a
               href="/mobile.html"
               target="_blank"

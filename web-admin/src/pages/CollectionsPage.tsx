@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Collection, Customer, Profile } from '../types/database';
 import { formatDate, formatTime, formatWeight, formatCurrency } from '../utils/formatters';
-import { Search, Plus, Eye, Edit2, Trash2, Download, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { Search, Plus, Eye, Edit2, Trash2, Download, ChevronLeft, ChevronRight, Loader2, RefreshCw, Scale, Banknote, FileCheck, TrendingUp, Store } from 'lucide-react';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
 import { NewCollectionModal } from '../components/collections/NewCollectionModal';
 import { EditCollectionModal } from '../components/collections/EditCollectionModal';
@@ -23,6 +23,19 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [workers, setWorkers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [stats, setStats] = useState<{
+    totalSlips: number;
+    totalNetWeight: number;
+    totalAmount: number;
+    avgWeightPerSlip: number;
+    uniqueCustomersCount: number;
+  }>({
+    totalSlips: 0,
+    totalNetWeight: 0,
+    totalAmount: 0,
+    avgWeightPerSlip: 0,
+    uniqueCustomersCount: 0,
+  });
 
   // Filters
   const [search, setSearch] = useState<string>('');
@@ -42,18 +55,28 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
   const fetchCollections = async () => {
     try {
       setLoading(true);
-      const res = await api.getCollections({
-        search: search.trim() || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        customerId: selectedCustomerId !== 'all' ? selectedCustomerId : undefined,
-        workerId: selectedWorkerId !== 'all' ? selectedWorkerId : undefined,
-        limit: pageSize,
-        offset: (page - 1) * pageSize,
-      });
+      const [res, statsRes] = await Promise.all([
+        api.getCollections({
+          search: search.trim() || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          customerId: selectedCustomerId !== 'all' ? selectedCustomerId : undefined,
+          workerId: selectedWorkerId !== 'all' ? selectedWorkerId : undefined,
+          limit: pageSize,
+          offset: (page - 1) * pageSize,
+        }),
+        api.getCollectionStats({
+          search: search.trim() || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          customerId: selectedCustomerId !== 'all' ? selectedCustomerId : undefined,
+          workerId: selectedWorkerId !== 'all' ? selectedWorkerId : undefined,
+        }),
+      ]);
 
       setCollections(res.collections);
       setTotalCount(res.totalCount);
+      setStats(statsRes);
     } catch (err) {
       console.error('Error loading collections:', err);
     } finally {
@@ -127,6 +150,86 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
 
   return (
     <div className="space-y-6 text-slate-800">
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 no-print">
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">کل ویسٹ وزن</span>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+              <Scale className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xl font-black text-slate-900 font-mono tracking-tight">
+              {stats.totalNetWeight.toLocaleString()} <span className="text-xs text-slate-500 font-sans">KG</span>
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+              {(stats.totalNetWeight / 1000).toFixed(2)} ٹن کل ویسٹ
+            </p>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">کل ویسٹ بلنگ</span>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+              <Banknote className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xl font-black text-emerald-700 font-mono tracking-tight">
+              Rs. {stats.totalAmount.toLocaleString()}
+            </p>
+            <p className="text-[10px] text-emerald-600 font-medium truncate mt-0.5">مجموعی خریداری رقم</p>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-indigo-800 tracking-wider">تصدیق شدہ سلپس</span>
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+              <FileCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xl font-black text-indigo-700 font-mono tracking-tight">
+              {stats.totalSlips}
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">کل وصولی پرچیاں</p>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider">اوسط وزن فی سلپ</span>
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xl font-black text-amber-700 font-mono tracking-tight">
+              {stats.avgWeightPerSlip} <span className="text-xs text-slate-500 font-sans">KG</span>
+            </p>
+            <p className="text-[10px] text-amber-600 font-medium truncate mt-0.5">اوسط فی پرچی وزن</p>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-purple-800 tracking-wider">شامل دکانیں</span>
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <Store className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xl font-black text-purple-700 font-mono tracking-tight">
+              {stats.uniqueCustomersCount}
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">کلیکشن والی دکانیں</p>
+          </div>
+        </div>
+      </div>
+
       {/* Top Filter & Search Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-card space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

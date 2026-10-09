@@ -18,6 +18,7 @@ import { WorkersPage } from './pages/WorkersPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChickenShopPage } from './pages/ChickenShopPage';
+import { ChickenShopApp } from './chicken-shop/ChickenShopApp';
 import { LoginPage } from './pages/LoginPage';
 import { useRealtimeCollections } from './hooks/useRealtimeCollections';
 import { NewCollectionModal } from './components/collections/NewCollectionModal';
@@ -42,6 +43,19 @@ const sectionLabels: Record<string, string> = {
 };
 
 const AdminApp: React.FC = () => {
+  // Check if current browser window is requesting dedicated Chicken Shop Management
+  const isChickenShopRoute =
+    window.location.pathname.includes('/chicken-management') ||
+    window.location.pathname.includes('/chiken-mangement') ||
+    window.location.hash.includes('chicken-management') ||
+    window.location.hash.includes('chiken-mangement') ||
+    window.location.search.includes('chicken-management') ||
+    window.location.search.includes('chiken-mangement');
+
+  if (isChickenShopRoute) {
+    return <ChickenShopApp standalone={true} onBackToWaste={() => { window.location.href = '/'; }} />;
+  }
+
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
@@ -320,7 +334,7 @@ const AdminApp: React.FC = () => {
           latestEvent={latestLiveEvent}
           onViewCollection={setSelectedSlipForModal}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
-          onOpenChickenShop={() => handleSelectTab('chicken-shop')}
+          onOpenChickenShop={() => window.open('/chicken-management', '_blank')}
           isChickenShopMode={activeTab === 'chicken-shop'}
           onBackToWaste={() => handleSelectTab('dashboard')}
         />
@@ -388,7 +402,7 @@ const AdminApp: React.FC = () => {
           {activeTab === 'customers' && <CustomersPage />}
 
           {activeTab === 'chicken-shop' && (
-            <ChickenShopPage onBackToWaste={() => handleSelectTab('dashboard')} />
+            <ChickenShopApp onBackToWaste={() => handleSelectTab('dashboard')} />
           )}
 
           {activeTab === 'workers' && <WorkersPage />}

@@ -196,27 +196,6 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
         </div>
       </div>
 
-      {/* Category Subtotals for the Day */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card space-y-4">
-        <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-          <Scale className="w-4 h-4 text-blue-600" /> Category Weight Totals For {formatDate(selectedDate)}
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {categories.map(cat => {
-            const catSum = categoryDaySums[cat.id] || 0;
-            return (
-              <div key={cat.id} className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-slate-800">{cat.name}</p>
-                  {cat.urdu_name && <p className="text-[11px] text-slate-500 font-urdu">{cat.urdu_name}</p>}
-                </div>
-                <p className="text-sm font-black text-blue-700 font-mono">{formatWeight(catSum)}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Slips Table */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-card">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 no-print">

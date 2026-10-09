@@ -35,6 +35,9 @@ import {
   Printer,
   Download,
   RefreshCw,
+  Store,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 
@@ -501,6 +504,103 @@ export const CustomersPage: React.FC = () => {
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Customer Section Summary KPI Stats */}
+      {(() => {
+        const totalCustomers = customers.length;
+        const totalAdvances = customers.reduce((sum, c) => {
+          const bal = calculateCustomerAdvanceBalance(c, allCollections, advanceRecords);
+          return sum + bal.totalAdvance;
+        }, 0);
+        const totalRemaining = customers.reduce((sum, c) => {
+          const bal = calculateCustomerAdvanceBalance(c, allCollections, advanceRecords);
+          return sum + bal.remainingAdvance;
+        }, 0);
+        const exhaustedList = getExhaustedAdvanceCustomers(customers, allCollections, advanceRecords);
+        const dailySummary = getDailyStatusSummary(customers, allCollections);
+
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 no-print">
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">کل گاہک و دکانیں</span>
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <Store className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className="text-xl font-black text-slate-900 font-mono tracking-tight">{totalCustomers}</p>
+                <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">رجسٹرڈ ویسٹ دکانیں</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">کل پیشگی ایڈوانس</span>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <Wallet className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className="text-xl font-black text-emerald-700 font-mono tracking-tight">
+                  Rs. {totalAdvances.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-emerald-600 font-medium truncate mt-0.5">تمام دکانوں کو ادا شدہ</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-indigo-800 tracking-wider">باقی ایڈوانس کریڈٹ</span>
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className={`text-xl font-black font-mono tracking-tight ${totalRemaining <= 0 ? 'text-rose-700' : 'text-indigo-700'}`}>
+                  Rs. {totalRemaining.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">ویسٹ کٹوتی کے بعد باقی</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-rose-800 tracking-wider">ایڈوانس ختم دکانیں</span>
+                <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className={`text-xl font-black font-mono tracking-tight ${exhaustedList.length > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+                  {exhaustedList.length}
+                </p>
+                <p className="text-[10px] text-rose-600 font-medium truncate mt-0.5">
+                  {exhaustedList.length > 0 ? 'نیا ایڈوانس درکار ہے' : 'تمام ایڈوانس کلیئر'}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">آج کی وصولی اسٹیٹس</span>
+                <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className="text-xl font-black text-slate-900 font-mono tracking-tight">
+                  <span className="text-emerald-700">{dailySummary.completedCount}</span>
+                  <span className="text-sm text-slate-400 font-normal"> / {totalCustomers}</span>
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                  {dailySummary.pendingCount > 0 ? `🔴 ${dailySummary.pendingCount} دکانیں باقی ہیں` : '🟢 تمام وصولیاں مکمل'}
+                </p>
               </div>
             </div>
           </div>

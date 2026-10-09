@@ -134,17 +134,21 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="sm:hidden">ویسٹ سسٹم</span>
           </button>
         ) : (
-          onOpenChickenShop && (
-            <button
-              onClick={onOpenChickenShop}
-              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
-              title="چکن شاپ سیلز، گوشت وزن، نقد و ادھار کسٹمر کھاتہ"
-            >
-              <Store className="w-4 h-4 text-amber-200 shrink-0" />
-              <span className="hidden sm:inline">🍗 چکن شاپ مینجمنٹ</span>
-              <span className="sm:hidden">🍗 چکن شاپ</span>
-            </button>
-          )
+          <button
+            onClick={() => {
+              if (onOpenChickenShop) {
+                onOpenChickenShop();
+              } else {
+                window.open('/chicken-management', '_blank');
+              }
+            }}
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+            title="نئی ٹیب میں چکن شاپ و ڈیجیٹل کھاتہ کھولیں"
+          >
+            <Store className="w-4 h-4 text-amber-200 shrink-0" />
+            <span className="hidden sm:inline">🍗 چکن شاپ مینجمنٹ</span>
+            <span className="sm:hidden">🍗 چکن شاپ</span>
+          </button>
         )}
 
         {/* Action Button: New Collection */}

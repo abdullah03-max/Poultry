@@ -1849,6 +1849,75 @@ export const api = {
     return { collections: filtered, totalCount };
   },
 
+  async getCollectionStats(params?: {
+    startDate?: string;
+    endDate?: string;
+    customerId?: string;
+    workerId?: string;
+    search?: string;
+  }): Promise<{
+    totalSlips: number;
+    totalNetWeight: number;
+    totalAmount: number;
+    avgWeightPerSlip: number;
+    uniqueCustomersCount: number;
+  }> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase.from('collections').select('id, total_net_weight, total_amount, customer_id, receipt_no');
+        if (params?.startDate) query = query.gte('collection_date', params.startDate);
+        if (params?.endDate) query = query.lte('collection_date', params.endDate);
+        if (params?.customerId) query = query.eq('customer_id', params.customerId);
+        if (params?.workerId) query = query.eq('worker_id', params.workerId);
+        if (params?.search) query = query.ilike('receipt_no', `%${params.search}%`);
+
+        const { data, error } = await query;
+        if (!error && data) {
+          const totalSlips = data.length;
+          const totalNetWeight = data.reduce((s, r) => s + (Number(r.total_net_weight) || 0), 0);
+          const totalAmount = data.reduce((s, r) => s + (Number(r.total_amount) || 0), 0);
+          const uniqueCustomers = new Set(data.map(r => r.customer_id).filter(Boolean));
+          return {
+            totalSlips,
+            totalNetWeight: Number(totalNetWeight.toFixed(2)),
+            totalAmount: Math.round(totalAmount),
+            avgWeightPerSlip: totalSlips > 0 ? Number((totalNetWeight / totalSlips).toFixed(2)) : 0,
+            uniqueCustomersCount: uniqueCustomers.size,
+          };
+        }
+      } catch (err) {
+        console.warn('[API] Could not fetch collection stats from Supabase:', err);
+      }
+    }
+
+    let filtered = [...mockCollections];
+    if (params?.startDate) filtered = filtered.filter(c => c.collection_date >= params.startDate!);
+    if (params?.endDate) filtered = filtered.filter(c => c.collection_date <= params.endDate!);
+    if (params?.customerId) filtered = filtered.filter(c => c.customer_id === params.customerId);
+    if (params?.workerId) filtered = filtered.filter(c => c.worker_id === params.workerId);
+    if (params?.search) {
+      const s = params.search.toLowerCase();
+      filtered = filtered.filter(
+        c =>
+          c.receipt_no.toLowerCase().includes(s) ||
+          c.customer?.name.toLowerCase().includes(s) ||
+          c.customer?.customer_code.toLowerCase().includes(s) ||
+          c.customer?.phone.includes(s)
+      );
+    }
+    const totalSlips = filtered.length;
+    const totalNetWeight = filtered.reduce((s, r) => s + (Number(r.total_net_weight) || 0), 0);
+    const totalAmount = filtered.reduce((s, r) => s + (Number(r.total_amount) || 0), 0);
+    const uniqueCustomers = new Set(filtered.map(r => r.customer_id).filter(Boolean));
+    return {
+      totalSlips,
+      totalNetWeight: Number(totalNetWeight.toFixed(2)),
+      totalAmount: Math.round(totalAmount),
+      avgWeightPerSlip: totalSlips > 0 ? Number((totalNetWeight / totalSlips).toFixed(2)) : 0,
+      uniqueCustomersCount: uniqueCustomers.size,
+    };
+  },
+
   async createCollection(collection: Partial<Collection>, items: Partial<any>[]): Promise<Collection> {
     if (isSupabaseConfigured()) {
       try {
