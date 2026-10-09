@@ -23,8 +23,8 @@ export const DEFAULT_FRESH_CHICKEN_PRODUCT: ChickenProduct = {
   urdu_name: 'تازہ مرغی (زندہ / ہول چکن)',
   category: 'Fresh Live Chicken',
   unit: 'KG',
-  rate_per_kg: 440,
-  stock_kg: 100.0,
+  rate_per_kg: 450,
+  stock_kg: 0,
   min_stock_alert: 25.0,
   is_active: true,
 };
@@ -276,6 +276,20 @@ export const chickenShopApi = {
     }
 
     return saved;
+  },
+
+  async deleteProduct(id: string): Promise<void> {
+    let products = await this.getProducts();
+    products = products.filter(p => p.id !== id);
+    localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_products').delete().eq('id', id);
+      } catch (e) {
+        console.warn('[CS API] Supabase product delete fallback:', e);
+      }
+    }
   },
 
   async updateProductStock(productId: string, changeKg: number, reason: 'sale' | 'purchase' | 'adjustment' | 'waste_loss', notes?: string, refId?: string): Promise<ChickenProduct | null> {
@@ -871,10 +885,12 @@ export const chickenShopApi = {
         const { data, error } = await supabase
           .from('chicken_shop_fresh_arrivals')
           .select('*')
+          .neq('id', 'fca-init-01')
           .order('date', { ascending: false });
-        if (!error && data && data.length > 0) {
-          localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(data));
-          return data as FreshChickenArrival[];
+        if (!error && data) {
+          const cleaned = (data as FreshChickenArrival[]).filter(a => a.id !== 'fca-init-01');
+          localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(cleaned));
+          return cleaned;
         }
       } catch (e) {
         console.warn('[CS API] Supabase fresh arrivals fallback:', e);
@@ -883,28 +899,14 @@ export const chickenShopApi = {
 
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.freshArrivals);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = (JSON.parse(stored) as FreshChickenArrival[]).filter(a => a.id !== 'fca-init-01');
+        localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(parsed));
+        return parsed;
+      }
     } catch {}
 
-    const initialArrivals: FreshChickenArrival[] = [
-      {
-        id: 'fca-init-01',
-        date: new Date().toISOString().split('T')[0],
-        time: '08:30:00',
-        weight_kg: 100.0,
-        rate_per_kg: 380,
-        total_cost: 38000,
-        selling_rate_per_kg: 440,
-        supplier_name: 'پنجاب پولٹری فارم (گاڑی 4)',
-        birds_count: 55,
-        vehicle_no: 'FD-1892',
-        notes: 'تازہ مرغی فارم آمد',
-        created_at: new Date().toISOString(),
-      },
-    ];
-
-    localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(initialArrivals));
-    return initialArrivals;
+    return [];
   },
 
   async saveFreshChickenArrival(entry: Omit<FreshChickenArrival, 'id' | 'created_at'>): Promise<FreshChickenArrival> {
