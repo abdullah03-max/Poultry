@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:mobile": "vite build --config vite.mobile.config.ts",
     "preview": "vite preview",
     "electron:start": "electron electron/main.cjs",
     "electron:dev": "electron electron/main.cjs --dev"
