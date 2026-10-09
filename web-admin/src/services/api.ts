@@ -548,24 +548,84 @@ function serializeCustomerKhata(c: any): any {
 }
 
 function extractSafeCustomerPayload(p: any): any {
-  return {
-    customer_code: p.customer_code,
-    name: p.name,
-    contact_person: p.contact_person,
-    phone: p.phone,
-    alternate_phone: p.alternate_phone,
-    address: p.address,
-    area: p.area,
-    rate_per_kg: p.rate_per_kg,
-    rate_charbi: p.rate_charbi,
-    rate_kachara: p.rate_kachara,
-    collection_start_time: p.collection_start_time,
-    collection_end_time: p.collection_end_time,
-    category_rates: p.category_rates,
-    status: p.status,
-    notes: p.notes,
-    updated_at: p.updated_at,
-  };
+  if (!p) return p;
+
+  const allowedCols = [
+    'customer_code',
+    'name',
+    'contact_person',
+    'phone',
+    'alternate_phone',
+    'address',
+    'area',
+    'rate_per_kg',
+    'rate_charbi',
+    'rate_kachara',
+    'collection_start_time',
+    'collection_end_time',
+    'dokan_khata',
+    'customer_khata',
+    'boles_weight',
+    'boles_rate',
+    'boles_total',
+    'thai_weight',
+    'thai_rate',
+    'thai_total',
+    'gosht_weight',
+    'gosht_rate',
+    'gosht_total',
+    'bakaya_raqam',
+    'total_raqam',
+    'category_rates',
+    'status',
+    'notes',
+    'is_deleted',
+    'created_by',
+    'updated_at',
+  ];
+
+  const safe: Record<string, any> = {};
+  for (const col of allowedCols) {
+    if (p[col] !== undefined) {
+      safe[col] = p[col];
+    }
+  }
+
+  // Ensure mandatory defaults for required columns
+  if (!safe.area) safe.area = 'General';
+  if (!safe.status) safe.status = 'active';
+
+  // Advance details MUST be inside category_rates JSONB column
+  const categoryRates: Record<string, any> = { ...(p.category_rates || {}) };
+  if (p.advance_amount != null) {
+    categoryRates.advance_amount = Number(p.advance_amount);
+  }
+  if (p.advance_date) {
+    categoryRates.advance_date = p.advance_date;
+  }
+  if (p.advance_notes) {
+    categoryRates.advance_notes = p.advance_notes;
+  }
+  if (p.advance_payment_method) {
+    categoryRates.advance_payment_method = p.advance_payment_method;
+  }
+
+  if (p.customer_advance) {
+    categoryRates.customer_advance = {
+      ...(categoryRates.customer_advance || {}),
+      ...p.customer_advance,
+    };
+  } else if (p.advance_amount != null) {
+    categoryRates.customer_advance = {
+      advance_amount: Number(p.advance_amount),
+      advance_date: p.advance_date || new Date().toISOString().split('T')[0],
+      advance_payment_method: p.advance_payment_method || 'cash',
+      advance_notes: p.advance_notes || null,
+    };
+  }
+  safe.category_rates = categoryRates;
+
+  return safe;
 }
 
 // -----------------------------------------------------------------------------
@@ -714,21 +774,27 @@ export const api = {
 
   async createCustomer(customer: Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>): Promise<Customer> {
     const payload = serializeCustomerKhata(customer);
+    const safePayload = extractSafeCustomerPayload(payload);
+    if (!safePayload.area) safePayload.area = 'General';
+    if (!safePayload.customer_code) safePayload.customer_code = `CUST-${Date.now().toString().slice(-6)}`;
+
     if (isSupabaseConfigured()) {
       try {
-        let { data, error } = await supabase.from('customers').insert([payload]).select().single();
-        if (error && (error as any).code === '42703') {
-          // If columns do not exist yet in Supabase schema, insert clean payload with JSONB category_rates
-          const safePayload = extractSafeCustomerPayload(payload);
-          const retry = await supabase.from('customers').insert([safePayload]).select().single();
-          if (!retry.error && retry.data) {
-            data = retry.data;
-            error = null;
-          }
+        const { data, error } = await supabase.from('customers').insert([safePayload]).select().single();
+        if (error) {
+          console.error('[API] Error creating customer in Supabase:', error);
+          throw new Error(error.message || 'Supabase customer insert failed');
         }
-        if (!error && data) return hydrateCustomerKhata({ ...data, ...customer });
-      } catch (err) {
-        console.warn('[API] Could not create customer in Supabase, saving to mock state:', err);
+        if (data) {
+          const hydrated = hydrateCustomerKhata({ ...data, ...customer });
+          const existingIdx = mockCustomers.findIndex(c => c.id === hydrated.id);
+          if (existingIdx !== -1) mockCustomers[existingIdx] = hydrated;
+          else mockCustomers.unshift(hydrated);
+          return hydrated;
+        }
+      } catch (err: any) {
+        console.error('[API] Failed to create customer in Supabase:', err);
+        throw err;
       }
     }
     const newCust: Customer = hydrateCustomerKhata({
@@ -738,37 +804,38 @@ export const api = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
-    mockCustomers.push(newCust);
+    mockCustomers.unshift(newCust);
     return newCust;
   },
 
   async updateCustomer(id: string, updates: Partial<Customer>): Promise<Customer> {
     const payload = serializeCustomerKhata(updates);
+    const safePayload = extractSafeCustomerPayload({ ...payload, updated_at: new Date().toISOString() });
+    // Remove undefined values
+    Object.keys(safePayload).forEach(k => safePayload[k] === undefined && delete safePayload[k]);
+
     if (isSupabaseConfigured()) {
       try {
-        let { data, error } = await supabase
+        const { data, error } = await supabase
           .from('customers')
-          .update({ ...payload, updated_at: new Date().toISOString() })
+          .update(safePayload)
           .eq('id', id)
           .select()
           .single();
 
-        if (error && (error as any).code === '42703') {
-          const safePayload = extractSafeCustomerPayload({ ...payload, updated_at: new Date().toISOString() });
-          const retry = await supabase
-            .from('customers')
-            .update(safePayload)
-            .eq('id', id)
-            .select()
-            .single();
-          if (!retry.error && retry.data) {
-            data = retry.data;
-            error = null;
-          }
+        if (error) {
+          console.error('[API] Error updating customer in Supabase:', error);
+          throw new Error(error.message || 'Supabase customer update failed');
         }
-        if (!error && data) return hydrateCustomerKhata({ ...data, ...updates });
-      } catch (err) {
-        console.warn('[API] Could not update customer in Supabase, updating mock state:', err);
+        if (data) {
+          const hydrated = hydrateCustomerKhata({ ...data, ...updates });
+          const idx = mockCustomers.findIndex(c => c.id === id);
+          if (idx !== -1) mockCustomers[idx] = hydrated;
+          return hydrated;
+        }
+      } catch (err: any) {
+        console.error('[API] Failed to update customer in Supabase:', err);
+        throw err;
       }
     }
     const idx = mockCustomers.findIndex(c => c.id === id);
@@ -833,6 +900,7 @@ export const api = {
     date: string;
     paymentMethod: 'cash' | 'online' | 'bank';
     notes?: string;
+    skipCustomerUpdate?: boolean;
   }): Promise<CustomerAdvanceRecord> {
     const advRecord: CustomerAdvanceRecord = {
       id: `adv-${Date.now()}`,
@@ -853,16 +921,18 @@ export const api = {
       console.warn('Could not save customer advance to localStorage:', e);
     }
 
-    // Also update the customer's total advance
-    const cust = await this.getCustomerById(data.customerId);
-    if (cust) {
-      const currentAdv = Number(cust.advance_amount || 0);
-      await this.updateCustomer(cust.id, {
-        advance_amount: currentAdv + data.amount,
-        advance_date: data.date,
-        advance_notes: data.notes,
-        advance_payment_method: data.paymentMethod,
-      });
+    // Only update customer advance amount if not already updated by createCustomer / updateCustomer
+    if (!data.skipCustomerUpdate) {
+      const cust = await this.getCustomerById(data.customerId);
+      if (cust) {
+        const currentAdv = Number(cust.advance_amount || 0);
+        await this.updateCustomer(cust.id, {
+          advance_amount: currentAdv + data.amount,
+          advance_date: data.date,
+          advance_notes: data.notes,
+          advance_payment_method: data.paymentMethod,
+        });
+      }
     }
 
     // Also record expense so Cash Book / Accounts accurately reflect advance paid to customer

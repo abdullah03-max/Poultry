@@ -154,6 +154,10 @@ export const CustomersPage: React.FC = () => {
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCustomer) return;
+    if (!editingCustomer.name || !editingCustomer.name.trim()) {
+      alert('براہ کرم گاہک کا نام درج کریں (Please enter customer name)');
+      return;
+    }
 
     try {
       const charbiRate = editingCustomer.rate_charbi ?? 55.0;
@@ -162,9 +166,11 @@ export const CustomersPage: React.FC = () => {
 
       const customerPayload: Partial<Customer> = {
         ...editingCustomer,
+        name: editingCustomer.name.trim(),
         rate_charbi: charbiRate,
         rate_kachara: kacharaRate,
         rate_per_kg: kacharaRate,
+        area: editingCustomer.area || 'General',
         advance_amount: advAmt > 0 ? advAmt : null,
         advance_date: editingCustomer.advance_date || new Date().toISOString().split('T')[0],
         advance_payment_method: editingCustomer.advance_payment_method || 'cash',
@@ -186,7 +192,7 @@ export const CustomersPage: React.FC = () => {
 
       if (editingCustomer.id) {
         await api.updateCustomer(editingCustomer.id, customerPayload);
-        // If advance was added on existing customer and not yet recorded
+        // If advance was added on existing customer and not yet recorded in advance ledger
         if (advAmt > 0) {
           const existingAdv = advanceRecords.filter(r => r.customer_id === editingCustomer.id);
           if (existingAdv.length === 0) {
@@ -197,13 +203,15 @@ export const CustomersPage: React.FC = () => {
               date: editingCustomer.advance_date || new Date().toISOString().split('T')[0],
               paymentMethod: editingCustomer.advance_payment_method || 'cash',
               notes: editingCustomer.advance_notes || 'Advance added from customer profile edit',
+              skipCustomerUpdate: true,
             });
           }
         }
       } else {
+        const uniqueCode = editingCustomer.customer_code?.trim() || `CUST-${String(customers.length + 1).padStart(3, '0')}-${Date.now().toString().slice(-3)}`;
         const created = await api.createCustomer({
-          customer_code: editingCustomer.customer_code || `CUST-${String(customers.length + 1).padStart(3, '0')}`,
-          name: editingCustomer.name || 'New Customer',
+          customer_code: uniqueCode,
+          name: editingCustomer.name.trim(),
           contact_person: editingCustomer.contact_person || null,
           phone: editingCustomer.phone || '',
           alternate_phone: editingCustomer.alternate_phone || null,
@@ -227,6 +235,7 @@ export const CustomersPage: React.FC = () => {
               advance_payment_method: editingCustomer.advance_payment_method || 'cash',
               advance_notes: editingCustomer.advance_notes || null,
             },
+            ...(editingCustomer.category_rates || {}),
           },
           status: 'active',
           notes: editingCustomer.notes || null,
@@ -240,14 +249,16 @@ export const CustomersPage: React.FC = () => {
             date: editingCustomer.advance_date || new Date().toISOString().split('T')[0],
             paymentMethod: editingCustomer.advance_payment_method || 'cash',
             notes: editingCustomer.advance_notes || 'Initial advance paid to customer on onboarding',
+            skipCustomerUpdate: true,
           });
         }
       }
       setEditModalOpen(false);
       setEditingCustomer(null);
       await fetchCustomers();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save customer:', err);
+      alert('گاہک محفوظ کرنے میں مسئلہ پیش آیا: ' + (err?.message || 'Error saving customer'));
     }
   };
 

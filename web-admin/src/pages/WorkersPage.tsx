@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
-import { WorkerTrackingMap, getWorkerPresence, calculateDistanceKm, formatDistance } from '../components/tracking/WorkerTrackingMap';
+import { WorkerTrackingMap, getWorkerPresence } from '../components/tracking/WorkerTrackingMap';
 
 export const WorkersPage: React.FC = () => {
   const [workers, setWorkers] = useState<Profile[]>([]);
@@ -466,13 +466,6 @@ export const WorkersPage: React.FC = () => {
                     <td className="py-3.5 px-4 text-center">
                       {(() => {
                         const presence = getWorkerPresence(w);
-                        let distInfo = null;
-                        if (presence.hasGps && w.current_latitude && w.current_longitude) {
-                          const refLat = adminPosition ? adminPosition.lat : 30.2974;
-                          const refLng = adminPosition ? adminPosition.lng : 72.8550;
-                          const dKm = calculateDistanceKm(refLat, refLng, Number(w.current_latitude), Number(w.current_longitude));
-                          distInfo = formatDistance(dKm);
-                        }
 
                         return (
                           <div className="flex flex-col items-center gap-1">
@@ -496,12 +489,6 @@ export const WorkersPage: React.FC = () => {
                               )}
                               <span>{presence.label}</span>
                             </button>
-
-                            {distInfo && (
-                              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200/80 font-mono">
-                                📍 {distInfo.textUrdu} ({distInfo.textEn})
-                              </span>
-                            )}
                           </div>
                         );
                       })()}

@@ -159,7 +159,6 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
 
   // Admin Live Geolocation State
   const [adminPosition, setAdminPosition] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
-  const [sortByDistance, setSortByDistance] = useState<boolean>(false);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -456,19 +455,15 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       const latlng: L.LatLngTuple = [lat, lng];
       bounds.push(latlng);
 
-      // Compute geodesic distance from reference point
-      const distKm = calculateDistanceKm(referencePoint.lat, referencePoint.lng, lat, lng);
-      const distInfo = formatDistance(distKm);
-
       const initials = w.full_name ? w.full_name.substring(0, 2).toUpperCase() : 'WK';
 
-      // Create Custom Animated Pulse Pin Icon with legible name tag AND distance badge on map
+      // Create Custom Animated Pulse Pin Icon with legible name tag on map
       const customIcon = L.divIcon({
         className: 'custom-worker-pin',
         html: `
           <div style="position: relative; width: 70px; height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;">
             <div style="background: rgba(15, 23, 42, 0.92); color: white; padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.35); margin-bottom: 2px; border: 1px solid rgba(255,255,255,0.4); max-width: 85px; overflow: hidden; text-overflow: ellipsis; text-align: center;">
-              ${w.full_name || 'Worker'} • ${distInfo.textEn}
+              ${w.full_name || 'Worker'}
             </div>
             <div style="position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
               ${presence.status === 'online' ? `
@@ -505,31 +500,17 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
         const marker = L.marker(latlng, { icon: customIcon }).addTo(map);
 
         const popupContent = `
-          <div style="font-family: sans-serif; min-width: 210px; padding: 4px;">
+          <div style="font-family: sans-serif; min-width: 190px; padding: 4px;">
             <div style="font-weight: bold; font-size: 14px; color: #0F172A; margin-bottom: 2px;">
               ${w.full_name}
             </div>
-            <div style="font-size: 11px; color: ${presence.pinBg}; font-weight: 700; margin-bottom: 4px;">
+            <div style="font-size: 11px; color: ${presence.pinBg}; font-weight: 700; margin-bottom: 6px;">
               ● ${presence.label} (${presence.timeAgoText})
             </div>
 
-            <!-- Distance from Admin / Center box -->
-            <div style="margin-top: 4px; padding: 6px 8px; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 8px;">
-              <div style="font-size: 11px; font-weight: bold; color: #6B21A8; display: flex; align-items: center; justify-content: space-between;">
-                <span>📍 ${referencePoint.isLiveAdmin ? 'آپ سے فاصلہ (Distance from You):' : 'سینٹر سے فاصلہ (From Center):'}</span>
-                <span style="font-family: monospace; font-size: 12px; font-weight: 900; color: #581C87;">${distInfo.textUrdu} (${distInfo.textEn})</span>
-              </div>
-              <div style="font-size: 10px; color: #7E22CE; margin-top: 2px;">
-                ⏱️ متوقع ڈرائیو ٹائم: ${distInfo.driveTime}
-              </div>
-              <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 6px; text-align: center; background: #7C3AED; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 10px; font-weight: bold;">
-                🗺️ گوگل میپس پر راستہ دیکھیں (Get Directions)
-              </a>
-            </div>
-
             ${w.phone ? `
-              <div style="font-size: 11px; color: #334155; margin-top: 6px; margin-bottom: 4px;">
-                📞 <a href="tel:${w.phone}" style="color: #2563EB; font-weight: bold; text-decoration: none;">${w.phone}</a>
+              <div style="font-size: 11px; color: #334155; margin-bottom: 6px; padding: 4px 6px; background: #F1F5F9; border-radius: 6px;">
+                📞 کال کریں: <a href="tel:${w.phone}" style="color: #2563EB; font-weight: bold; text-decoration: none;">${w.phone}</a>
               </div>
             ` : ''}
             <div style="font-size: 10px; color: #64748B; font-family: monospace;">
@@ -629,20 +610,17 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
     map.flyTo(DEFAULT_CENTER, 12, { duration: 1 });
   };
 
-  // Sort workers list by distance if toggled
+  // Sort workers list: Online active first, then idle, then offline
   const sortedWorkers = useMemo(() => {
-    if (!sortByDistance) return workers;
     return [...workers].sort((a, b) => {
-      const aGps = getWorkerPresence(a).hasGps;
-      const bGps = getWorkerPresence(b).hasGps;
-      if (aGps && !bGps) return -1;
-      if (!aGps && bGps) return 1;
-      if (!aGps && !bGps) return 0;
-      const distA = calculateDistanceKm(referencePoint.lat, referencePoint.lng, Number(a.current_latitude), Number(a.current_longitude));
-      const distB = calculateDistanceKm(referencePoint.lat, referencePoint.lng, Number(b.current_latitude), Number(b.current_longitude));
-      return distA - distB;
+      const presA = getWorkerPresence(a);
+      const presB = getWorkerPresence(b);
+      const rank = (status: string) => (status === 'online' ? 1 : status === 'idle' ? 2 : 3);
+      const rankDiff = rank(presA.status) - rank(presB.status);
+      if (rankDiff !== 0) return rankDiff;
+      return (a.full_name || '').localeCompare(b.full_name || '');
     });
-  }, [workers, sortByDistance, referencePoint]);
+  }, [workers]);
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-card">
@@ -654,14 +632,14 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
               <Navigation className="w-4 h-4 text-emerald-600" />
             </span>
             <h3 className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight">
-              Live Field Worker GPS Tracking & Proximity
+              Live Field Worker GPS Tracking
             </h3>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
               24/7 Live
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            ورکرز کا لائیو فاصلہ (Distance)، گلی، چوک اور دکانوں کے ناموں کے ساتھ 24/7 ٹریکنگ
+            ورکرز کی لائیو لوکیشن، گلی، چوک اور دکانوں کے ناموں کے ساتھ 24/7 لائیو ٹریکنگ
           </p>
         </div>
 
@@ -761,38 +739,14 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Collectors ({workers.length})
             </span>
-            <button
-              onClick={() => setSortByDistance(prev => !prev)}
-              className={`text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg border transition ${
-                sortByDistance
-                  ? 'bg-purple-100 text-purple-800 border-purple-300'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-              title="ورکرز کو فاصلے کے حساب سے ترتیب دیں"
-            >
-              <ArrowUpDown className="w-2.5 h-2.5 text-purple-600" />
-              <span>{sortByDistance ? 'قریبی پہلے' : 'فاصلہ ترتیب'}</span>
-            </button>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              {workers.filter(w => getWorkerPresence(w).status === 'online').length} آن لائن
+            </span>
           </div>
 
           {sortedWorkers.map(w => {
             const isSelected = selectedWorkerId === w.id;
             const presence = getWorkerPresence(w);
-
-            let distanceBadge = null;
-            if (presence.hasGps && w.current_latitude && w.current_longitude) {
-              const dKm = calculateDistanceKm(
-                referencePoint.lat,
-                referencePoint.lng,
-                Number(w.current_latitude),
-                Number(w.current_longitude)
-              );
-              const dInfo = formatDistance(dKm);
-              distanceBadge = {
-                ...dInfo,
-                km: dKm,
-              };
-            }
 
             return (
               <div
@@ -821,19 +775,6 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
                     {presence.label}
                   </span>
                 </div>
-
-                {/* Real-time Distance Pill */}
-                {distanceBadge && (
-                  <div className="mt-2 flex items-center justify-between bg-purple-50/80 border border-purple-200 px-2 py-1 rounded-lg">
-                    <span className="flex items-center gap-1 font-bold text-purple-900 text-[10px] font-urdu">
-                      <Navigation className="w-3 h-3 text-purple-600 shrink-0" />
-                      {referencePoint.isLiveAdmin ? 'آپ سے فاصلہ:' : 'سینٹر سے فاصلہ:'}
-                    </span>
-                    <span className="font-mono font-black text-purple-800 text-[11px]">
-                      {distanceBadge.textUrdu} ({distanceBadge.textEn})
-                    </span>
-                  </div>
-                )}
 
                 <div className="mt-2 text-[11px] text-slate-500 space-y-1">
                   {w.phone && (
