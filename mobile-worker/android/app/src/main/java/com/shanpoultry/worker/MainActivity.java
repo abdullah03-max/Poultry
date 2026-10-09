@@ -63,6 +63,38 @@ public class MainActivity extends AppCompatActivity {
 
         setupWebView();
         setupBackNavigation();
+        checkAndResumeBackgroundTracking();
+    }
+
+    private void checkAndResumeBackgroundTracking() {
+        android.content.SharedPreferences prefs = getSharedPreferences(WorkerLocationService.PREFS_NAME, MODE_PRIVATE);
+        boolean isTrackingEnabled = prefs.getBoolean(WorkerLocationService.KEY_TRACKING_ENABLED, false);
+        String workerId = prefs.getString(WorkerLocationService.KEY_WORKER_ID, "");
+
+        if (isTrackingEnabled && !workerId.isEmpty()) {
+            try {
+                Intent serviceIntent = new Intent(this, WorkerLocationService.class);
+                serviceIntent.setAction(WorkerLocationService.ACTION_START);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                try {
+                    Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                } catch (Exception ignored) {}
+            }
+        }
     }
 
     private void setupStatusBar() {
@@ -101,6 +133,16 @@ public class MainActivity extends AppCompatActivity {
         }
         if (!perms.isEmpty()) {
             ActivityCompat.requestPermissions(this, perms.toArray(new String[0]), PERMISSION_REQUEST_CODE);
+        } else {
+            requestBackgroundLocationPermissionIfNeeded();
+        }
+    }
+
+    private void requestBackgroundLocationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, PERMISSION_REQUEST_CODE + 1);
+            }
         }
     }
 
@@ -545,6 +587,7 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         startService(serviceIntent);
                     }
+                    checkBatteryOptimization();
                     Toast.makeText(MainActivity.this, "فیلڈ ورکر بیک گراؤنڈ GPS ٹریکنگ ایکٹو ہو گئی ہے", Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
                     Toast.makeText(MainActivity.this, "Failed to start GPS service: " + e.getMessage(), Toast.LENGTH_LONG).show();

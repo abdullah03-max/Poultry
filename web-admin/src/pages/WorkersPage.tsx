@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
 import { CollectionDetailModal } from '../components/collections/CollectionDetailModal';
-import { WorkerTrackingMap, getWorkerPresence } from '../components/tracking/WorkerTrackingMap';
+import { WorkerTrackingMap, getWorkerPresence, calculateDistanceKm, formatDistance } from '../components/tracking/WorkerTrackingMap';
 
 export const WorkersPage: React.FC = () => {
   const [workers, setWorkers] = useState<Profile[]>([]);
@@ -57,6 +57,17 @@ export const WorkersPage: React.FC = () => {
   const [trackingWorker, setTrackingWorker] = useState<Profile | null>(null);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState<boolean>(false);
   const [showMapSection, setShowMapSection] = useState<boolean>(true);
+  const [adminPosition, setAdminPosition] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => setAdminPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    }
+  }, []);
 
   const handleTrackWorker = (worker: Profile) => {
     setTrackingWorker(worker);
@@ -451,31 +462,47 @@ export const WorkersPage: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Live GPS Status */}
+                    {/* Live GPS Status & Distance */}
                     <td className="py-3.5 px-4 text-center">
                       {(() => {
                         const presence = getWorkerPresence(w);
+                        let distInfo = null;
+                        if (presence.hasGps && w.current_latitude && w.current_longitude) {
+                          const refLat = adminPosition ? adminPosition.lat : 30.2974;
+                          const refLng = adminPosition ? adminPosition.lng : 72.8550;
+                          const dKm = calculateDistanceKm(refLat, refLng, Number(w.current_latitude), Number(w.current_longitude));
+                          distInfo = formatDistance(dKm);
+                        }
+
                         return (
-                          <button
-                            type="button"
-                            onClick={() => handleTrackWorker(w)}
-                            title={`Click to track ${w.full_name} live on map • ${presence.timeAgoText}`}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${presence.badgeClass}`}
-                          >
-                            {presence.status === 'online' ? (
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          <div className="flex flex-col items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleTrackWorker(w)}
+                              title={`Click to track ${w.full_name} live on map • ${presence.timeAgoText}`}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${presence.badgeClass}`}
+                            >
+                              {presence.status === 'online' ? (
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                              ) : (
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    presence.status === 'idle' ? 'bg-amber-500' : 'bg-slate-400'
+                                  }`}
+                                />
+                              )}
+                              <span>{presence.label}</span>
+                            </button>
+
+                            {distInfo && (
+                              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200/80 font-mono">
+                                📍 {distInfo.textUrdu} ({distInfo.textEn})
                               </span>
-                            ) : (
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  presence.status === 'idle' ? 'bg-amber-500' : 'bg-slate-400'
-                                }`}
-                              />
                             )}
-                            <span>{presence.label}</span>
-                          </button>
+                          </div>
                         );
                       })()}
                     </td>

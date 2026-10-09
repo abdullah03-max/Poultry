@@ -1,5 +1,6 @@
 package com.shanpoultry.worker;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,6 +8,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.location.Location;
 import android.location.LocationListener;
@@ -15,6 +17,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -32,8 +35,13 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 /**
- * Background Foreground Service for 24/7 Realtime GPS Location Tracking of Field Workers.
- * Runs even when the app is minimized, screen locked, or other apps are opened.
+ * 24/7 Persistent Background & Foreground Service for Realtime Worker GPS Location Tracking.
+ * Continues running even when:
+ * 1. App is minimized or running in background
+ * 2. App is completely closed / killed / swiped away from recent apps
+ * 3. Screen is locked
+ * 4. Phone is rebooted (via WorkerBootReceiver)
+ * As long as the mobile device has Location (GPS) turned ON.
  */
 public class WorkerLocationService extends Service implements LocationListener {
 
@@ -43,11 +51,19 @@ public class WorkerLocationService extends Service implements LocationListener {
 
     public static final String ACTION_START = "com.shanpoultry.worker.START_TRACKING";
     public static final String ACTION_STOP = "com.shanpoultry.worker.STOP_TRACKING";
+    public static final String ACTION_KEEP_ALIVE = "com.shanpoultry.worker.ACTION_KEEP_ALIVE";
 
     public static final String EXTRA_WORKER_ID = "worker_id";
     public static final String EXTRA_WORKER_NAME = "worker_name";
     public static final String EXTRA_SUPABASE_URL = "supabase_url";
     public static final String EXTRA_SUPABASE_KEY = "supabase_key";
+
+    public static final String PREFS_NAME = "spp_worker_gps_prefs";
+    public static final String KEY_WORKER_ID = "worker_id";
+    public static final String KEY_WORKER_NAME = "worker_name";
+    public static final String KEY_SUPABASE_URL = "supabase_url";
+    public static final String KEY_SUPABASE_KEY = "supabase_key";
+    public static final String KEY_TRACKING_ENABLED = "tracking_enabled";
 
     private LocationManager locationManager;
     private PowerManager.WakeLock wakeLock;
@@ -72,6 +88,25 @@ public class WorkerLocationService extends Service implements LocationListener {
         }
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+
+        // Load persisted credentials from SharedPreferences immediately
+        loadPersistedCredentials();
+    }
+
+    private void loadPersistedCredentials() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (workerId == null || workerId.isEmpty()) {
+            workerId = prefs.getString(KEY_WORKER_ID, "");
+        }
+        if (workerName == null || workerName.equals("Field Collector")) {
+            workerName = prefs.getString(KEY_WORKER_NAME, "Field Collector");
+        }
+        if (supabaseUrl == null || supabaseUrl.isEmpty()) {
+            supabaseUrl = prefs.getString(KEY_SUPABASE_URL, "");
+        }
+        if (supabaseKey == null || supabaseKey.isEmpty()) {
+            supabaseKey = prefs.getString(KEY_SUPABASE_KEY, "");
+        }
     }
 
     @Override
@@ -79,21 +114,115 @@ public class WorkerLocationService extends Service implements LocationListener {
         if (intent != null) {
             String action = intent.getAction();
             if (ACTION_STOP.equals(action)) {
+                Log.d(TAG, "Explicit STOP_TRACKING requested.");
                 stopTracking();
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                prefs.edit().putBoolean(KEY_TRACKING_ENABLED, false).apply();
                 stopSelf();
                 return START_NOT_STICKY;
             }
 
-            workerId = intent.getStringExtra(EXTRA_WORKER_ID) != null ? intent.getStringExtra(EXTRA_WORKER_ID) : workerId;
-            workerName = intent.getStringExtra(EXTRA_WORKER_NAME) != null ? intent.getStringExtra(EXTRA_WORKER_NAME) : workerName;
-            supabaseUrl = intent.getStringExtra(EXTRA_SUPABASE_URL) != null ? intent.getStringExtra(EXTRA_SUPABASE_URL) : supabaseUrl;
-            supabaseKey = intent.getStringExtra(EXTRA_SUPABASE_KEY) != null ? intent.getStringExtra(EXTRA_SUPABASE_KEY) : supabaseKey;
+            if (intent.hasExtra(EXTRA_WORKER_ID) && intent.getStringExtra(EXTRA_WORKER_ID) != null) {
+                workerId = intent.getStringExtra(EXTRA_WORKER_ID);
+            }
+            if (intent.hasExtra(EXTRA_WORKER_NAME) && intent.getStringExtra(EXTRA_WORKER_NAME) != null) {
+                workerName = intent.getStringExtra(EXTRA_WORKER_NAME);
+            }
+            if (intent.hasExtra(EXTRA_SUPABASE_URL) && intent.getStringExtra(EXTRA_SUPABASE_URL) != null) {
+                supabaseUrl = intent.getStringExtra(EXTRA_SUPABASE_URL);
+            }
+            if (intent.hasExtra(EXTRA_SUPABASE_KEY) && intent.getStringExtra(EXTRA_SUPABASE_KEY) != null) {
+                supabaseKey = intent.getStringExtra(EXTRA_SUPABASE_KEY);
+            }
+
+            // Persist parameters so restarts / reboots always have full credentials
+            if (workerId != null && !workerId.isEmpty()) {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                prefs.edit()
+                        .putString(KEY_WORKER_ID, workerId)
+                        .putString(KEY_WORKER_NAME, workerName)
+                        .putString(KEY_SUPABASE_URL, supabaseUrl)
+                        .putString(KEY_SUPABASE_KEY, supabaseKey)
+                        .putBoolean(KEY_TRACKING_ENABLED, true)
+                        .apply();
+            }
+        } else {
+            // Intent is null (restarted by Android after memory kill)
+            loadPersistedCredentials();
         }
 
         startForegroundNotification();
         startLocationUpdates();
+        scheduleWatchdogAlarm();
 
+        // Return START_STICKY so Android recreates the service if it is ever killed
         return START_STICKY;
+    }
+
+    /**
+     * Periodic watchdog alarm: ensures the service is kept alive even through Android Doze mode.
+     */
+    private void scheduleWatchdogAlarm() {
+        try {
+            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (am != null) {
+                Intent intent = new Intent(this, WorkerBootReceiver.class);
+                intent.setAction(ACTION_KEEP_ALIVE);
+                PendingIntent pi = PendingIntent.getBroadcast(
+                        this,
+                        8899,
+                        intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+                long interval = 10 * 60 * 1000L; // 10 minutes
+                am.setRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime() + interval, interval, pi);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not set watchdog alarm: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Critical: when worker swipes away the app from recent tasks list,
+     * immediately schedule restart so tracking NEVER stops.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        Log.d(TAG, "onTaskRemoved called (app swiped away / killed). Ensuring service stays alive...");
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean isTrackingEnabled = prefs.getBoolean(KEY_TRACKING_ENABLED, true);
+
+        if (isTrackingEnabled) {
+            Intent restartIntent = new Intent(getApplicationContext(), WorkerLocationService.class);
+            restartIntent.setAction(ACTION_START);
+            restartIntent.setPackage(getPackageName());
+
+            PendingIntent pendingIntent = PendingIntent.getService(
+                    getApplicationContext(),
+                    9911,
+                    restartIntent,
+                    PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                            SystemClock.elapsedRealtime() + 1000,
+                            pendingIntent
+                    );
+                } else {
+                    alarmManager.set(
+                            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                            SystemClock.elapsedRealtime() + 1000,
+                            pendingIntent
+                    );
+                }
+            }
+        }
     }
 
     private void createNotificationChannel() {
@@ -125,7 +254,7 @@ public class WorkerLocationService extends Service implements LocationListener {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("شان پولٹری - لائیو لوکیشن ٹریکنگ ایکٹو ہے")
-                .setContentText(workerName + " • فیلڈ آپریشنز GPS لوکیشن جاری ہے")
+                .setContentText(workerName + " • 24/7 لائیو فیلڈ لوکیشن جاری ہے")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
@@ -140,7 +269,7 @@ public class WorkerLocationService extends Service implements LocationListener {
         }
 
         if (wakeLock != null && !wakeLock.isHeld()) {
-            wakeLock.acquire(12 * 60 * 60 * 1000L); // Max 12 hours safety hold
+            wakeLock.acquire(24 * 60 * 60 * 1000L); // 24 hours lock
         }
     }
 
@@ -228,7 +357,13 @@ public class WorkerLocationService extends Service implements LocationListener {
     }
 
     private void sendLocationToSupabase(double lat, double lng, double accuracy) {
+        // Ensure credentials are loaded if they were somehow blank
         if (supabaseUrl == null || supabaseUrl.isEmpty() || workerId == null || workerId.isEmpty()) {
+            loadPersistedCredentials();
+        }
+
+        if (supabaseUrl == null || supabaseUrl.isEmpty() || workerId == null || workerId.isEmpty()) {
+            Log.w(TAG, "Cannot upload location: missing supabaseUrl or workerId");
             return;
         }
 
@@ -293,6 +428,8 @@ public class WorkerLocationService extends Service implements LocationListener {
             histConn.getResponseCode();
             histConn.disconnect();
 
+            Log.d(TAG, "Location synced to Supabase successfully: (" + lat + ", " + lng + ")");
+
         } catch (Exception e) {
             Log.w(TAG, "Failed to upload location to Supabase: " + e.getMessage());
         }
@@ -314,6 +451,14 @@ public class WorkerLocationService extends Service implements LocationListener {
 
     @Override
     public void onDestroy() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean isTrackingEnabled = prefs.getBoolean(KEY_TRACKING_ENABLED, false);
+        if (isTrackingEnabled) {
+            Log.w(TAG, "Service is being destroyed while tracking is enabled. Sending wake-up broadcast to revive...");
+            Intent restartIntent = new Intent(this, WorkerBootReceiver.class);
+            restartIntent.setAction(ACTION_KEEP_ALIVE);
+            sendBroadcast(restartIntent);
+        }
         stopTracking();
         super.onDestroy();
     }
@@ -328,8 +473,13 @@ public class WorkerLocationService extends Service implements LocationListener {
     public void onStatusChanged(String provider, int status, Bundle extras) {}
 
     @Override
-    public void onProviderEnabled(String provider) {}
+    public void onProviderEnabled(String provider) {
+        Log.d(TAG, "Provider enabled: " + provider + ". Refreshing location updates.");
+        startLocationUpdates();
+    }
 
     @Override
-    public void onProviderDisabled(String provider) {}
+    public void onProviderDisabled(String provider) {
+        Log.d(TAG, "Provider disabled: " + provider);
+    }
 }

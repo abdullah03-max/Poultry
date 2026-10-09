@@ -1,9 +1,10 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Live Worker GPS Tracking Map
 // Realtime visualization of field collectors with Google Maps Landmark / Chowk details
+// AND Real-time Geodesic Distance Calculation from Admin / Center
 // =============================================================================
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import L from 'leaflet';
 import { Profile } from '../../types/database';
 import { api } from '../../services/api';
@@ -20,8 +21,55 @@ import {
   MapPin,
   Compass,
   Layers,
-  AlertTriangle
+  AlertTriangle,
+  LocateFixed,
+  ArrowUpDown,
+  ExternalLink
 } from 'lucide-react';
+
+/**
+ * Geodesic Distance Calculator using Haversine formula
+ */
+export const calculateDistanceKm = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+export const formatDistance = (
+  km: number
+): { textUrdu: string; textEn: string; driveTime: string } => {
+  if (km < 1) {
+    const meters = Math.max(10, Math.round(km * 1000));
+    return {
+      textUrdu: `${meters} میٹر`,
+      textEn: `${meters}m`,
+      driveTime: '~1-2 منٹ',
+    };
+  }
+  const formattedKm = km < 10 ? km.toFixed(1) : Math.round(km).toString();
+  const minutes = Math.max(2, Math.round((km / 35) * 60)); // Average ~35 km/h urban speed
+  const driveTime =
+    minutes >= 60 ? `~${(minutes / 60).toFixed(1)} گھنٹے` : `~${minutes} منٹ`;
+  return {
+    textUrdu: `${formattedKm} کلومیٹر`,
+    textEn: `${formattedKm} km`,
+    driveTime,
+  };
+};
 
 export const getWorkerPresence = (w: Profile): {
   status: 'online' | 'idle' | 'offline';
@@ -109,13 +157,59 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
   const [mapType, setMapType] = useState<'google_roadmap' | 'google_satellite' | 'osm'>('google_roadmap');
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
 
+  // Admin Live Geolocation State
+  const [adminPosition, setAdminPosition] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
+  const [sortByDistance, setSortByDistance] = useState<boolean>(false);
+
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
+  const adminMarkerRef = useRef<L.Marker | null>(null);
 
   // Default coordinate center: Burewala / Gaggoo Mandi region in Punjab, Pakistan
   const DEFAULT_CENTER: [number, number] = [30.2974, 72.8550];
+
+  // Reference location for distance (Admin location if granted, else Default Center / Head Office)
+  const referencePoint = useMemo(() => {
+    if (adminPosition) {
+      return { lat: adminPosition.lat, lng: adminPosition.lng, isLiveAdmin: true };
+    }
+    return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1], isLiveAdmin: false };
+  }, [adminPosition]);
+
+  // Request & Watch Admin Browser Location
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      const handleSuccess = (pos: GeolocationPosition) => {
+        setAdminPosition({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      };
+
+      const handleError = (err: GeolocationPositionError) => {
+        console.log('Admin browser location not granted or unavailable:', err.message);
+      };
+
+      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      });
+
+      const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 15000,
+      });
+
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
+    }
+  }, []);
 
   const fetchWorkersWithLocation = async () => {
     try {
@@ -268,21 +362,87 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
     }
   }, [propWorkerId, workers]);
 
+  // Update Admin Marker on Map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!adminPosition) {
+      if (adminMarkerRef.current) {
+        adminMarkerRef.current.remove();
+        adminMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const adminLatLng: L.LatLngTuple = [adminPosition.lat, adminPosition.lng];
+
+    const adminIcon = L.divIcon({
+      className: 'custom-admin-pin',
+      html: `
+        <div style="position: relative; width: 50px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <div style="position: absolute; width: 44px; height: 44px; border-radius: 50%; background: rgba(37, 99, 235, 0.35); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="
+            width: 32px; 
+            height: 32px; 
+            border-radius: 50%; 
+            background: #2563EB; 
+            border: 3px solid white; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 800;
+            font-size: 13px;
+          ">
+            👤
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.9); color: white; padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; white-space: nowrap; margin-top: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+            آپ (Admin)
+          </div>
+        </div>
+      `,
+      iconSize: [50, 50],
+      iconAnchor: [25, 25],
+    });
+
+    if (adminMarkerRef.current) {
+      adminMarkerRef.current.setLatLng(adminLatLng);
+    } else {
+      const marker = L.marker(adminLatLng, { icon: adminIcon, zIndexOffset: 1000 }).addTo(map);
+      marker.bindPopup(`
+        <div style="font-family: sans-serif; min-width: 170px; padding: 4px;">
+          <div style="font-weight: bold; font-size: 13px; color: #1E40AF; margin-bottom: 2px;">
+            👤 آپ کا مقام (Admin Location)
+          </div>
+          <div style="font-size: 11px; color: #475569;">
+            لائیو GPS پوزیشن فعال ہے
+          </div>
+          <div style="font-size: 10px; color: #64748B; font-family: monospace; margin-top: 4px;">
+            ${adminPosition.lat.toFixed(5)}, ${adminPosition.lng.toFixed(5)}
+          </div>
+        </div>
+      `);
+      adminMarkerRef.current = marker;
+    }
+  }, [adminPosition]);
+
   // Update Markers on Worker Location Change
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
     const bounds: L.LatLngTuple[] = [];
+    if (adminPosition) {
+      bounds.push([adminPosition.lat, adminPosition.lng]);
+    }
     const activeGpsIds = new Set<string>();
 
     workers.forEach(w => {
       const presence = getWorkerPresence(w);
 
-      // Only plot marker if the worker has genuine GPS coordinates!
-      // NEVER assign fake coordinates when connection is lost.
       if (!presence.hasGps || !w.current_latitude || !w.current_longitude) {
-        // If this worker had a marker previously, remove it to prevent stale fake location
         if (markersRef.current[w.id]) {
           markersRef.current[w.id].remove();
           delete markersRef.current[w.id];
@@ -296,15 +456,19 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       const latlng: L.LatLngTuple = [lat, lng];
       bounds.push(latlng);
 
+      // Compute geodesic distance from reference point
+      const distKm = calculateDistanceKm(referencePoint.lat, referencePoint.lng, lat, lng);
+      const distInfo = formatDistance(distKm);
+
       const initials = w.full_name ? w.full_name.substring(0, 2).toUpperCase() : 'WK';
 
-      // Create Custom Animated Pulse Pin Icon with legible name tag on map
+      // Create Custom Animated Pulse Pin Icon with legible name tag AND distance badge on map
       const customIcon = L.divIcon({
         className: 'custom-worker-pin',
         html: `
-          <div style="position: relative; width: 60px; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;">
-            <div style="background: rgba(15, 23, 42, 0.92); color: white; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.35); margin-bottom: 2px; border: 1px solid rgba(255,255,255,0.4); max-width: 90px; overflow: hidden; text-overflow: ellipsis;">
-              ${w.full_name || 'Worker'}
+          <div style="position: relative; width: 70px; height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;">
+            <div style="background: rgba(15, 23, 42, 0.92); color: white; padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.35); margin-bottom: 2px; border: 1px solid rgba(255,255,255,0.4); max-width: 85px; overflow: hidden; text-overflow: ellipsis; text-align: center;">
+              ${w.full_name || 'Worker'} • ${distInfo.textEn}
             </div>
             <div style="position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
               ${presence.status === 'online' ? `
@@ -330,8 +494,8 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
             </div>
           </div>
         `,
-        iconSize: [60, 56],
-        iconAnchor: [30, 52],
+        iconSize: [70, 60],
+        iconAnchor: [35, 54],
       });
 
       if (markersRef.current[w.id]) {
@@ -341,15 +505,30 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
         const marker = L.marker(latlng, { icon: customIcon }).addTo(map);
 
         const popupContent = `
-          <div style="font-family: sans-serif; min-width: 200px; padding: 4px;">
+          <div style="font-family: sans-serif; min-width: 210px; padding: 4px;">
             <div style="font-weight: bold; font-size: 14px; color: #0F172A; margin-bottom: 2px;">
               ${w.full_name}
             </div>
-            <div style="font-size: 11px; color: ${presence.pinBg}; font-weight: 700; margin-bottom: 6px;">
+            <div style="font-size: 11px; color: ${presence.pinBg}; font-weight: 700; margin-bottom: 4px;">
               ● ${presence.label} (${presence.timeAgoText})
             </div>
+
+            <!-- Distance from Admin / Center box -->
+            <div style="margin-top: 4px; padding: 6px 8px; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 8px;">
+              <div style="font-size: 11px; font-weight: bold; color: #6B21A8; display: flex; align-items: center; justify-content: space-between;">
+                <span>📍 ${referencePoint.isLiveAdmin ? 'آپ سے فاصلہ (Distance from You):' : 'سینٹر سے فاصلہ (From Center):'}</span>
+                <span style="font-family: monospace; font-size: 12px; font-weight: 900; color: #581C87;">${distInfo.textUrdu} (${distInfo.textEn})</span>
+              </div>
+              <div style="font-size: 10px; color: #7E22CE; margin-top: 2px;">
+                ⏱️ متوقع ڈرائیو ٹائم: ${distInfo.driveTime}
+              </div>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 6px; text-align: center; background: #7C3AED; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 10px; font-weight: bold;">
+                🗺️ گوگل میپس پر راستہ دیکھیں (Get Directions)
+              </a>
+            </div>
+
             ${w.phone ? `
-              <div style="font-size: 11px; color: #334155; margin-bottom: 4px;">
+              <div style="font-size: 11px; color: #334155; margin-top: 6px; margin-bottom: 4px;">
                 📞 <a href="tel:${w.phone}" style="color: #2563EB; font-weight: bold; text-decoration: none;">${w.phone}</a>
               </div>
             ` : ''}
@@ -388,7 +567,7 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
         map.fitBounds(L.latLngBounds(bounds), { padding: [60, 60], maxZoom: 15 });
       } catch (e) {}
     }
-  }, [workers]);
+  }, [workers, referencePoint]);
 
   const handleFocusWorker = (w: Profile) => {
     setSelectedWorkerId(w.id);
@@ -416,6 +595,32 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
     if (onSelectWorker) onSelectWorker(w);
   };
 
+  const handleFocusAdmin = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (adminPosition) {
+      map.flyTo([adminPosition.lat, adminPosition.lng], 16, { duration: 1 });
+      if (adminMarkerRef.current) {
+        adminMarkerRef.current.openPopup();
+      }
+    } else {
+      // Trigger browser location prompt
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            setAdminPosition({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            });
+            map.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { duration: 1 });
+          },
+          err => alert('لوکیشن کی اجازت فراہم کریں: ' + err.message)
+        );
+      }
+    }
+  };
+
   const handleResetView = () => {
     setSelectedWorkerId(null);
     setGpsNotice(null);
@@ -423,6 +628,21 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
     if (!map) return;
     map.flyTo(DEFAULT_CENTER, 12, { duration: 1 });
   };
+
+  // Sort workers list by distance if toggled
+  const sortedWorkers = useMemo(() => {
+    if (!sortByDistance) return workers;
+    return [...workers].sort((a, b) => {
+      const aGps = getWorkerPresence(a).hasGps;
+      const bGps = getWorkerPresence(b).hasGps;
+      if (aGps && !bGps) return -1;
+      if (!aGps && bGps) return 1;
+      if (!aGps && !bGps) return 0;
+      const distA = calculateDistanceKm(referencePoint.lat, referencePoint.lng, Number(a.current_latitude), Number(a.current_longitude));
+      const distB = calculateDistanceKm(referencePoint.lat, referencePoint.lng, Number(b.current_latitude), Number(b.current_longitude));
+      return distA - distB;
+    });
+  }, [workers, sortByDistance, referencePoint]);
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-card">
@@ -434,14 +654,14 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
               <Navigation className="w-4 h-4 text-emerald-600" />
             </span>
             <h3 className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight">
-              Live Field Worker GPS Tracking
+              Live Field Worker GPS Tracking & Proximity
             </h3>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-              Live Realtime
+              24/7 Live
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Google Maps لائیو ٹریکنگ - دکانیں، چوک، سڑکیں اور اسکول واضح دکھائی دیتے ہیں۔
+            ورکرز کا لائیو فاصلہ (Distance)، گلی، چوک اور دکانوں کے ناموں کے ساتھ 24/7 ٹریکنگ
           </p>
         </div>
 
@@ -483,6 +703,20 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
             </button>
           </div>
 
+          {/* Admin Location Button */}
+          <button
+            onClick={handleFocusAdmin}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border shadow-sm transition ${
+              adminPosition
+                ? 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+            }`}
+            title="ایڈمن کی اپنی پوزیشن دیکھیں"
+          >
+            <LocateFixed className="w-3.5 h-3.5 text-blue-600" />
+            <span>{adminPosition ? 'میری پوزیشن (You)' : 'لوکیشن آن کریں'}</span>
+          </button>
+
           <button
             onClick={handleResetView}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-sm transition"
@@ -520,21 +754,45 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
       )}
 
       {/* Main Container: Sidebar + Map */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 min-h-[480px]">
+      <div className="grid grid-cols-1 lg:grid-cols-4 min-h-[500px]">
         {/* Workers List Column */}
-        <div className="lg:col-span-1 border-r border-slate-100 p-3.5 space-y-2.5 max-h-[520px] overflow-y-auto bg-slate-50/30">
+        <div className="lg:col-span-1 border-r border-slate-100 p-3.5 space-y-2.5 max-h-[540px] overflow-y-auto bg-slate-50/30">
           <div className="flex items-center justify-between px-1 pb-1">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Collectors ({workers.length})
             </span>
-            <span className="text-[10px] text-slate-400 font-mono">
-              Auto-updating
-            </span>
+            <button
+              onClick={() => setSortByDistance(prev => !prev)}
+              className={`text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg border transition ${
+                sortByDistance
+                  ? 'bg-purple-100 text-purple-800 border-purple-300'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+              title="ورکرز کو فاصلے کے حساب سے ترتیب دیں"
+            >
+              <ArrowUpDown className="w-2.5 h-2.5 text-purple-600" />
+              <span>{sortByDistance ? 'قریبی پہلے' : 'فاصلہ ترتیب'}</span>
+            </button>
           </div>
 
-          {workers.map(w => {
+          {sortedWorkers.map(w => {
             const isSelected = selectedWorkerId === w.id;
             const presence = getWorkerPresence(w);
+
+            let distanceBadge = null;
+            if (presence.hasGps && w.current_latitude && w.current_longitude) {
+              const dKm = calculateDistanceKm(
+                referencePoint.lat,
+                referencePoint.lng,
+                Number(w.current_latitude),
+                Number(w.current_longitude)
+              );
+              const dInfo = formatDistance(dKm);
+              distanceBadge = {
+                ...dInfo,
+                km: dKm,
+              };
+            }
 
             return (
               <div
@@ -563,6 +821,19 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
                     {presence.label}
                   </span>
                 </div>
+
+                {/* Real-time Distance Pill */}
+                {distanceBadge && (
+                  <div className="mt-2 flex items-center justify-between bg-purple-50/80 border border-purple-200 px-2 py-1 rounded-lg">
+                    <span className="flex items-center gap-1 font-bold text-purple-900 text-[10px] font-urdu">
+                      <Navigation className="w-3 h-3 text-purple-600 shrink-0" />
+                      {referencePoint.isLiveAdmin ? 'آپ سے فاصلہ:' : 'سینٹر سے فاصلہ:'}
+                    </span>
+                    <span className="font-mono font-black text-purple-800 text-[11px]">
+                      {distanceBadge.textUrdu} ({distanceBadge.textEn})
+                    </span>
+                  </div>
+                )}
 
                 <div className="mt-2 text-[11px] text-slate-500 space-y-1">
                   {w.phone && (
@@ -612,8 +883,8 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
         </div>
 
         {/* Interactive Leaflet Map Column */}
-        <div className="lg:col-span-3 relative min-h-[480px] bg-slate-100">
-          <div ref={mapContainerRef} className="w-full h-full min-h-[480px] z-10" />
+        <div className="lg:col-span-3 relative min-h-[500px] bg-slate-100">
+          <div ref={mapContainerRef} className="w-full h-full min-h-[500px] z-10" />
 
           {/* Quick Floating Map Overlay */}
           <div className="absolute bottom-3 left-3 z-20 bg-white/95 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-slate-200 text-xs shadow-md flex flex-wrap items-center gap-3">
@@ -624,6 +895,10 @@ export const WorkerTrackingMap: React.FC<WorkerTrackingMapProps> = ({ onSelectWo
             <div className="flex items-center gap-1.5 text-amber-700">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
               <span className="font-semibold text-[11px]">Amber: Idle (5–30m)</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-blue-700">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+              <span className="font-semibold text-[11px]">Blue: Admin (You)</span>
             </div>
             <div className="flex items-center gap-1.5 text-slate-500">
               <span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span>

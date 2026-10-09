@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { MonthlyRegisterCustomerRow } from '../../types/database';
 import { formatWeight, formatCurrency } from '../../utils/formatters';
-import { Search, Download, Printer, Filter, DollarSign, X, CheckCircle2 } from 'lucide-react';
+import { Search, Download, Printer, Filter, DollarSign, X, CheckCircle2, Trash2, History } from 'lucide-react';
 import { exportMonthlyRegisterToCSV, triggerPrint } from '../../utils/exportUtils';
 import { CustomerMonthlyBillModal } from './CustomerMonthlyBillModal';
 import { api } from '../../services/api';
@@ -50,14 +50,18 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
   const [paySuccessMsg, setPaySuccessMsg] = useState<string | null>(null);
   const [paidCustomerIds, setPaidCustomerIds] = useState<Record<string, number>>({});
 
-  // Load recorded customer payments from local storage
+  // Load recorded customer payments from local storage filtered by month and year
   const loadPaymentRecords = () => {
     try {
       const records = JSON.parse(localStorage.getItem('spp_customer_payments') || '[]');
       const mapping: Record<string, number> = {};
       records.forEach((r: any) => {
         if (r.customerId) {
-          mapping[r.customerId] = (mapping[r.customerId] || 0) + (r.amount || 0);
+          const matchMonth = !r.month || r.month.toString().toLowerCase() === monthName.toLowerCase();
+          const matchYear = !r.year || Number(r.year) === Number(year);
+          if (matchMonth && matchYear) {
+            mapping[r.customerId] = (mapping[r.customerId] || 0) + (Number(r.amount) || 0);
+          }
         }
       });
       setPaidCustomerIds(mapping);
@@ -68,7 +72,7 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
 
   useEffect(() => {
     loadPaymentRecords();
-  }, []);
+  }, [monthName, year]);
 
   // Extract unique areas
   const areas = Array.from(new Set(rows.map(r => r.customer.area))).filter(Boolean);
@@ -323,8 +327,10 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            const alreadyPaid = paidCustomerIds[row.customer.id] || 0;
+                            const remainingDue = Math.max(0, row.totalAmount - alreadyPaid);
                             setPayingRow(row);
-                            setPayAmount(row.totalAmount);
+                            setPayAmount(remainingDue > 0 ? remainingDue : row.totalAmount);
                             setPayDate(new Date().toISOString().split('T')[0]);
                             setPayMethod('cash');
                             setPayNotes(`Monthly payment for ${row.customer.name} - ${monthName} ${year}`);
@@ -476,32 +482,103 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
             </div>
 
             {/* Customer & Bill Overview Card */}
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">گاہک / دکان:</span>
-                <span className="font-bold text-slate-900 font-sans">{payingRow.customer.name}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">علاقہ / مارکیٹ:</span>
-                <span className="font-medium text-slate-700">{payingRow.customer.area}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">کل وزن سپلائی:</span>
-                <span className="font-mono font-bold text-blue-600">{payingRow.totalWeight} KG</span>
-              </div>
-              <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
-                <span className="text-slate-900 font-bold">کل واجب الادا بل:</span>
-                <span className="font-mono font-black text-amber-700 text-sm">
-                  Rs. {payingRow.totalAmount.toLocaleString()}
-                </span>
-              </div>
-              {paidCustomerIds[payingRow.customer.id] > 0 && (
-                <div className="flex justify-between items-center text-emerald-800 bg-emerald-50 p-2 rounded-xl border border-emerald-200 font-bold">
-                  <span>پہلے ادا شدہ رقم:</span>
-                  <span className="font-mono">Rs. {paidCustomerIds[payingRow.customer.id].toLocaleString()}</span>
+            {(() => {
+              const alreadyPaid = paidCustomerIds[payingRow.customer.id] || 0;
+              const remainingDue = Math.max(0, payingRow.totalAmount - alreadyPaid);
+              let allCustomerPayments: any[] = [];
+              try {
+                const stored = JSON.parse(localStorage.getItem('spp_customer_payments') || '[]');
+                allCustomerPayments = stored.filter((r: any) => r.customerId === payingRow.customer.id);
+              } catch (e) {
+                console.warn(e);
+              }
+
+              const handleDeletePayment = async (payId: string) => {
+                if (!window.confirm('کیا آپ واقعی یہ ادائیگی ڈیلیٹ کرنا چاہتے ہیں؟ (Are you sure you want to delete this payment record?)')) {
+                  return;
+                }
+                try {
+                  const stored = JSON.parse(localStorage.getItem('spp_customer_payments') || '[]');
+                  const updated = stored.filter((r: any) => r.id !== payId);
+                  localStorage.setItem('spp_customer_payments', JSON.stringify(updated));
+                  if (payId) {
+                    await api.deleteExpense(payId);
+                  }
+                  loadPaymentRecords();
+                } catch (err: any) {
+                  console.error('Error deleting payment:', err);
+                }
+              };
+
+              return (
+                <div className="space-y-3">
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">گاہک / دکان:</span>
+                      <span className="font-bold text-slate-900 font-sans">{payingRow.customer.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">علاقہ / مارکیٹ:</span>
+                      <span className="font-medium text-slate-700">{payingRow.customer.area}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">کل وزن سپلائی:</span>
+                      <span className="font-mono font-bold text-blue-600">{payingRow.totalWeight} KG</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                      <span className="text-slate-900 font-bold">کل واجب الادا بل:</span>
+                      <span className="font-mono font-black text-amber-700 text-sm">
+                        Rs. {payingRow.totalAmount.toLocaleString()}
+                      </span>
+                    </div>
+                    {alreadyPaid > 0 && (
+                      <div className="flex justify-between items-center text-emerald-800 bg-emerald-50 p-2 rounded-xl border border-emerald-200 font-bold">
+                        <span>پہلے ادا شدہ رقم ({monthName}):</span>
+                        <span className="font-mono">Rs. {alreadyPaid.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-slate-800 bg-blue-50/70 p-2 rounded-xl border border-blue-200 font-bold">
+                      <span>بقایا واجب الادا بل (Remaining Due):</span>
+                      <span className={`font-mono text-sm ${remainingDue <= 0 ? 'text-emerald-700' : 'text-rose-700 font-black'}`}>
+                        Rs. {remainingDue.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Payment History List with Delete button */}
+                  {allCustomerPayments.length > 0 && (
+                    <div className="border border-slate-200 rounded-2xl p-3 bg-white space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                        <span className="flex items-center gap-1">
+                          <History className="w-3.5 h-3.5 text-slate-500" />
+                          <span>ریکارڈ شدہ ادائیگیاں ({allCustomerPayments.length})</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400">غلط انٹری ڈیلیٹ کیلئے دبائیں</span>
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1">
+                        {allCustomerPayments.map((p: any, idx: number) => (
+                          <div key={p.id || idx} className="flex items-center justify-between text-[11px] p-2 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100/70 transition">
+                            <div>
+                              <span className="font-mono font-bold text-emerald-700">Rs. {(Number(p.amount) || 0).toLocaleString()}</span>
+                              <span className="text-slate-500 ml-2">({p.paymentDate || 'No date'}) • {p.month || monthName} {p.year || ''}</span>
+                              {p.notes && <p className="text-[10px] text-slate-400 truncate max-w-[200px]">{p.notes}</p>}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePayment(p.id)}
+                              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                              title="یہ ادائیگی ڈیلیٹ کریں (Delete payment)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Payment Form */}
             <form
