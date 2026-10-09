@@ -45,6 +45,11 @@ import {
   shareReceiptImage,
   downloadReceiptImage
 } from '../utils/receiptImageGenerator';
+import {
+  getCustomerDailyStatus,
+  getDailyStatusSummary,
+  CustomerDailyStatus
+} from '../utils/customerDailyStatus';
 
 type Tab = 'home' | 'new_collection' | 'collections' | 'customers' | 'profile';
 
@@ -226,6 +231,7 @@ export const MobileApp: React.FC = () => {
   // Modals
   const [customerModalOpen, setCustomerModalOpen] = useState<boolean>(false);
   const [customerSearch, setCustomerSearch] = useState<string>('');
+  const [customerStatusFilter, setCustomerStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [addCustomerModalOpen, setAddCustomerModalOpen] = useState<boolean>(false);
   const [receiptModalSlip, setReceiptModalSlip] = useState<OfflineCollectionItem | null>(null);
 
@@ -1009,6 +1015,28 @@ export const MobileApp: React.FC = () => {
             savedOnline = true;
             newSlip.status = 'synced';
 
+            // Persist customer daily completion status in Supabase
+            try {
+              const existingRates = selectedCustomer.category_rates || {};
+              await supabase
+                .from('customers')
+                .update({
+                  category_rates: {
+                    ...existingRates,
+                    daily_record_status: {
+                      last_completed_at: newSlip.created_at,
+                      last_collection_date: dateStr,
+                      receipt_no: receiptNo,
+                      status: 'completed',
+                      updated_at: new Date().toISOString(),
+                    },
+                  },
+                })
+                .eq('id', selectedCustomer.id);
+            } catch (custErr) {
+              console.warn('Could not update customer daily status in DB:', custErr);
+            }
+
             // Insert scale photo attachment if captured
             if (photoBase64) {
               await supabase.from('collection_attachments').insert({
@@ -1031,6 +1059,29 @@ export const MobileApp: React.FC = () => {
         newSlip.photo_base64 = null;
       }
       mobileStorage.saveOfflineSlip(newSlip);
+
+      // Instantly update customer record in cache and state so status changes from Red to Green immediately
+      const updatedCustList = customers.map(c => {
+        if (c.id === selectedCustomer.id) {
+          return {
+            ...c,
+            category_rates: {
+              ...(c.category_rates || {}),
+              daily_record_status: {
+                last_completed_at: newSlip.created_at,
+                last_collection_date: dateStr,
+                receipt_no: receiptNo,
+                status: 'completed',
+                updated_at: new Date().toISOString(),
+              },
+            },
+          };
+        }
+        return c;
+      });
+      setCustomers(updatedCustList);
+      mobileStorage.setCachedCustomers(updatedCustList);
+
       await loadData(worker);
 
       // Show digital receipt popup (worker stays inside app, does not auto-redirect)
@@ -1160,12 +1211,24 @@ export const MobileApp: React.FC = () => {
   const myAllSlips = offlineSlips.filter(s => s.worker_id === worker?.id);
   const displayedAllSlips = myAllSlips;
 
-  // Filtered Customers for Modal
-  const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.area.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    (c.contact_person && c.contact_person.toLowerCase().includes(customerSearch.toLowerCase()))
-  );
+  // Calculate daily completion status for all customers
+  const dailyStatusSummary = getDailyStatusSummary(customers, offlineSlips);
+
+  // Filtered Customers for Modal with Search & Completion Status Filter
+  const filteredCustomers = customers.filter(c => {
+    const matchesSearch =
+      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.area.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      (c.contact_person && c.contact_person.toLowerCase().includes(customerSearch.toLowerCase()));
+
+    if (!matchesSearch) return false;
+
+    if (customerStatusFilter === 'all') return true;
+    const status = dailyStatusSummary.statusMap.get(c.id);
+    if (customerStatusFilter === 'completed') return status?.isCompleted;
+    if (customerStatusFilter === 'pending') return !status?.isCompleted;
+    return true;
+  });
 
   // STRICT ENFORCEMENT: Without assigned worker login credentials, show Login Screen
   if (!worker) {
@@ -1609,24 +1672,47 @@ export const MobileApp: React.FC = () => {
                 </button>
               </div>
 
-              {selectedCustomer ? (
-                <div
-                  onClick={() => setCustomerModalOpen(true)}
-                  className="p-3.5 bg-blue-50/60 border border-blue-200 rounded-xl flex items-center justify-between cursor-pointer"
-                >
-                  <div>
-                    <div className="font-black text-sm text-slate-900">{selectedCustomer.name}</div>
-                    <div className="text-xs text-slate-600 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-                      <span>{selectedCustomer.area}</span>
-                      <span className="font-bold text-emerald-700">چربی: Rs. {selectedCustomer.rate_charbi || 55}/KG</span>
-                      <span className="font-bold text-amber-700">کچرا: Rs. {selectedCustomer.rate_kachara || selectedCustomer.rate_per_kg || 45}/KG</span>
+              {selectedCustomer ? (() => {
+                const selStatus = dailyStatusSummary.statusMap.get(selectedCustomer.id) || getCustomerDailyStatus(selectedCustomer, offlineSlips);
+                return (
+                  <div
+                    onClick={() => setCustomerModalOpen(true)}
+                    className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                      selStatus.isCompleted
+                        ? 'bg-emerald-50/90 border-emerald-300 hover:bg-emerald-100'
+                        : 'bg-rose-50/80 border-rose-300 hover:bg-rose-100'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-black text-sm text-slate-900">{selectedCustomer.name}</div>
+                        {selStatus.isCompleted ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>مکمل (Served)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-2xs">
+                            <Clock className="w-3 h-3" />
+                            <span>بقایہ (Pending)</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-600 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                        <span>{selectedCustomer.area}</span>
+                        <span className="font-bold text-emerald-700">چربی: Rs. {selectedCustomer.rate_charbi || 55}/KG</span>
+                        <span className="font-bold text-amber-700">کچرا: Rs. {selectedCustomer.rate_kachara || selectedCustomer.rate_per_kg || 45}/KG</span>
+                        {selStatus.formattedTime && (
+                          <span className="text-[10px] font-semibold text-slate-500">({selStatus.formattedTime})</span>
+                        )}
+                      </div>
                     </div>
+                    <span className="text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-2xs shrink-0 ml-2">
+                      تبدیل کریں
+                    </span>
                   </div>
-                  <span className="text-xs font-bold text-blue-600 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs shrink-0 ml-2">
-                    تبدیل کریں
-                  </span>
-                </div>
-              ) : (
+                );
+              })() : (
                 <button
                   type="button"
                   onClick={() => setCustomerModalOpen(true)}
@@ -2110,40 +2196,70 @@ export const MobileApp: React.FC = () => {
 
             {/* Customer Cards */}
             <div className="space-y-2.5">
-              {filteredCustomers.map(c => (
-                <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="font-bold text-slate-900 text-sm">{c.name}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{c.contact_person || 'Owner'}</div>
-                      <div className="text-xs text-slate-600 mt-1 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        {c.area}
+              {filteredCustomers.map(c => {
+                const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, offlineSlips);
+                const isCompleted = status.isCompleted;
+
+                return (
+                  <div
+                    key={c.id}
+                    className={`border rounded-2xl p-4 shadow-sm transition ${
+                      isCompleted
+                        ? 'bg-emerald-50/90 border-emerald-400'
+                        : 'bg-rose-50/85 border-rose-300'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="font-bold text-slate-900 text-sm truncate">{c.name}</div>
+                          {isCompleted ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>مکمل (Served)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-2xs">
+                              <Clock className="w-3 h-3" />
+                              <span>بقایہ (Pending)</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-600 mt-0.5">{c.contact_person || 'Owner'}</div>
+                        <div className="text-xs text-slate-600 mt-1 flex items-center gap-1 flex-wrap">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span>{c.area}</span>
+                          {isCompleted && status.formattedTime && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.2 rounded-md ml-1">
+                              {status.formattedTime}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <a
+                        href={`tel:${c.phone}`}
+                        className="w-9 h-9 rounded-xl bg-white text-emerald-700 border border-emerald-300 flex items-center justify-center shrink-0 active:bg-emerald-50 shadow-2xs"
+                        title="Call customer"
+                      >
+                        <Phone className="w-4 h-4" />
+                      </a>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200/70 text-xs">
+                      <span className="font-bold text-slate-600">Agreed Rates:</span>
+                      <div className="flex gap-2">
+                        <span className="font-mono font-bold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
+                          چربی: Rs. {c.rate_charbi || 55}
+                        </span>
+                        <span className="font-mono font-bold text-amber-800 bg-white border border-amber-200 px-2 py-0.5 rounded-md shadow-2xs">
+                          کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
+                        </span>
                       </div>
                     </div>
-
-                    <a
-                      href={`tel:${c.phone}`}
-                      className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 active:bg-emerald-100"
-                      title="Call customer"
-                    >
-                      <Phone className="w-4 h-4" />
-                    </a>
                   </div>
-
-                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 text-xs">
-                    <span className="font-bold text-slate-500">Agreed Rates:</span>
-                    <div className="flex gap-2">
-                      <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                        چربی: Rs. {c.rate_charbi || 55}
-                      </span>
-                      <span className="font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                        کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -2315,25 +2431,34 @@ export const MobileApp: React.FC = () => {
       </nav>
 
       {/* =========================================================================
-          MODAL 1: CUSTOMER PICKER
+          MODAL 1: CUSTOMER PICKER (GREEN = COMPLETED / RED = PENDING TODAY)
       ========================================================================= */}
       {customerModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex flex-col justify-end">
-          <div className="bg-white rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl animate-slideUp">
+          <div className="bg-white rounded-t-3xl max-h-[88vh] flex flex-col shadow-2xl animate-slideUp">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">Select Customer / Shop</h3>
-                <p className="text-xs text-slate-500">{filteredCustomers.length} shops available</p>
+                <div className="flex items-center gap-2 mt-0.5 text-xs">
+                  <span className="text-slate-500 font-medium">{filteredCustomers.length} shops</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md text-[11px]">
+                    🟢 {dailyStatusSummary.completedCount} مکمل
+                  </span>
+                  <span className="font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md text-[11px]">
+                    🔴 {dailyStatusSummary.pendingCount} بقایہ
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => setCustomerModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center"
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-3 border-b border-slate-100">
+            <div className="p-3 border-b border-slate-100 space-y-2 bg-slate-50/70">
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
@@ -2341,35 +2466,109 @@ export const MobileApp: React.FC = () => {
                   placeholder="Type shop name or area..."
                   value={customerSearch}
                   onChange={e => setCustomerSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCustomerStatusFilter('all')}
+                  className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition text-center ${
+                    customerStatusFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  سب ({customers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerStatusFilter('pending')}
+                  className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1 ${
+                    customerStatusFilter === 'pending'
+                      ? 'bg-rose-600 text-white shadow-2xs'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                  <span>بقایہ ({dailyStatusSummary.pendingCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerStatusFilter('completed')}
+                  className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1 ${
+                    customerStatusFilter === 'completed'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span>مکمل ({dailyStatusSummary.completedCount})</span>
+                </button>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {filteredCustomers.map(c => (
-                <div
-                  key={c.id}
-                  onClick={() => {
-                    setSelectedCustomer(c);
-                    setCharbiRate(c.rate_charbi ? c.rate_charbi.toString() : '55');
-                    setKacharaRate(c.rate_kachara ? c.rate_kachara.toString() : (c.rate_per_kg ? c.rate_per_kg.toString() : '45'));
-                    setCustomerModalOpen(false);
-                  }}
-                  className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 cursor-pointer flex items-center justify-between transition"
-                >
-                  <div>
-                    <div className="font-bold text-sm text-slate-900">{c.name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {c.area} • {c.contact_person || 'Owner'}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-mono font-bold text-xs text-emerald-700 block">چربی: Rs. {c.rate_charbi || 55}</span>
-                    <span className="font-mono font-bold text-xs text-amber-700 block">کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}</span>
-                  </div>
+              {filteredCustomers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs font-medium">
+                  کوئی دکان نہیں ملی (No shops match filter)
                 </div>
-              ))}
+              ) : (
+                filteredCustomers.map(c => {
+                  const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, offlineSlips);
+                  const isCompleted = status.isCompleted;
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCustomer(c);
+                        setCharbiRate(c.rate_charbi ? c.rate_charbi.toString() : '55');
+                        setKacharaRate(c.rate_kachara ? c.rate_kachara.toString() : (c.rate_per_kg ? c.rate_per_kg.toString() : '45'));
+                        setCustomerModalOpen(false);
+                      }}
+                      className={`p-3.5 rounded-2xl border transition-all duration-150 cursor-pointer flex items-center justify-between shadow-2xs active:scale-[0.99] ${
+                        isCompleted
+                          ? 'bg-emerald-50/90 border-emerald-400 hover:border-emerald-500 hover:bg-emerald-100/90'
+                          : 'bg-rose-50/85 border-rose-300 hover:border-rose-400 hover:bg-rose-100/85'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0 pr-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-slate-900 truncate">{c.name}</span>
+                          {isCompleted ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs shrink-0">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>مکمل (Served)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-2xs shrink-0">
+                              <Clock className="w-3 h-3" />
+                              <span>بقایہ (Pending)</span>
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{c.area} • {c.contact_person || 'Owner'}</span>
+                          {isCompleted && status.formattedTime && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.2 rounded-md shrink-0">
+                              {status.formattedTime}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="font-mono font-bold text-xs text-emerald-700 block">چربی: Rs. {c.rate_charbi || 55}</span>
+                        <span className="font-mono font-bold text-xs text-amber-700 block">کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             <div className="p-3 border-t border-slate-200 bg-slate-50">

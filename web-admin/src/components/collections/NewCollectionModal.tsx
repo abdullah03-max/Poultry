@@ -7,7 +7,8 @@ import { Customer, WeightCategory, Collection } from '../../types/database';
 import { Modal } from '../common/Modal';
 import { api } from '../../services/api';
 import { formatCurrency, formatWeight } from '../../utils/formatters';
-import { Scale, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Scale, Check, AlertCircle, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { getCustomerDailyStatus } from '../../utils/customerDailyStatus';
 
 interface NewCollectionModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
 }) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [categories, setCategories] = useState<WeightCategory[]>([]);
+  const [allCollections, setAllCollections] = useState<Collection[]>([]);
   const [loadingInitial, setLoadingInitial] = useState<boolean>(true);
 
   // Form State
@@ -55,13 +57,15 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
     try {
       setLoadingInitial(true);
       setErrorMsg(null);
-      const [custList, catList] = await Promise.all([
+      const [custList, catList, colList] = await Promise.all([
         api.getCustomers(),
         api.getWeightCategories(),
+        api.getCollections(),
       ]);
 
       setCustomers(custList);
       setCategories(catList);
+      setAllCollections(colList && colList.collections ? colList.collections : (Array.isArray(colList) ? colList : []));
 
       const today = new Date();
       const defaultDate = initialDate || today.toISOString().split('T')[0];
@@ -234,12 +238,42 @@ export const NewCollectionModal: React.FC<NewCollectionModalProps> = ({
               required
               className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-brand-600 focus:ring-1 focus:ring-brand-600 transition"
             >
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.customer_code} — {c.name} ({c.area}) - چربی: Rs. {c.rate_charbi || 55} | کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
-                </option>
-              ))}
+              {customers.map(c => {
+                const cStatus = getCustomerDailyStatus(c, allCollections);
+                const prefix = cStatus.isCompleted ? '🟢 [مکمل - Served]' : '🔴 [بقایہ - Pending]';
+                return (
+                  <option key={c.id} value={c.id}>
+                    {prefix} {c.customer_code} — {c.name} ({c.area}) - چربی: Rs. {c.rate_charbi || 55} | کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
+                  </option>
+                );
+              })}
             </select>
+
+            {/* Selected Customer Daily Status Badge */}
+            {selectedCustomer && (() => {
+              const selStatus = getCustomerDailyStatus(selectedCustomer, allCollections);
+              return selStatus.isCompleted ? (
+                <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>🟢 آج کا ریکارڈ مکمل ہے (Already Served)</span>
+                  </div>
+                  <span className="font-medium text-emerald-800 text-[11px] bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    {selStatus.summaryText}
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-2 p-2.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <Clock className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>🔴 آج کا ریکارڈ بقایہ ہے (Pending Record)</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-rose-700">
+                    نئی رسید درج کرنے کیلئے وزن لکھیں
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Date & Time */}

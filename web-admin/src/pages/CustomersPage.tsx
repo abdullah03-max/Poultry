@@ -11,6 +11,7 @@ import {
   getExhaustedAdvanceCustomers,
   getCustomerAdvanceLedger,
 } from '../utils/advanceUtils';
+import { getCustomerDailyStatus, getDailyStatusSummary } from '../utils/customerDailyStatus';
 import {
   Search,
   Plus,
@@ -499,22 +500,27 @@ export const CustomersPage: React.FC = () => {
         </div>
 
         {/* Quick status bar */}
-        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-4">
-            <span className="text-slate-600">
-              کل دکانیں: <strong className="text-slate-900 font-mono">{customers.length}</strong>
-            </span>
-            <span className="text-emerald-700">
-              آج وصولی شدہ: <strong className="text-emerald-900 font-mono">{todayCollectedCustomerIds.size}</strong>
-            </span>
-            <span className="text-amber-700">
-              باقی دکانیں: <strong className="text-amber-900 font-mono">{Math.max(0, customers.length - todayCollectedCustomerIds.size)}</strong>
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-400">
-            شیڈول ڈیڈ لائن: {commonEndTime}
-          </span>
-        </div>
+        {(() => {
+          const dailySummary = getDailyStatusSummary(customers, allCollections);
+          return (
+            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-600">
+                  کل دکانیں: <strong className="text-slate-900 font-mono">{customers.length}</strong>
+                </span>
+                <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg font-bold">
+                  🟢 وصولی مکمل: <strong className="text-emerald-950 font-mono">{dailySummary.completedCount}</strong>
+                </span>
+                <span className="text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-lg font-bold">
+                  🔴 باقی دکانیں: <strong className="text-rose-950 font-mono">{dailySummary.pendingCount}</strong>
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                شیڈول ڈیڈ لائن: {commonEndTime}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Customers Cards / Directory */}
@@ -525,15 +531,21 @@ export const CustomersPage: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCustomers.map(cust => (
-            <div
-              key={cust.id}
-              className={`p-5 rounded-2xl border transition-all duration-200 bg-white shadow-card hover:shadow-card-hover flex flex-col justify-between ${
-                cust.status === 'active' ? 'border-slate-200/90' : 'border-rose-200 bg-rose-50/20 opacity-80'
-              }`}
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
+          {filteredCustomers.map(cust => {
+            const dailyStatus = getCustomerDailyStatus(cust, allCollections);
+            return (
+              <div
+                key={cust.id}
+                className={`p-5 rounded-2xl border transition-all duration-200 shadow-card hover:shadow-card-hover flex flex-col justify-between ${
+                  dailyStatus.isCompleted
+                    ? 'bg-emerald-50/40 border-emerald-300/80 hover:border-emerald-400'
+                    : cust.status === 'active'
+                    ? 'bg-white border-slate-200/90 hover:border-slate-300'
+                    : 'border-rose-200 bg-rose-50/20 opacity-80'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
                   <span className="font-mono text-xs font-bold text-brand-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
                     {cust.customer_code}
                   </span>
@@ -645,25 +657,28 @@ export const CustomersPage: React.FC = () => {
                     );
                   })()}
 
-                  {/* Common Schedule Status Badge */}
-                  {todayCollectedCustomerIds.has(cust.id) ? (
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>✅ آج وصولی مکمل (Collected Today)</span>
-                    </div>
-                  ) : (() => {
-                    const now = new Date();
-                    const nowPktStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour12: false, hour: '2-digit', minute: '2-digit' });
-                    const isOverdue = nowPktStr > commonEndTime;
-                    return isOverdue ? (
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>⚠️ آج وصولی غائب (Missing Collection)</span>
+                  {/* Daily Completion Status Badge (24h Rolling Window & Daily Reset) */}
+                  {(() => {
+                    const dailyStatus = getCustomerDailyStatus(cust, allCollections);
+                    return dailyStatus.isCompleted ? (
+                      <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl w-full mt-1.5 shadow-2xs">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>🟢 ریکارڈ مکمل (Completed)</span>
+                        </div>
+                        <span className="font-mono text-emerald-700 text-[10px]">
+                          {dailyStatus.summaryText}
+                        </span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-xl w-full mt-1.5">
-                        <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <span>وقت مقرر: {commonStartTime} تا {commonEndTime}</span>
+                      <div className="flex items-center justify-between text-[11px] font-bold text-rose-800 bg-rose-50 border border-rose-300 px-3 py-1.5 rounded-xl w-full mt-1.5 shadow-2xs">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>🔴 ریکارڈ بقایہ (Pending Today)</span>
+                        </div>
+                        <span className="text-rose-600 text-[10px] font-semibold">
+                          وقت مقرر: {commonStartTime} تا {commonEndTime}
+                        </span>
                       </div>
                     );
                   })()}
@@ -712,8 +727,9 @@ export const CustomersPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
       )}
 
       {/* Customer 360 History Modal */}

@@ -482,6 +482,7 @@ function hydrateCustomerKhata(c: any): Customer {
     advance_date: c.advance_date ?? khata.advance_date ?? null,
     advance_notes: c.advance_notes ?? khata.advance_notes ?? null,
     advance_payment_method: c.advance_payment_method ?? khata.advance_payment_method ?? null,
+    daily_record_status: c.daily_record_status ?? c.category_rates?.daily_record_status ?? null,
   };
 }
 
@@ -1779,6 +1780,28 @@ export const api = {
             .single();
 
           const result: Collection = (!fullErr && fullRecord) ? (fullRecord as Collection) : (colData as Collection);
+
+          // Persist daily record completion status in customer record
+          if (colData.customer_id) {
+            try {
+              const { data: custRow } = await supabase.from('customers').select('category_rates').eq('id', colData.customer_id).single();
+              const existingRates = custRow?.category_rates || {};
+              await supabase.from('customers').update({
+                category_rates: {
+                  ...existingRates,
+                  daily_record_status: {
+                    last_completed_at: colData.created_at || new Date().toISOString(),
+                    last_collection_date: colData.collection_date || new Date().toISOString().split('T')[0],
+                    receipt_no: colData.receipt_no,
+                    status: 'completed',
+                    updated_at: new Date().toISOString(),
+                  },
+                },
+              }).eq('id', colData.customer_id);
+            } catch (custDailyErr) {
+              console.warn('[API] Warning persisting daily status to customer record:', custDailyErr);
+            }
+          }
 
           // Update local cache as well
           mockCollections = [result, ...mockCollections.filter(c => c.id !== result.id)];

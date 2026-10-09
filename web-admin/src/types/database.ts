@@ -67,6 +67,15 @@ export interface Customer {
   advance_date?: string | null;         // تاریخ ایڈوانس (Date Advance Paid)
   advance_notes?: string | null;        // ایڈوانس تفصیل (Advance Notes / Receipt #)
   advance_payment_method?: 'cash' | 'online' | 'bank' | null;
+
+  // Daily Record Status Fields (روزانہ ریکارڈ تکمیل اسٹیٹس)
+  daily_record_status?: {
+    last_completed_at?: string | null;
+    last_collection_date?: string | null;
+    receipt_no?: string | null;
+    status?: 'completed' | 'pending';
+    updated_at?: string;
+  } | null;
 }
 
 export interface CustomerAdvanceRecord {

@@ -349,6 +349,28 @@ export const mobileStorage = {
           });
         }
 
+        // Persist daily record completion to customer in Supabase
+        if (slip.customer_id) {
+          try {
+            const { data: custRow } = await supabase.from('customers').select('category_rates').eq('id', slip.customer_id).single();
+            const existingRates = custRow?.category_rates || {};
+            await supabase.from('customers').update({
+              category_rates: {
+                ...existingRates,
+                daily_record_status: {
+                  last_completed_at: slip.created_at || new Date().toISOString(),
+                  last_collection_date: slip.collection_date,
+                  receipt_no: slip.receipt_no,
+                  status: 'completed',
+                  updated_at: new Date().toISOString(),
+                },
+              },
+            }).eq('id', slip.customer_id);
+          } catch (custErr) {
+            console.warn('[mobileStorage] Warning updating customer daily status:', custErr);
+          }
+        }
+
         this.updateOfflineSlipStatus(slip.client_uuid, 'synced');
         success++;
       } catch (err) {
