@@ -176,6 +176,10 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     const todayWeight = todaySalesList.reduce((s, r) => s + r.total_weight_kg, 0);
     const marketDue = customers.reduce((s, c) => s + (c.current_balance || 0), 0);
     const totalStock = products.reduce((s, p) => s + (p.stock_kg || 0), 0);
+    const totalStockValuation = products.reduce(
+      (s, p) => s + Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0)),
+      0
+    );
     const lowStockCount = products.filter(p => p.stock_kg <= p.min_stock_alert).length;
 
     return {
@@ -185,6 +189,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       todayWeight: Number(todayWeight.toFixed(2)),
       marketDue,
       totalStock: Number(totalStock.toFixed(2)),
+      totalStockValuation,
       lowStockCount,
       todayBillsCount: todaySalesList.length,
     };
@@ -670,6 +675,9 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       <p className="text-xl font-black text-blue-700 font-mono tracking-tight">
                         {kpis.totalStock} <span className="text-xs font-sans text-slate-500">KG</span>
                       </p>
+                      <p className="text-xs font-black text-emerald-700 font-mono mt-0.5">
+                        مالیت: Rs. {kpis.totalStockValuation.toLocaleString()}
+                      </p>
                       <p className="text-[10px] text-blue-600 mt-0.5">
                         {products.length} کٹس • {kpis.lowStockCount > 0 ? `${kpis.lowStockCount} کم اسٹاک` : 'اسٹاک مناسب'}
                       </p>
@@ -680,9 +688,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 {/* Stock Level Quick Badges */}
                 <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-extrabold text-sm text-slate-900 font-urdu flex items-center gap-2">
-                      <span>🍗 چکن کٹس اور موجودہ اسٹاک کی صورتحال (Meat Cuts Stock Levels)</span>
-                    </h3>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900 font-urdu flex items-center gap-2">
+                        <span>🍗 چکن کٹس اور موجودہ اسٹاک کی صورتحال (Meat Cuts Stock Levels)</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        مجموعی اسٹاک مالیت: <strong className="text-emerald-700 font-mono">Rs. {kpis.totalStockValuation.toLocaleString()}</strong>
+                      </p>
+                    </div>
                     <button
                       onClick={() => setStockModalOpen(true)}
                       className="text-xs font-bold text-blue-700 hover:text-blue-800 transition"
@@ -693,23 +706,31 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
                     {products.map(p => {
                       const isLow = p.stock_kg <= p.min_stock_alert;
+                      const totalVal = Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
                       return (
                         <div
                           key={p.id}
-                          className={`p-3 rounded-2xl border text-center transition ${
+                          className={`p-2.5 rounded-2xl border text-center transition flex flex-col justify-between ${
                             isLow
                               ? 'bg-rose-50/70 border-rose-200 text-rose-900'
                               : 'bg-slate-50 border-slate-200/80 text-slate-900'
                           }`}
                         >
-                          <span className="text-[11px] font-bold block truncate">{p.name}</span>
-                          <span className="text-[10px] text-slate-500 block font-urdu truncate">{p.urdu_name}</span>
-                          <p className="text-base font-black font-mono mt-1">
-                            {p.stock_kg} <span className="text-[10px] font-normal">KG</span>
-                          </p>
-                          <span className="text-[10px] font-semibold text-amber-700 block">
-                            Rs. {p.rate_per_kg}/kg
-                          </span>
+                          <div>
+                            <span className="text-[11px] font-bold block truncate">{p.name}</span>
+                            <span className="text-[10px] text-slate-500 block font-urdu truncate">{p.urdu_name}</span>
+                            <p className="text-base font-black font-mono mt-1">
+                              {p.stock_kg} <span className="text-[10px] font-normal">KG</span>
+                            </p>
+                            <span className="text-[10px] font-semibold text-amber-700 block">
+                              Rs. {p.rate_per_kg}/kg
+                            </span>
+                          </div>
+                          <div className="mt-1.5 pt-1 border-t border-slate-200/60">
+                            <span className="text-[10px] font-bold text-emerald-800 block font-mono">
+                              Rs. {totalVal.toLocaleString()}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
@@ -1428,6 +1449,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                         <th className="py-3 px-3 text-center">کیٹیگری</th>
                         <th className="py-3 px-3 text-center">فروخت ریٹ فی کلو</th>
                         <th className="py-3 px-3 text-center">موجودہ اسٹاک</th>
+                        <th className="py-3 px-3 text-center">کل مالیت (ٹوٹل قیمت)</th>
                         <th className="py-3 px-3 text-center">الرٹ حد</th>
                         <th className="py-3 px-3 text-center">اسٹیٹس</th>
                         <th className="py-3 px-4 text-center">ایکشن</th>
@@ -1452,6 +1474,9 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                             <span className={p.stock_kg <= p.min_stock_alert ? 'text-rose-600 font-black' : ''}>
                               {p.stock_kg} KG
                             </span>
+                          </td>
+                          <td className="py-3 px-3 text-center font-mono font-black text-emerald-800 text-sm">
+                            Rs. {Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0)).toLocaleString()}
                           </td>
                           <td className="py-3 px-3 text-center font-mono text-slate-500">
                             {p.min_stock_alert} KG
@@ -1493,7 +1518,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       چکن اسٹاک و انوینٹری رجسٹر (Chicken Stock & Inventory)
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      کل دستیاب چکن گوشت: <strong>{kpis.totalStock} KG</strong> • فارم آمد و کٹنگ لوس کٹوتی
+                      کل دستیاب چکن گوشت: <strong>{kpis.totalStock} KG</strong> • مجموعی اسٹاک مالیت (کل رقم): <strong className="text-emerald-700 font-mono font-bold">Rs. {kpis.totalStockValuation.toLocaleString()}</strong> • فارم آمد و کٹنگ لوس کٹوتی
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1511,30 +1536,50 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                   {products.map(p => {
                     const isLow = p.stock_kg <= p.min_stock_alert;
+                    const totalVal = Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
                     return (
                       <div
                         key={p.id}
-                        className={`p-4 rounded-3xl border transition ${
+                        className={`p-4 rounded-3xl border transition flex flex-col justify-between ${
                           isLow
                             ? 'bg-rose-50/70 border-rose-200'
-                            : 'bg-white border-slate-200/90 shadow-2xs'
+                            : 'bg-white border-slate-200/90 shadow-2xs hover:shadow-xs'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-xs text-slate-900 truncate">{p.name}</span>
-                          {isLow && (
-                            <span className="px-1.5 py-0.5 bg-rose-200 text-rose-800 text-[9px] font-bold rounded-md">
-                              کم اسٹاک
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">{p.name}</span>
+                            {isLow && (
+                              <span className="px-1.5 py-0.5 bg-rose-200 text-rose-800 text-[9px] font-bold rounded-md">
+                                کم اسٹاک
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-urdu block mt-0.5">{p.urdu_name}</span>
+                          <div className="flex items-baseline justify-between mt-2">
+                            <p className="text-2xl font-black font-mono text-slate-900">
+                              {p.stock_kg} <span className="text-xs font-normal text-slate-500 font-sans">KG</span>
+                            </p>
+                            <span className="font-mono font-bold text-xs text-amber-700">
+                              Rs.{p.rate_per_kg}/kg
                             </span>
-                          )}
+                          </div>
                         </div>
-                        <span className="text-[10px] text-slate-500 font-urdu block mt-0.5">{p.urdu_name}</span>
-                        <p className="text-2xl font-black font-mono text-slate-900 mt-2">
-                          {p.stock_kg} <span className="text-xs font-normal text-slate-500 font-sans">KG</span>
-                        </p>
-                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
-                          <span>الرٹ حد: {p.min_stock_alert}kg</span>
-                          <span className="font-mono font-bold text-amber-700">Rs.{p.rate_per_kg}</span>
+
+                        {/* Weight Total Price Breakdown Box */}
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
+                          <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 flex items-center justify-between shadow-2xs">
+                            <span className="text-[10px] sm:text-[11px] font-black text-emerald-900 font-urdu">
+                              کل مالیت (ٹوٹل قیمت):
+                            </span>
+                            <span className="font-mono font-black text-xs sm:text-sm text-emerald-800 tracking-tight">
+                              Rs. {totalVal.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 px-0.5">
+                            <span>الرٹ حد: {p.min_stock_alert}kg</span>
+                            <span className="font-urdu">وزن × ریٹ</span>
+                          </div>
                         </div>
                       </div>
                     );
