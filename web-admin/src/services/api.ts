@@ -1785,7 +1785,10 @@ export const api = {
           notes: collection.notes || null,
           signature_url: collection.signature_url || null,
           signee_name: collection.signee_name || null,
-          client_uuid: collection.client_uuid,
+          client_uuid: collection.client_uuid || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+          })),
           status: collection.status || 'submitted',
         };
 

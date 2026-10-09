@@ -24,6 +24,7 @@ export default defineConfig({
     },
   ],
   base: './',
+  publicDir: false,
   build: {
     outDir: path.resolve(__dirname, '../mobile-worker/android/app/src/main/assets/www'),
     emptyOutDir: true,

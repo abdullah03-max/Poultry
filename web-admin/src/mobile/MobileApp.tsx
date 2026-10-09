@@ -38,7 +38,8 @@ import {
   Share2,
   MessageSquare,
   Download,
-  Navigation
+  Navigation,
+  Radio
 } from 'lucide-react';
 import {
   generateReceiptImageBlob,
@@ -207,10 +208,9 @@ export const MobileApp: React.FC = () => {
   const [authLoading, setAuthLoading] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Data Lists
+  // Data Lists (Live Real-Time from Supabase)
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [offlineSlips, setOfflineSlips] = useState<OfflineCollectionItem[]>([]);
-  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [slips, setSlips] = useState<OfflineCollectionItem[]>([]);
 
   // Refresh State
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -232,7 +232,6 @@ export const MobileApp: React.FC = () => {
   const [customerModalOpen, setCustomerModalOpen] = useState<boolean>(false);
   const [customerSearch, setCustomerSearch] = useState<string>('');
   const [customerStatusFilter, setCustomerStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
-  const [addCustomerModalOpen, setAddCustomerModalOpen] = useState<boolean>(false);
   const [receiptModalSlip, setReceiptModalSlip] = useState<OfflineCollectionItem | null>(null);
 
   // New Collection Form State (Charbi & Kachara)
@@ -250,19 +249,6 @@ export const MobileApp: React.FC = () => {
   const [isCompressingPhoto, setIsCompressingPhoto] = useState<boolean>(false);
   const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
   const [isSavingCollection, setIsSavingCollection] = useState<boolean>(false);
-
-  // Add Customer Form State
-  const [newCustName, setNewCustName] = useState<string>('');
-  const [newCustContact, setNewCustContact] = useState<string>('');
-  const [newCustPhone, setNewCustPhone] = useState<string>('');
-  const [newCustArea, setNewCustArea] = useState<string>('Gaggoo Mandi');
-  const [newCustCharbiRate, setNewCustCharbiRate] = useState<string>('55');
-  const [newCustKacharaRate, setNewCustKacharaRate] = useState<string>('45');
-
-
-  // Sync Progress State
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
   // Signature Canvas Ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -440,7 +426,7 @@ export const MobileApp: React.FC = () => {
       loadData(savedWorker);
     } else {
       setWorker(null);
-      setOfflineSlips([]);
+      setSlips([]);
     }
 
     return () => {
@@ -453,7 +439,7 @@ export const MobileApp: React.FC = () => {
   useEffect(() => {
     if (!worker) return;
 
-    // Supabase Realtime Channel: Listen to all events on collections
+    // Supabase Realtime Channel: Listen to all events on collections & customers
     const channel = supabase
       .channel('public:mobile_worker_collections_sync')
       .on(
@@ -464,7 +450,19 @@ export const MobileApp: React.FC = () => {
           table: 'collections',
         },
         () => {
-          // Immediately reload data when ANY worker inserts, updates, or deletes
+          // Immediately reload data when ANY worker or admin inserts, updates, or deletes
+          loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'customers',
+        },
+        () => {
+          // Reload when admin adds or updates a customer
           loadData();
         }
       )
@@ -472,9 +470,7 @@ export const MobileApp: React.FC = () => {
 
     // 10-second polling fallback to guarantee fresh updates
     const pollInterval = setInterval(() => {
-      if (navigator.onLine) {
-        loadData();
-      }
+      loadData();
     }, 10000);
 
     return () => {
@@ -487,107 +483,87 @@ export const MobileApp: React.FC = () => {
     const activeWorker = activeWorkerParam !== undefined ? activeWorkerParam : (worker || mobileStorage.getLoggedWorker());
     const workerId = activeWorker?.id;
 
-    // 1. Initial Local Slips
-    const allLocalSlips = mobileStorage.getOfflineSlips();
-    setOfflineSlips(allLocalSlips);
-    const pendingSlips = allLocalSlips.filter(s => s.status === 'pending_sync');
-    setPendingCount(pendingSlips.length);
+    // Clear legacy offline slips
+    mobileStorage.getOfflineSlips();
 
-    // 2. Customers
+    // 1. Initial Cached Customers
     const cached = mobileStorage.getCachedCustomers();
     if (cached.length > 0) {
       setCustomers(cached);
     }
 
-    // Try fetching live customers & live collections across ALL workers if online
-    if (navigator.onLine) {
-      try {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('status', 'active')
-          .order('name');
-        if (!error && data && data.length > 0) {
-          setCustomers(data);
-          mobileStorage.setCachedCustomers(data);
-        }
-      } catch (err) {
-        console.warn('Could not fetch live customers, using cache:', err);
+    // Try fetching live customers directly from Supabase
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('status', 'active')
+        .order('name');
+      if (!error && data && data.length > 0) {
+        setCustomers(data);
+        mobileStorage.setCachedCustomers(data);
       }
+    } catch (err) {
+      console.warn('Could not fetch live customers, using cache:', err);
+    }
 
-      // Fetch collections across ALL workers so Worker B sees Worker A's collections immediately
-      try {
-        const { data: remoteData, error: colError } = await supabase
-          .from('collections')
-          .select(`
-            *,
-            customer:customers(*),
-            worker:profiles(id, full_name, phone)
-          `)
-          .order('collection_timestamp', { ascending: false })
-          .limit(150);
+    // Fetch live collections directly from Supabase (Real-Time Cloud)
+    try {
+      const { data: remoteData, error: colError } = await supabase
+        .from('collections')
+        .select(`
+          *,
+          customer:customers(*),
+          worker:profiles(id, full_name, phone)
+        `)
+        .order('collection_timestamp', { ascending: false })
+        .limit(200);
 
-        if (!colError && remoteData) {
-          const mappedRemote: OfflineCollectionItem[] = remoteData.map((r: any) => ({
-            client_uuid: r.client_uuid || r.id,
-            receipt_no: r.receipt_no,
-            customer_id: r.customer_id,
-            customer_name: r.customer?.name || 'Customer',
-            customer_area: r.customer?.area || '',
-            customer_phone: r.customer?.phone || '',
-            worker_id: r.worker_id,
-            worker_name: r.worker?.full_name || (r.worker_id === workerId ? (activeWorker?.full_name || 'Field Collector') : 'Field Collector'),
-            collection_date: r.collection_date,
-            collection_time: r.collection_time || '00:00',
-            gross_weight: r.gross_weight,
-            tare_weight: r.tare_weight,
-            total_net_weight: r.total_net_weight,
-            rate_per_kg: r.rate_per_kg,
-            total_amount: r.total_amount,
-            notes: r.notes,
-            signature_base64: r.signature_url || null,
-            photo_base64: null,
-            items: [],
-            charbi_gross: r.charbi_gross ?? 0,
-            charbi_tare: r.charbi_tare ?? 0,
-            charbi_net: r.charbi_net ?? 0,
-            charbi_rate: r.charbi_rate ?? 55,
-            charbi_total: r.charbi_total ?? 0,
-            kachara_gross: r.kachara_gross ?? 0,
-            kachara_tare: r.kachara_tare ?? 0,
-            kachara_net: r.kachara_net ?? 0,
-            kachara_rate: r.kachara_rate ?? (r.rate_per_kg || 45),
-            kachara_total: r.kachara_total ?? 0,
-            status: 'synced',
-            created_at: r.created_at || r.collection_timestamp,
-          }));
+      if (!colError && remoteData) {
+        const mappedRemote: OfflineCollectionItem[] = remoteData.map((r: any) => ({
+          client_uuid: r.client_uuid || r.id,
+          receipt_no: r.receipt_no,
+          customer_id: r.customer_id,
+          customer_name: r.customer?.name || 'Customer',
+          customer_area: r.customer?.area || '',
+          customer_phone: r.customer?.phone || '',
+          worker_id: r.worker_id,
+          worker_name: r.worker?.full_name || (r.worker_id === workerId ? (activeWorker?.full_name || 'Field Collector') : 'Field Collector'),
+          collection_date: r.collection_date,
+          collection_time: r.collection_time || '00:00',
+          gross_weight: Number(r.gross_weight || 0),
+          tare_weight: Number(r.tare_weight || 0),
+          total_net_weight: Number(r.total_net_weight || 0),
+          rate_per_kg: Number(r.rate_per_kg || 0),
+          total_amount: Number(r.total_amount || 0),
+          notes: r.notes,
+          signature_base64: r.signature_url || null,
+          photo_base64: null,
+          items: [],
+          charbi_gross: Number(r.charbi_gross ?? 0),
+          charbi_tare: Number(r.charbi_tare ?? 0),
+          charbi_net: Number(r.charbi_net ?? 0),
+          charbi_rate: Number(r.charbi_rate ?? 55),
+          charbi_total: Number(r.charbi_total ?? 0),
+          kachara_gross: Number(r.kachara_gross ?? 0),
+          kachara_tare: Number(r.kachara_tare ?? 0),
+          kachara_net: Number(r.kachara_net ?? 0),
+          kachara_rate: Number(r.kachara_rate ?? (r.rate_per_kg || 45)),
+          kachara_total: Number(r.kachara_total ?? 0),
+          status: 'synced',
+          created_at: r.created_at || r.collection_timestamp,
+        }));
 
-          // Merge pending slips from local storage (pending take precedence if un-synced)
-          const seenReceipts = new Set(pendingSlips.map(s => s.receipt_no));
-          const merged = [...pendingSlips];
-          for (const rem of mappedRemote) {
-            if (!seenReceipts.has(rem.receipt_no)) {
-              merged.push(rem);
-              seenReceipts.add(rem.receipt_no);
-            }
-          }
-
-          setOfflineSlips(merged);
-          mobileStorage.setAllOfflineSlips(merged);
-          setPendingCount(pendingSlips.length);
-        }
-      } catch (colErr) {
-        console.warn('Could not fetch collections from Supabase:', colErr);
+        setSlips(mappedRemote);
       }
+    } catch (colErr) {
+      console.warn('Could not fetch collections from Supabase:', colErr);
     }
   };
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      if (navigator.onLine) {
-        await mobileStorage.syncAllPending();
-      }
       await loadData();
     } catch (e) {
       console.warn('Manual refresh failed:', e);
@@ -664,41 +640,37 @@ export const MobileApp: React.FC = () => {
     };
 
     try {
-      // 1. Update in Supabase if online
-      if (navigator.onLine) {
-        try {
-          await supabase
-            .from('collections')
-            .update({
-              customer_id: editCustomerId,
-              gross_weight: updatedSlip.gross_weight,
-              tare_weight: updatedSlip.tare_weight,
-              total_net_weight: updatedSlip.total_net_weight,
-              rate_per_kg: updatedSlip.rate_per_kg,
-              total_amount: updatedSlip.total_amount,
-              notes: editNotes.trim() || null,
-              charbi_gross: cGross,
-              charbi_tare: cTare,
-              charbi_net: cNet,
-              charbi_rate: cRate,
-              charbi_total: cTotal,
-              kachara_gross: kGross,
-              kachara_tare: kTare,
-              kachara_net: kNet,
-              kachara_rate: kRate,
-              kachara_total: kTotal,
-            })
-            .or(`client_uuid.eq.${editingSlip.client_uuid},receipt_no.eq.${editingSlip.receipt_no}`);
-        } catch (supErr) {
-          console.warn('Could not update online collection, updated locally:', supErr);
-        }
+      // 1. Direct Update in Supabase
+      const { error: updateErr } = await supabase
+        .from('collections')
+        .update({
+          customer_id: editCustomerId,
+          gross_weight: updatedSlip.gross_weight,
+          tare_weight: updatedSlip.tare_weight,
+          total_net_weight: updatedSlip.total_net_weight,
+          rate_per_kg: updatedSlip.rate_per_kg,
+          total_amount: updatedSlip.total_amount,
+          notes: editNotes.trim() || null,
+          charbi_gross: cGross,
+          charbi_tare: cTare,
+          charbi_net: cNet,
+          charbi_rate: cRate,
+          charbi_total: cTotal,
+          kachara_gross: kGross,
+          kachara_tare: kTare,
+          kachara_net: kNet,
+          kachara_rate: kRate,
+          kachara_total: kTotal,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`client_uuid.eq.${editingSlip.client_uuid},receipt_no.eq.${editingSlip.receipt_no}`);
+
+      if (updateErr) {
+        throw updateErr;
       }
 
-      // 2. Update locally
-      mobileStorage.updateOfflineSlip(updatedSlip);
-
-      // 3. Update state
-      setOfflineSlips(prev =>
+      // 2. Update real-time state
+      setSlips(prev =>
         prev.map(s => (s.client_uuid === updatedSlip.client_uuid || s.receipt_no === updatedSlip.receipt_no ? updatedSlip : s))
       );
 
@@ -710,7 +682,7 @@ export const MobileApp: React.FC = () => {
       setEditingSlip(null);
       alert('Collection slip updated successfully! / رسید کامیابی سے تبدیل ہو گئی!');
     } catch (e: any) {
-      alert(`Error updating slip: ${e.message}`);
+      alert(`Error updating slip: ${e.message || 'Database update failed'}`);
     } finally {
       setIsSavingEdit(false);
     }
@@ -975,90 +947,86 @@ export const MobileApp: React.FC = () => {
         created_at: now.toISOString(),
       };
 
-      // If online, attempt direct save to Supabase
-      let savedOnline = false;
-      if (isOnline) {
+      // Direct save to Supabase
+      const { data: colData, error: colError } = await supabase
+        .from('collections')
+        .insert({
+          client_uuid: clientUuid,
+          receipt_no: receiptNo,
+          customer_id: selectedCustomer.id,
+          worker_id: worker?.id && worker.id.length > 20 ? worker.id : null,
+          collection_date: dateStr,
+          collection_time: timeStr,
+          collection_timestamp: `${dateStr}T${timeStr}`,
+          gross_weight: totalGrossWeight > 0 ? totalGrossWeight : effectiveNetWeight,
+          tare_weight: totalTareWeight,
+          total_net_weight: effectiveNetWeight,
+          rate_per_kg: kRate || cRate || 45,
+          total_amount: totalAmount,
+          notes: notes.trim() || null,
+          signature_url: signatureBase64 || null,
+          charbi_gross: cGross,
+          charbi_tare: cTare,
+          charbi_net: cNet,
+          charbi_rate: cRate,
+          charbi_total: cTotal,
+          kachara_gross: kGross,
+          kachara_tare: kTare,
+          kachara_net: kNet,
+          kachara_rate: kRate,
+          kachara_total: kTotal,
+          status: 'submitted',
+        })
+        .select()
+        .single();
+
+      if (colError || !colData) {
+        console.error('Supabase collection insert failed:', colError);
+        alert(`❌ ڈیٹا بیس میں رسید محفوظ نہیں ہو سکی:\n${colError?.message || 'انٹرنیٹ یا سرور کی خرابی'}\nبراہ کرم دوبارہ کوشش کریں۔`);
+        setIsSavingCollection(false);
+        return;
+      }
+
+      // Persist customer daily completion status in Supabase
+      try {
+        const existingRates = selectedCustomer.category_rates || {};
+        await supabase
+          .from('customers')
+          .update({
+            category_rates: {
+              ...existingRates,
+              daily_record_status: {
+                last_completed_at: newSlip.created_at,
+                last_collection_date: dateStr,
+                receipt_no: receiptNo,
+                status: 'completed',
+                updated_at: new Date().toISOString(),
+              },
+            },
+          })
+          .eq('id', selectedCustomer.id);
+      } catch (custErr) {
+        console.warn('Could not update customer daily status in DB:', custErr);
+      }
+
+      // Insert scale photo attachment if captured
+      if (photoBase64) {
         try {
-          const { data: colData, error: colError } = await supabase
-            .from('collections')
-            .insert({
-              client_uuid: clientUuid,
-              receipt_no: receiptNo,
-              customer_id: selectedCustomer.id,
-              worker_id: worker?.id && worker.id.length > 20 ? worker.id : null,
-              collection_date: dateStr,
-              collection_time: timeStr,
-              collection_timestamp: `${dateStr}T${timeStr}`,
-              gross_weight: newSlip.gross_weight,
-              tare_weight: newSlip.tare_weight,
-              total_net_weight: newSlip.total_net_weight,
-              rate_per_kg: newSlip.rate_per_kg,
-              total_amount: newSlip.total_amount,
-              notes: newSlip.notes,
-              signature_url: newSlip.signature_base64 || null,
-              charbi_gross: cGross,
-              charbi_tare: cTare,
-              charbi_net: cNet,
-              charbi_rate: cRate,
-              charbi_total: cTotal,
-              kachara_gross: kGross,
-              kachara_tare: kTare,
-              kachara_net: kNet,
-              kachara_rate: kRate,
-              kachara_total: kTotal,
-              status: 'submitted',
-            })
-            .select()
-            .single();
-
-          if (!colError && colData) {
-            savedOnline = true;
-            newSlip.status = 'synced';
-
-            // Persist customer daily completion status in Supabase
-            try {
-              const existingRates = selectedCustomer.category_rates || {};
-              await supabase
-                .from('customers')
-                .update({
-                  category_rates: {
-                    ...existingRates,
-                    daily_record_status: {
-                      last_completed_at: newSlip.created_at,
-                      last_collection_date: dateStr,
-                      receipt_no: receiptNo,
-                      status: 'completed',
-                      updated_at: new Date().toISOString(),
-                    },
-                  },
-                })
-                .eq('id', selectedCustomer.id);
-            } catch (custErr) {
-              console.warn('Could not update customer daily status in DB:', custErr);
-            }
-
-            // Insert scale photo attachment if captured
-            if (photoBase64) {
-              await supabase.from('collection_attachments').insert({
-                collection_id: colData.id,
-                storage_bucket: 'collection-attachments',
-                file_path: photoBase64,
-                file_name: `photo_${receiptNo}.jpg`,
-                file_type: 'image/jpeg',
-                uploaded_by: worker?.id && worker.id.length > 20 ? worker.id : null,
-              });
-            }
-          }
-        } catch (e) {
-          console.warn('Online insert failed, saved to offline queue:', e);
+          await supabase.from('collection_attachments').insert({
+            collection_id: colData.id,
+            storage_bucket: 'collection-attachments',
+            file_path: photoBase64,
+            file_name: `photo_${receiptNo}.jpg`,
+            file_type: 'image/jpeg',
+            uploaded_by: worker?.id && worker.id.length > 20 ? worker.id : null,
+          });
+        } catch (attErr) {
+          console.warn('Could not save photo attachment:', attErr);
         }
       }
 
-      // Save locally (strip photo from localStorage if already saved online to avoid storage quota)
-      if (savedOnline) {
-        newSlip.photo_base64 = null;
-      }
-      mobileStorage.saveOfflineSlip(newSlip);
+      // Prepend to live state immediately
+      setSlips(prev => [newSlip, ...prev]);
 
       // Instantly update customer record in cache and state so status changes from Red to Green immediately
       const updatedCustList = customers.map(c => {
@@ -1082,7 +1050,8 @@ export const MobileApp: React.FC = () => {
       setCustomers(updatedCustList);
       mobileStorage.setCachedCustomers(updatedCustList);
 
-      await loadData(worker);
+      // Trigger background fresh data load
+      loadData(worker);
 
       // Show digital receipt popup (worker stays inside app, does not auto-redirect)
       setReceiptModalSlip(newSlip);
@@ -1104,98 +1073,9 @@ export const MobileApp: React.FC = () => {
     }
   };
 
-  // Add Customer Quick Action
-  const handleAddCustomer = async () => {
-    if (!newCustName.trim()) {
-      alert('Customer / Shop Name is required. / دکان کا نام درج کریں');
-      return;
-    }
-
-    const cRate = parseFloat(newCustCharbiRate) || 55;
-    const kRate = parseFloat(newCustKacharaRate) || 45;
-    const newCustomerObj: Customer = {
-      id: 'cust-' + Date.now(),
-      customer_code: 'CUST-' + Math.floor(100 + Math.random() * 900),
-      name: newCustName.trim(),
-      contact_person: newCustContact.trim() || null,
-      phone: newCustPhone.trim() || '+92 300 0000000',
-      alternate_phone: null,
-      address: null,
-      area: newCustArea.trim() || 'Gaggoo Mandi',
-      rate_per_kg: kRate,
-      rate_charbi: cRate,
-      rate_kachara: kRate,
-      category_rates: {
-        charbi: cRate,
-        kachara: kRate,
-      },
-      status: 'active',
-      notes: null,
-      is_deleted: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    if (isOnline) {
-      try {
-        const { data, error } = await supabase.from('customers').insert({
-          customer_code: newCustomerObj.customer_code,
-          name: newCustomerObj.name,
-          contact_person: newCustomerObj.contact_person,
-          phone: newCustomerObj.phone,
-          area: newCustomerObj.area,
-          rate_per_kg: newCustomerObj.rate_per_kg,
-          rate_charbi: newCustomerObj.rate_charbi,
-          rate_kachara: newCustomerObj.rate_kachara,
-          category_rates: newCustomerObj.category_rates,
-          status: 'active',
-        }).select().single();
-
-        if (!error && data) {
-          newCustomerObj.id = data.id;
-        }
-      } catch (e) {
-        console.warn('Could not insert online, cached locally:', e);
-      }
-    }
-
-    const updated = [newCustomerObj, ...customers];
-    setCustomers(updated);
-    mobileStorage.setCachedCustomers(updated);
-    setSelectedCustomer(newCustomerObj);
-    setCharbiRate(cRate.toString());
-    setKacharaRate(kRate.toString());
-
-    setAddCustomerModalOpen(false);
-    setNewCustName('');
-    setNewCustContact('');
-    setNewCustPhone('');
-  };
-
-  // Sync Offline Slips
-  const handleSyncAll = async () => {
-    if (!isOnline) {
-      alert('You are currently offline. Please check your internet connection.');
-      return;
-    }
-
-    setIsSyncing(true);
-    setSyncStatusMsg('Syncing collection slips with Supabase...');
-
-    const result = await mobileStorage.syncAllPending((curr, total) => {
-      setSyncStatusMsg(`Syncing ${curr} of ${total} collection slips...`);
-    });
-
-    setOfflineSlips(mobileStorage.getOfflineSlips());
-    setPendingCount(mobileStorage.getPendingSyncCount());
-    setIsSyncing(false);
-    setSyncStatusMsg(null);
-    alert(`Sync completed! ${result.success} synced successfully, ${result.failed} failed.`);
-  };
-
-  // Today's Combined Totals (All Workers)
+  // Today's Combined Totals (All Workers from Real-time Supabase)
   const todayStr = new Date().toISOString().split('T')[0];
-  const todaySlips = offlineSlips.filter(s => s.collection_date === todayStr);
+  const todaySlips = slips.filter(s => s.collection_date === todayStr);
   const todayTotalWeight = todaySlips.reduce((acc, s) => acc + s.total_net_weight, 0);
   const todayTotalAmount = todaySlips.reduce((acc, s) => acc + s.total_amount, 0);
 
@@ -1208,11 +1088,11 @@ export const MobileApp: React.FC = () => {
   const displayedTodaySlips = todayScope === 'mine' ? myTodaySlips : todaySlips;
 
   // All Slips scope filtered list - strictly worker's own slips for the Slips section!
-  const myAllSlips = offlineSlips.filter(s => s.worker_id === worker?.id);
+  const myAllSlips = slips.filter(s => s.worker_id === worker?.id);
   const displayedAllSlips = myAllSlips;
 
   // Calculate daily completion status for all customers
-  const dailyStatusSummary = getDailyStatusSummary(customers, offlineSlips);
+  const dailyStatusSummary = getDailyStatusSummary(customers, slips);
 
   // Filtered Customers for Modal with Search & Completion Status Filter
   const filteredCustomers = customers.filter(c => {
@@ -1436,27 +1316,6 @@ export const MobileApp: React.FC = () => {
         {/* TAB 1: HOME DASHBOARD */}
         {activeTab === 'home' && (
           <div className="space-y-4 max-w-lg mx-auto">
-            {/* Offline Alert Banner */}
-            {pendingCount > 0 && (
-              <div
-                onClick={() => setActiveTab('profile')}
-                className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-center justify-between shadow-sm cursor-pointer active:scale-98 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-amber-900">
-                      {pendingCount} Collection Slip{pendingCount > 1 ? 's' : ''} Pending Sync
-                    </div>
-                    <div className="text-[11px] text-amber-700">Tap here to sync with main database</div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-amber-600" />
-              </div>
-            )}
-
             {/* Today's Combined KPI Metric Cards (All Workers Total) */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
@@ -1482,7 +1341,7 @@ export const MobileApp: React.FC = () => {
                   Rs. {todayTotalAmount.toLocaleString()}
                 </div>
                 <div className="text-[10px] text-slate-500 mt-1 font-medium flex items-center justify-between">
-                  <span>{pendingCount} زیر التواء</span>
+                  <span>{todaySlips.length} رسیدیں</span>
                   <span className="text-amber-700 font-bold">آپ کا: Rs. {myTodayAmount.toLocaleString()}</span>
                 </div>
               </div>
@@ -1526,7 +1385,7 @@ export const MobileApp: React.FC = () => {
                   <FileText className="w-4 h-4" />
                 </div>
                 <span className="text-xs font-bold text-slate-700">تمام رسیدیں</span>
-                <span className="text-[10px] text-slate-400 font-medium">{offlineSlips.length} total</span>
+                <span className="text-[10px] text-slate-400 font-medium">{slips.length} total</span>
               </button>
 
               <button
@@ -1534,10 +1393,10 @@ export const MobileApp: React.FC = () => {
                 className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-sm active:bg-slate-50 transition"
               >
                 <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-1.5">
-                  <RefreshCw className="w-4 h-4" />
+                  <Radio className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">سنک سینٹر</span>
-                <span className="text-[10px] text-slate-400 font-medium">{pendingCount} unsynced</span>
+                <span className="text-xs font-bold text-slate-700">لائیو کلاؤڈ</span>
+                <span className="text-[10px] text-emerald-600 font-bold">🟢 Real-Time</span>
               </button>
             </div>
 
@@ -1663,17 +1522,13 @@ export const MobileApp: React.FC = () => {
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
                   <span>Step 1: گاہک / دکان کا انتخاب</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setAddCustomerModalOpen(true)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-700"
-                >
-                  + نئی دکان درج کریں
-                </button>
+                <span className="text-[11px] font-bold text-slate-400">
+                  (صرف فہرست سے انتخاب کریں)
+                </span>
               </div>
 
               {selectedCustomer ? (() => {
-                const selStatus = dailyStatusSummary.statusMap.get(selectedCustomer.id) || getCustomerDailyStatus(selectedCustomer, offlineSlips);
+                const selStatus = dailyStatusSummary.statusMap.get(selectedCustomer.id) || getCustomerDailyStatus(selectedCustomer, slips);
                 return (
                   <div
                     onClick={() => setCustomerModalOpen(true)}
@@ -2075,15 +1930,10 @@ export const MobileApp: React.FC = () => {
                 <h2 className="text-lg font-black text-slate-900">میری رسیدیں (My Slips)</h2>
                 <p className="text-xs text-slate-500">{displayedAllSlips.length} slips recorded by you</p>
               </div>
-              {pendingCount > 0 && (
-                <button
-                  onClick={handleSyncAll}
-                  disabled={isSyncing}
-                  className="text-xs font-bold text-white bg-blue-600 px-3 py-1.5 rounded-xl shadow-xs active:bg-blue-700"
-                >
-                  Sync ({pendingCount})
-                </button>
-              )}
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Live Supabase
+              </span>
             </div>
 
             {displayedAllSlips.length === 0 ? (
@@ -2113,15 +1963,9 @@ export const MobileApp: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-slate-400 font-mono">{s.collection_date}</span>
-                        {s.status === 'synced' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            SYNCED
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            OFFLINE
-                          </span>
-                        )}
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          محفوظ شدہ
+                        </span>
                         <button
                           type="button"
                           onClick={async (e) => {
@@ -2174,12 +2018,9 @@ export const MobileApp: React.FC = () => {
                 <h2 className="text-lg font-black text-slate-900">Customers Directory</h2>
                 <p className="text-xs text-slate-500">{customers.length} registered shops</p>
               </div>
-              <button
-                onClick={() => setAddCustomerModalOpen(true)}
-                className="text-xs font-bold text-white bg-blue-600 px-3 py-1.5 rounded-xl shadow-xs active:bg-blue-700"
-              >
-                + Add Shop
-              </button>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full">
+                Admin Managed
+              </span>
             </div>
 
             {/* Search Input */}
@@ -2197,7 +2038,7 @@ export const MobileApp: React.FC = () => {
             {/* Customer Cards */}
             <div className="space-y-2.5">
               {filteredCustomers.map(c => {
-                const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, offlineSlips);
+                const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, slips);
                 const isCompleted = status.isCompleted;
 
                 return (
@@ -2286,49 +2127,32 @@ export const MobileApp: React.FC = () => {
               </div>
             </div>
 
-            {/* Offline Sync Manager Card */}
+            {/* Live Database Status Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Offline Sync Center</span>
-                <span className="text-xs font-mono font-bold text-amber-600">{pendingCount} pending</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Database Connection</span>
+                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Real-Time Supabase
+                </span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs text-slate-600">
                 <div className="flex justify-between">
-                  <span>Network Connection:</span>
-                  <span className={`font-bold ${isOnline ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {isOnline ? '🟢 Connected' : '🟡 Offline'}
+                  <span>Network Status:</span>
+                  <span className={`font-bold ${isOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {isOnline ? '🟢 Connected' : '🔴 Disconnected'}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Pending Offline Slips:</span>
-                  <span className="font-bold font-mono text-slate-900">{pendingCount}</span>
+                  <span>Data Storage:</span>
+                  <span className="font-bold text-slate-900">⚡ 100% Direct Cloud (No Offline Mode)</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Total Slips on Phone:</span>
-                  <span className="font-bold font-mono text-slate-900">{offlineSlips.length}</span>
+                  <span>Total Slips in Database:</span>
+                  <span className="font-bold font-mono text-slate-900">{slips.length}</span>
                 </div>
               </div>
-
-              {syncStatusMsg && (
-                <div className="text-xs text-blue-600 font-bold text-center py-1">
-                  {syncStatusMsg}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleSyncAll}
-                disabled={isSyncing || pendingCount === 0 || !isOnline}
-                className={`w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-sm transition active:scale-98 ${
-                  isSyncing || pendingCount === 0 || !isOnline
-                    ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
-                }`}
-              >
-                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>{isSyncing ? 'SYNCING IN PROGRESS...' : 'SYNC ALL PENDING SLIPS NOW'}</span>
-              </button>
             </div>
 
             {/* App Info Card */}
@@ -2359,8 +2183,7 @@ export const MobileApp: React.FC = () => {
                   }
                   mobileStorage.clearSession();
                   setWorker(null);
-                  setOfflineSlips([]);
-                  setPendingCount(0);
+                  setSlips([]);
                   setGpsActive(false);
                 }
               }}
@@ -2424,9 +2247,6 @@ export const MobileApp: React.FC = () => {
         >
           <User className="w-5 h-5 mb-0.5" />
           <span className="text-[10px]">پروفائل (Profile)</span>
-          {pendingCount > 0 && (
-            <span className="absolute top-0 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          )}
         </button>
       </nav>
 
@@ -2517,7 +2337,7 @@ export const MobileApp: React.FC = () => {
                 </div>
               ) : (
                 filteredCustomers.map(c => {
-                  const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, offlineSlips);
+                  const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, slips);
                   const isCompleted = status.isCompleted;
 
                   return (
@@ -2571,128 +2391,8 @@ export const MobileApp: React.FC = () => {
               )}
             </div>
 
-            <div className="p-3 border-t border-slate-200 bg-slate-50">
-              <button
-                onClick={() => {
-                  setCustomerModalOpen(false);
-                  setAddCustomerModalOpen(true);
-                }}
-                className="w-full py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 shadow-2xs active:bg-slate-100"
-              >
-                + نئی دکان درج کریں / Add Shop
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL 2: ADD NEW CUSTOMER WITH CHARBI & KACHARA RATES
-      ========================================================================= */}
-      {addCustomerModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-5 space-y-4 animate-scaleUp">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-black text-base text-slate-900">نئی دکان درج کریں</h3>
-                <p className="text-xs text-slate-500">Add New Poultry Shop & Agreed Rates</p>
-              </div>
-              <button onClick={() => setAddCustomerModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">دکان / کاروبار کا نام (Shop Name) *</label>
-                <input
-                  type="text"
-                  placeholder="مثلاً: المدینہ چکن شاپ"
-                  value={newCustName}
-                  onChange={e => setNewCustName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">مالک / رابطہ کار (Contact Person)</label>
-                <input
-                  type="text"
-                  placeholder="مثلاً: حاجی راشد"
-                  value={newCustContact}
-                  onChange={e => setNewCustContact(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">فون نمبر (Phone for WhatsApp) *</label>
-                <input
-                  type="tel"
-                  placeholder="03001234567"
-                  value={newCustPhone}
-                  onChange={e => setNewCustPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">علاقہ / منڈی (Area / Town)</label>
-                <input
-                  type="text"
-                  placeholder="گگو منڈی / Gaggoo Mandi"
-                  value={newCustArea}
-                  onChange={e => setNewCustArea(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                />
-              </div>
-
-              {/* Two Agreed Rates: Charbi & Kachara */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-                <div>
-                  <label className="text-xs font-bold text-emerald-800 block mb-1">
-                    چربی ریٹ (Charbi / KG)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    placeholder="55"
-                    value={newCustCharbiRate}
-                    onChange={e => setNewCustCharbiRate(e.target.value)}
-                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-sm font-bold font-mono text-emerald-950"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-amber-800 block mb-1">
-                    کچرا ریٹ (Kachara / KG)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    placeholder="45"
-                    value={newCustKacharaRate}
-                    onChange={e => setNewCustKacharaRate(e.target.value)}
-                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-sm font-bold font-mono text-amber-950"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setAddCustomerModalOpen(false)}
-                className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold"
-              >
-                منسوخ (Cancel)
-              </button>
-              <button
-                type="button"
-                onClick={handleAddCustomer}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm"
-              >
-                محفوظ کریں (Save)
-              </button>
+            <div className="p-3 border-t border-slate-200 bg-slate-50 text-center text-xs text-slate-500 font-medium">
+              💡 نئی دکان صرف ایڈمن پورٹل سے شامل کی جا سکتی ہے
             </div>
           </div>
         </div>
