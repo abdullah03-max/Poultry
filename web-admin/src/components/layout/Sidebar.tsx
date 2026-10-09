@@ -160,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Dedicated Standalone Chicken Shop & Khata Link (Opens in New Tab) */}
           <div className="pt-2">
             <a
-              href="/chicken-management"
+              href="/?page=chicken-management"
               target="_blank"
               rel="noreferrer"
               className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100/70 border border-amber-200 text-amber-900 hover:from-amber-100 hover:to-amber-200 text-xs font-bold transition group"

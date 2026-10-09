@@ -139,7 +139,7 @@ export const Header: React.FC<HeaderProps> = ({
               if (onOpenChickenShop) {
                 onOpenChickenShop();
               } else {
-                window.open('/chicken-management', '_blank');
+                window.open('/?page=chicken-management', '_blank');
               }
             }}
             className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"

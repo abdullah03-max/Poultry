@@ -53,6 +53,11 @@ const AdminApp: React.FC = () => {
     window.location.search.includes('chiken-mangement');
 
   if (isChickenShopRoute) {
+    if (!window.location.pathname.includes('/chicken-management')) {
+      try {
+        window.history.replaceState({}, '', '/chicken-management');
+      } catch {}
+    }
     return <ChickenShopApp standalone={true} onBackToWaste={() => { window.location.href = '/'; }} />;
   }
 
@@ -334,7 +339,7 @@ const AdminApp: React.FC = () => {
           latestEvent={latestLiveEvent}
           onViewCollection={setSelectedSlipForModal}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
-          onOpenChickenShop={() => window.open('/chicken-management', '_blank')}
+          onOpenChickenShop={() => window.open('/?page=chicken-management', '_blank')}
           isChickenShopMode={activeTab === 'chicken-shop'}
           onBackToWaste={() => handleSelectTab('dashboard')}
         />
