@@ -39,7 +39,8 @@ import {
   MessageSquare,
   Download,
   Navigation,
-  Radio
+  Radio,
+  History
 } from 'lucide-react';
 import {
   generateReceiptImageBlob,
@@ -49,7 +50,8 @@ import {
 import {
   getCustomerDailyStatus,
   getDailyStatusSummary,
-  CustomerDailyStatus
+  CustomerDailyStatus,
+  getLocalDateString
 } from '../utils/customerDailyStatus';
 
 type Tab = 'home' | 'new_collection' | 'collections' | 'customers' | 'profile';
@@ -880,7 +882,7 @@ export const MobileApp: React.FC = () => {
 
     try {
       const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(now);
       const timeStr = now.toTimeString().split(' ')[0];
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const receiptNo = `SPP-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}-${randomSuffix}`;
@@ -1011,6 +1013,12 @@ export const MobileApp: React.FC = () => {
                 receipt_no: receiptNo,
                 status: 'completed',
                 updated_at: new Date().toISOString(),
+                total_net_weight: effectiveNetWeight,
+                total_amount: totalAmount,
+                charbi_net: cNet,
+                kachara_net: kNet,
+                charbi_rate: cRate,
+                kachara_rate: kRate,
               },
             },
             bakaya_raqam: remainingAdv < 0 ? Math.abs(remainingAdv) : 0,
@@ -1053,6 +1061,12 @@ export const MobileApp: React.FC = () => {
                 receipt_no: receiptNo,
                 status: 'completed',
                 updated_at: new Date().toISOString(),
+                total_net_weight: effectiveNetWeight,
+                total_amount: totalAmount,
+                charbi_net: cNet,
+                kachara_net: kNet,
+                charbi_rate: cRate,
+                kachara_rate: kRate,
               },
             },
           };
@@ -1086,7 +1100,7 @@ export const MobileApp: React.FC = () => {
   };
 
   // Today's Combined Totals (All Workers from Real-time Supabase)
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString(new Date());
   const todaySlips = slips.filter(s => s.collection_date === todayStr);
   const todayTotalWeight = todaySlips.reduce((acc, s) => acc + s.total_net_weight, 0);
   const todayTotalAmount = todaySlips.reduce((acc, s) => acc + s.total_amount, 0);
@@ -1544,37 +1558,49 @@ export const MobileApp: React.FC = () => {
                 return (
                   <div
                     onClick={() => setCustomerModalOpen(true)}
-                    className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                    className={`p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition shadow-xs ${
                       selStatus.isCompleted
-                        ? 'bg-emerald-50/90 border-emerald-300 hover:bg-emerald-100'
-                        : 'bg-rose-50/80 border-rose-300 hover:bg-rose-100'
+                        ? 'bg-emerald-50/95 border-emerald-500 hover:bg-emerald-100'
+                        : 'bg-rose-50/95 border-rose-500 hover:bg-rose-100'
                     }`}
                   >
-                    <div>
+                    <div className="flex-1 min-w-0 pr-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="font-black text-sm text-slate-900">{selectedCustomer.name}</div>
+                        <div className="font-black text-base text-slate-900">{selectedCustomer.name}</div>
                         {selStatus.isCompleted ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>مکمل (Served)</span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-600 text-white shadow-2xs">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>🟢 مکمل (Done)</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-2xs">
-                            <Clock className="w-3 h-3" />
-                            <span>بقایہ (Pending)</span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-600 text-white shadow-2xs">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>🔴 بقایہ (Pending)</span>
                           </span>
                         )}
                       </div>
                       <div className="text-xs text-slate-600 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-                        <span>{selectedCustomer.area}</span>
-                        <span className="font-bold text-emerald-700">چربی: Rs. {selectedCustomer.rate_charbi || 55}/KG</span>
-                        <span className="font-bold text-amber-700">کچرا: Rs. {selectedCustomer.rate_kachara || selectedCustomer.rate_per_kg || 45}/KG</span>
+                        <span className="font-semibold text-slate-700">{selectedCustomer.area || 'Shop'}</span>
+                        <span className="font-bold text-emerald-800">چربی: Rs. {selectedCustomer.rate_charbi || 55}/KG</span>
+                        <span className="font-bold text-amber-800">کچرا: Rs. {selectedCustomer.rate_kachara || selectedCustomer.rate_per_kg || 45}/KG</span>
                         {selStatus.formattedTime && (
-                          <span className="text-[10px] font-semibold text-slate-500">({selStatus.formattedTime})</span>
+                          <span className="text-[11px] font-bold text-emerald-800">({selStatus.formattedTime})</span>
                         )}
                       </div>
+
+                      {/* Previous Entry Short Summary */}
+                      {selStatus.previousEntryShort && (
+                        <div className="mt-2 text-xs font-medium text-slate-700 flex items-center gap-2 flex-wrap bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                          <History className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="font-bold text-slate-800">پچھلی اینٹری: <span className="text-blue-700">{selStatus.previousEntryShort.friendlyDateText}</span></span>
+                          <span>•</span>
+                          <span className="font-semibold text-slate-600">وزن: <strong className="text-slate-900 font-bold">{selStatus.previousEntryShort.totalWeight} KG</strong></span>
+                          <span>•</span>
+                          <span className="font-black text-emerald-800">Rs. {selStatus.previousEntryShort.totalAmount.toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
-                    <span className="text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-2xs shrink-0 ml-2">
+                    <span className="text-xs font-bold text-slate-800 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs shrink-0 ml-2">
                       تبدیل کریں
                     </span>
                   </div>
@@ -2047,72 +2073,161 @@ export const MobileApp: React.FC = () => {
               />
             </div>
 
+            {/* Status Filter Buttons */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setCustomerStatusFilter('all')}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition text-center ${
+                  customerStatusFilter === 'all'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                تمام ({customers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCustomerStatusFilter('pending')}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1 ${
+                  customerStatusFilter === 'pending'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'text-rose-700 hover:bg-rose-100'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                <span>بقایہ ({dailyStatusSummary.pendingCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCustomerStatusFilter('completed')}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition text-center flex items-center justify-center gap-1 ${
+                  customerStatusFilter === 'completed'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span>مکمل ({dailyStatusSummary.completedCount})</span>
+              </button>
+            </div>
+
             {/* Customer Cards */}
             <div className="space-y-2.5">
-              {filteredCustomers.map(c => {
-                const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, slips);
-                const isCompleted = status.isCompleted;
+              {filteredCustomers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs font-medium">
+                  کوئی دکان نہیں ملی (No shops match filter)
+                </div>
+              ) : (
+                filteredCustomers.map(c => {
+                  const status = dailyStatusSummary.statusMap.get(c.id) || getCustomerDailyStatus(c, slips);
+                  const isCompleted = status.isCompleted;
 
-                return (
-                  <div
-                    key={c.id}
-                    className={`border rounded-2xl p-4 shadow-sm transition ${
-                      isCompleted
-                        ? 'bg-emerald-50/90 border-emerald-400'
-                        : 'bg-rose-50/85 border-rose-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0 pr-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="font-bold text-slate-900 text-sm truncate">{c.name}</div>
+                  return (
+                    <div
+                      key={c.id}
+                      className={`border-2 rounded-2xl p-4 shadow-xs transition ${
+                        isCompleted
+                          ? 'bg-emerald-50/95 border-emerald-500'
+                          : 'bg-rose-50/95 border-rose-500'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="font-black text-base text-slate-900 leading-tight">
+                            {c.name}
+                          </div>
+                          <div className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 flex-wrap">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="font-semibold text-slate-700">{c.area || 'Shop'}</span>
+                            {c.contact_person && (
+                              <span className="text-slate-500">• {c.contact_person}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
                           {isCompleted ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>مکمل (Served)</span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-xs">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>🟢 مکمل (Done)</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-2xs">
-                              <Clock className="w-3 h-3" />
-                              <span>بقایہ (Pending)</span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-xs">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>🔴 بقایہ (Pending)</span>
                             </span>
                           )}
-                        </div>
-                        <div className="text-xs text-slate-600 mt-0.5">{c.contact_person || 'Owner'}</div>
-                        <div className="text-xs text-slate-600 mt-1 flex items-center gap-1 flex-wrap">
-                          <MapPin className="w-3 h-3 text-slate-400" />
-                          <span>{c.area}</span>
-                          {isCompleted && status.formattedTime && (
-                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.2 rounded-md ml-1">
-                              {status.formattedTime}
-                            </span>
-                          )}
+
+                          <a
+                            href={`tel:${c.phone}`}
+                            className="w-8 h-8 rounded-xl bg-white text-emerald-700 border border-emerald-300 flex items-center justify-center shrink-0 active:bg-emerald-50 shadow-2xs"
+                            title="Call customer"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </a>
                         </div>
                       </div>
 
-                      <a
-                        href={`tel:${c.phone}`}
-                        className="w-9 h-9 rounded-xl bg-white text-emerald-700 border border-emerald-300 flex items-center justify-center shrink-0 active:bg-emerald-50 shadow-2xs"
-                        title="Call customer"
-                      >
-                        <Phone className="w-4 h-4" />
-                      </a>
-                    </div>
+                      {/* Time if completed today */}
+                      {isCompleted && status.formattedTime && (
+                        <div className="text-[11px] font-bold text-emerald-800 mt-1">
+                          مکمل وقت: {status.formattedTime}
+                        </div>
+                      )}
 
-                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200/70 text-xs">
-                      <span className="font-bold text-slate-600">Agreed Rates:</span>
-                      <div className="flex gap-2">
-                        <span className="font-mono font-bold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
-                          چربی: Rs. {c.rate_charbi || 55}
-                        </span>
-                        <span className="font-mono font-bold text-amber-800 bg-white border border-amber-200 px-2 py-0.5 rounded-md shadow-2xs">
-                          کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
-                        </span>
+                      {/* Agreed Rates Row */}
+                      <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-slate-200/80 text-xs">
+                        <span className="font-bold text-slate-600">طے شدہ ریٹ (Agreed Rates):</span>
+                        <div className="flex gap-2 font-mono">
+                          <span className="font-bold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
+                            چربی: Rs. {c.rate_charbi || 55}
+                          </span>
+                          <span className="font-bold text-amber-800 bg-white border border-amber-200 px-2 py-0.5 rounded-md shadow-2xs">
+                            کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
+                          </span>
+                        </div>
                       </div>
+
+                      {/* Previous Entry Short Summary Box */}
+                      {status.previousEntryShort ? (
+                        <div className={`mt-2.5 p-2.5 rounded-xl border ${isCompleted ? 'bg-white/90 border-emerald-200' : 'bg-white/95 border-rose-200'} shadow-2xs`}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                              <History className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span>پچھلی اینٹری: <span className="font-extrabold text-blue-700">{status.previousEntryShort.friendlyDateText}</span></span>
+                            </div>
+                            <span className="font-mono font-black text-xs text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
+                              Rs. {status.previousEntryShort.totalAmount.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-700 pt-1 border-t border-slate-100">
+                            <span className="font-medium text-slate-600">
+                              کل وزن: <strong className="text-slate-900 font-black text-sm">{status.previousEntryShort.totalWeight} KG</strong>
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {status.previousEntryShort.charbiWeight !== undefined && status.previousEntryShort.charbiWeight > 0 && (
+                                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                  چربی: {status.previousEntryShort.charbiWeight}kg
+                                </span>
+                              )}
+                              {status.previousEntryShort.kacharaWeight !== undefined && status.previousEntryShort.kacharaWeight > 0 && (
+                                <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  کچرا: {status.previousEntryShort.kacharaWeight}kg
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-center text-[11px] text-slate-400 font-medium italic">
+                          پچھلی اینٹری کا کوئی ریکارڈ نہیں (No previous entry)
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         )}
@@ -2361,42 +2476,95 @@ export const MobileApp: React.FC = () => {
                         setKacharaRate(c.rate_kachara ? c.rate_kachara.toString() : (c.rate_per_kg ? c.rate_per_kg.toString() : '45'));
                         setCustomerModalOpen(false);
                       }}
-                      className={`p-3.5 rounded-2xl border transition-all duration-150 cursor-pointer flex items-center justify-between shadow-2xs active:scale-[0.99] ${
+                      className={`p-3.5 rounded-2xl border-2 transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.99] ${
                         isCompleted
-                          ? 'bg-emerald-50/90 border-emerald-400 hover:border-emerald-500 hover:bg-emerald-100/90'
-                          : 'bg-rose-50/85 border-rose-300 hover:border-rose-400 hover:bg-rose-100/85'
+                          ? 'bg-emerald-50/95 border-emerald-500 hover:border-emerald-600 hover:bg-emerald-100/90'
+                          : 'bg-rose-50/95 border-rose-500 hover:border-rose-600 hover:bg-rose-100/90'
                       }`}
                     >
-                      <div className="flex-1 min-w-0 pr-3">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm text-slate-900 truncate">{c.name}</span>
-                          {isCompleted ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs shrink-0">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>مکمل (Served)</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-2xs shrink-0">
-                              <Clock className="w-3 h-3" />
-                              <span>بقایہ (Pending)</span>
-                            </span>
-                          )}
+                      {/* Top Row: Shop Name & Status Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-black text-base text-slate-900 leading-tight">
+                            {c.name}
+                          </div>
+                          <div className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-700">{c.area || 'Shop'}</span>
+                            {c.contact_person && (
+                              <span className="text-slate-500">• {c.contact_person}</span>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
-                          <span className="truncate">{c.area} • {c.contact_person || 'Owner'}</span>
+                        {/* High-Contrast Bold Status Badge */}
+                        <div className="shrink-0 text-right">
+                          {isCompleted ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-xs">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>🟢 مکمل (Done)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-xs">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>🔴 بقایہ (Pending)</span>
+                            </span>
+                          )}
                           {isCompleted && status.formattedTime && (
-                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.2 rounded-md shrink-0">
+                            <span className="block text-[11px] font-bold text-emerald-800 mt-1">
                               {status.formattedTime}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="font-mono font-bold text-xs text-emerald-700 block">چربی: Rs. {c.rate_charbi || 55}</span>
-                        <span className="font-mono font-bold text-xs text-amber-700 block">کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}</span>
+                      {/* Agreed Rates Row */}
+                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-200/80 text-xs">
+                        <span className="font-bold text-slate-600">طے شدہ ریٹ (Agreed Rates):</span>
+                        <div className="flex gap-2 font-mono">
+                          <span className="font-bold text-emerald-800 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-md">
+                            چربی: Rs. {c.rate_charbi || 55}
+                          </span>
+                          <span className="font-bold text-amber-800 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-md">
+                            کچرا: Rs. {c.rate_kachara || c.rate_per_kg || 45}
+                          </span>
+                        </div>
                       </div>
+
+                      {/* Previous Entry Short Summary Box */}
+                      {status.previousEntryShort ? (
+                        <div className={`mt-2.5 p-2.5 rounded-xl border ${isCompleted ? 'bg-white/90 border-emerald-200' : 'bg-white/95 border-rose-200'} shadow-2xs`}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                              <History className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span>پچھلی اینٹری: <span className="font-extrabold text-blue-700">{status.previousEntryShort.friendlyDateText}</span></span>
+                            </div>
+                            <span className="font-mono font-black text-xs text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
+                              Rs. {status.previousEntryShort.totalAmount.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-700 pt-1 border-t border-slate-100">
+                            <span className="font-medium text-slate-600">
+                              کل وزن: <strong className="text-slate-900 font-black text-sm">{status.previousEntryShort.totalWeight} KG</strong>
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {status.previousEntryShort.charbiWeight !== undefined && status.previousEntryShort.charbiWeight > 0 && (
+                                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                  چربی: {status.previousEntryShort.charbiWeight}kg
+                                </span>
+                              )}
+                              {status.previousEntryShort.kacharaWeight !== undefined && status.previousEntryShort.kacharaWeight > 0 && (
+                                <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  کچرا: {status.previousEntryShort.kacharaWeight}kg
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-center text-[11px] text-slate-400 font-medium italic">
+                          پچھلی اینٹری کا کوئی ریکارڈ نہیں (No previous entry)
+                        </div>
+                      )}
                     </div>
                   );
                 })
