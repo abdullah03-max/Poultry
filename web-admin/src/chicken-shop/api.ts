@@ -485,6 +485,27 @@ export const chickenShopApi = {
     const dateStr = saleData.sale_date || now.toISOString().split('T')[0];
     const timeStr = saleData.sale_time || now.toTimeString().split(' ')[0];
 
+    // Strict inventory stock validation before confirming sale
+    const allProducts = await this.getProducts();
+    const totalRequiredByProduct: Record<string, { weight: number; name: string }> = {};
+    for (const item of saleData.items) {
+      const w = Number(item.weight_kg) || 0;
+      if (!totalRequiredByProduct[item.product_id]) {
+        totalRequiredByProduct[item.product_id] = { weight: 0, name: item.product_name };
+      }
+      totalRequiredByProduct[item.product_id].weight += w;
+    }
+
+    for (const [prodId, req] of Object.entries(totalRequiredByProduct)) {
+      const prod = allProducts.find(p => p.id === prodId);
+      const currentStock = prod ? Number(prod.stock_kg || 0) : 0;
+      if (req.weight > currentStock) {
+        throw new Error(
+          `اسٹاک ناکافی ہے! "${req.name}" کا موجودہ دستیاب اسٹاک صرف ${currentStock} KG ہے جبکہ فروخت ${req.weight} KG کی جا رہی ہے۔ (Available stock is only ${currentStock} KG)`
+        );
+      }
+    }
+
     // Calculate line totals
     let totalWeight = 0;
     let subtotal = 0;

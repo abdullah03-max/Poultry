@@ -526,7 +526,24 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     setPosItems(prev => {
       const copy = [...prev];
       const cur = Number(copy[index].weight_kg) || 0;
-      copy[index] = { ...copy[index], weight_kg: String(Number((cur + addKg).toFixed(2))) };
+      const targetProd = products.find(p => p.id === copy[index].product_id);
+      const availableStock = targetProd ? Number(targetProd.stock_kg || 0) : 0;
+      const nextWeight = Number((cur + addKg).toFixed(2));
+
+      if (availableStock <= 0) {
+        alert(`اسٹاک ختم ہے: "${copy[index].product_name}" کا اسٹاک 0 KG ہے۔ مزید وزن شامل نہیں ہو سکتا۔`);
+        return prev;
+      }
+
+      if (nextWeight > availableStock) {
+        alert(
+          `اسٹاک کی حد!\n"${copy[index].product_name}" کا کل دستیاب اسٹاک صرف ${availableStock} KG ہے۔ وزن کو زیادہ سے زیادہ اسٹاک (${availableStock} KG) پر سیٹ کر دیا گیا ہے۔`
+        );
+        copy[index] = { ...copy[index], weight_kg: String(availableStock) };
+        return copy;
+      }
+
+      copy[index] = { ...copy[index], weight_kg: String(nextWeight) };
       return copy;
     });
   };
@@ -541,10 +558,20 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     if (!p) return;
     setPosItems(prev => {
       const copy = [...prev];
+      const curWeight = Number(copy[index].weight_kg) || 0;
+      const availableStock = Number(p.stock_kg || 0);
+      let newWeight = copy[index].weight_kg;
+
+      // If existing weight exceeds newly chosen product's stock, clamp it
+      if (curWeight > availableStock) {
+        newWeight = availableStock > 0 ? String(availableStock) : '';
+      }
+
       copy[index] = {
         ...copy[index],
         product_id: p.id,
         product_name: p.name,
+        weight_kg: newWeight,
         rate_per_kg: String(p.rate_per_kg),
       };
       return copy;
@@ -554,6 +581,19 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const handlePosRowValueChange = (index: number, field: 'weight_kg' | 'rate_per_kg', val: string) => {
     setPosItems(prev => {
       const copy = [...prev];
+      if (field === 'weight_kg') {
+        const numVal = Number(val);
+        const targetProd = products.find(p => p.id === copy[index].product_id);
+        const availableStock = targetProd ? Number(targetProd.stock_kg || 0) : 0;
+
+        if (val !== '' && !isNaN(numVal) && numVal > availableStock) {
+          alert(
+            `⚠️ اسٹاک سے زیادہ وزن درج نہیں ہو سکتا!\n\n"${targetProd?.name || 'پروڈکٹ'}" کا کل انوینٹری اسٹاک صرف ${availableStock} KG ہے۔\nوزن خودکار طور پر دستیاب اسٹاک (${availableStock} KG) پر سیٹ کر دیا گیا ہے۔`
+          );
+          copy[index] = { ...copy[index], [field]: String(availableStock) };
+          return copy;
+        }
+      }
       copy[index] = { ...copy[index], [field]: val };
       return copy;
     });
@@ -567,6 +607,32 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       alert('براہ کرم تمام آئٹمز کا درست وزن (KG) درج کریں');
       return;
     }
+
+    // Strict Inventory Stock Validation across all items
+    const stockUsageMap: Record<string, { weight: number; name: string }> = {};
+    for (const item of posItems) {
+      const w = Number(item.weight_kg) || 0;
+      if (!stockUsageMap[item.product_id]) {
+        stockUsageMap[item.product_id] = { weight: 0, name: item.product_name };
+      }
+      stockUsageMap[item.product_id].weight += w;
+    }
+
+    for (const [prodId, req] of Object.entries(stockUsageMap)) {
+      const prod = products.find(p => p.id === prodId);
+      const availableStock = prod ? Number(prod.stock_kg || 0) : 0;
+      if (req.weight > availableStock) {
+        alert(
+          `❌ فروخت ناممکن ہے! اسٹاک ناکافی ہے۔\n\n` +
+          `پروڈکٹ: "${req.name}"\n` +
+          `موجودہ انوینٹری اسٹاک: ${availableStock} KG\n` +
+          `درخواست کردہ فروخت وزن: ${req.weight} KG\n\n` +
+          `آپ دکان کے اسٹاک (${availableStock} KG) سے زیادہ فروخت نہیں کر سکتے۔ براہ کرم وزن کم کریں یا پہلے نیا اسٹاک آمد شامل کریں۔`
+        );
+        return;
+      }
+    }
+
     if (posPaymentMethod === 'credit' && !posCustomerId) {
       alert('ادھار کھاتہ سیل کے لیے براہ کرم گاہک منتخب کریں یا ادائیگی کا طریقہ نقد (Cash) رکھیں');
       return;
@@ -1392,52 +1458,76 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
 
                             {/* Weight & Rate Row */}
                             <div className="grid grid-cols-2 gap-2 md:contents">
-                              <div className="w-full md:w-44">
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1 font-urdu">
-                                  وزن کلوگرام (Weight KG) *
-                                </label>
+                              <div className="w-full md:w-48">
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-[10px] font-bold text-slate-500 font-urdu">
+                                    وزن کلوگرام (Weight KG) *
+                                  </label>
+                                  <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                    حد: {availableStock} KG
+                                  </span>
+                                </div>
                                 <div className="relative">
                                   <input
                                     type="number"
                                     min="0.05"
+                                    max={availableStock}
                                     step="0.05"
                                     required
                                     value={item.weight_kg}
                                     onChange={e => handlePosRowValueChange(index, 'weight_kg', e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                                    placeholder={availableStock > 0 ? `زیادہ سے زیادہ ${availableStock}` : 'اسٹاک ختم'}
+                                    disabled={availableStock <= 0}
+                                    className={`w-full border rounded-xl pl-3 pr-8 py-2 text-xs font-mono font-bold focus:outline-none ${
+                                      availableStock <= 0
+                                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                        : weight > availableStock
+                                        ? 'bg-rose-50 border-rose-500 text-rose-700'
+                                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-amber-600'
+                                    }`}
                                   />
                                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
                                     KG
                                   </span>
                                 </div>
+
+                                {weight > availableStock && (
+                                  <span className="text-[10px] text-rose-600 font-bold block mt-1 font-urdu">
+                                    ⚠️ دستیاب اسٹاک ({availableStock} KG) سے زیادہ ہے!
+                                  </span>
+                                )}
+
                                 {/* Quick Add Weight Pills */}
                                 <div className="flex items-center gap-1 mt-1.5">
                                   <button
                                     type="button"
+                                    disabled={availableStock <= 0 || weight >= availableStock}
                                     onClick={() => handleQuickAddWeight(index, 0.5)}
-                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
+                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
                                   >
                                     +0.5k
                                   </button>
                                   <button
                                     type="button"
+                                    disabled={availableStock <= 0 || weight >= availableStock}
                                     onClick={() => handleQuickAddWeight(index, 1)}
-                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
+                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
                                   >
                                     +1k
                                   </button>
                                   <button
                                     type="button"
+                                    disabled={availableStock <= 0 || weight >= availableStock}
                                     onClick={() => handleQuickAddWeight(index, 2)}
-                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
+                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
                                   >
                                     +2k
                                   </button>
                                   <button
                                     type="button"
+                                    disabled={availableStock <= 0 || weight >= availableStock}
                                     onClick={() => handleQuickAddWeight(index, 5)}
-                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
+                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-amber-100 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded border border-slate-200 transition"
                                   >
                                     +5k
                                   </button>
