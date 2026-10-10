@@ -1,16 +1,19 @@
 // =============================================================================
 // SHAN CHICKEN MEAT & DIGITAL KHATA - Fresh Chicken Stock Arrival Modal
-// Record live/fresh broiler arrivals with KG, Purchase Rate, and Selling Rate
+// Record fresh chicken arrivals and allocate to meat categories (Gosht, Cuts, Live)
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { chickenShopApi } from './api';
-import { X, CheckCircle2, Loader2, Sparkles, Scale, DollarSign, Truck } from 'lucide-react';
+import { ChickenProduct } from './types';
+import { chickenShopApi, FRESH_CHICKEN_PRODUCT_ID } from './api';
+import { X, CheckCircle2, Loader2, Sparkles, Scale, DollarSign, Truck, Tag } from 'lucide-react';
 
 interface FreshChickenArrivalModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  products?: ChickenProduct[];
+  initialCategoryId?: string | null;
   currentSellingRate?: number;
 }
 
@@ -18,12 +21,15 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
   isOpen,
   onClose,
   onSuccess,
-  currentSellingRate = 440,
+  products = [],
+  initialCategoryId,
+  currentSellingRate = 450,
 }) => {
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [weightKg, setWeightKg] = useState<string>('');
   const [purchaseRate, setPurchaseRate] = useState<string>('380');
   const [totalCost, setTotalCost] = useState<string>('');
-  const [sellingRate, setSellingRate] = useState<string>(String(currentSellingRate || 440));
+  const [sellingRate, setSellingRate] = useState<string>(String(currentSellingRate || 450));
   const [birdsCount, setBirdsCount] = useState<string>('');
   const [supplierName, setSupplierName] = useState<string>('');
   const [vehicleNo, setVehicleNo] = useState<string>('');
@@ -33,17 +39,36 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
 
   useEffect(() => {
     if (isOpen) {
+      const defaultCatId =
+        initialCategoryId ||
+        (products.length > 0
+          ? (products.find(p => p.id === 'prod-gosht')?.id || products[0].id)
+          : FRESH_CHICKEN_PRODUCT_ID);
+
+      setSelectedCategoryId(defaultCatId);
+
+      const targetProd = products.find(p => p.id === defaultCatId);
+      const initialSRate = targetProd?.rate_per_kg || currentSellingRate || 450;
+
       setWeightKg('');
       setPurchaseRate('380');
       setTotalCost('');
-      setSellingRate(String(currentSellingRate || 440));
+      setSellingRate(String(initialSRate));
       setBirdsCount('');
       setSupplierName('');
       setVehicleNo('');
       setDateStr(new Date().toISOString().split('T')[0]);
       setNotes('');
     }
-  }, [isOpen, currentSellingRate]);
+  }, [isOpen, initialCategoryId, products, currentSellingRate]);
+
+  const handleCategorySelect = (catId: string) => {
+    setSelectedCategoryId(catId);
+    const prod = products.find(p => p.id === catId);
+    if (prod && prod.rate_per_kg) {
+      setSellingRate(String(prod.rate_per_kg));
+    }
+  };
 
   // Auto-calculate total cost when weight or purchase rate changes
   const handleWeightChange = (val: string) => {
@@ -77,6 +102,7 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
   const projectedRevenue = Math.round(wNum * sRateNum);
   const projectedMargin = projectedRevenue - costNum;
   const marginPerKg = sRateNum - pRateNum;
+  const selectedProd = products.find(p => p.id === selectedCategoryId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +129,8 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
         rate_per_kg: pRateNum,
         total_cost: costNum,
         selling_rate_per_kg: sRateNum,
+        category_id: selectedCategoryId || null,
+        category_name: selectedProd ? (selectedProd.urdu_name || selectedProd.name) : null,
         supplier_name: supplierName.trim() || 'فارم سپلائی',
         birds_count: birdsCount ? Number(birdsCount) : null,
         vehicle_no: vehicleNo.trim() || null,
@@ -125,14 +153,14 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
         <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-xl shadow-xs">
-              🐔
+              🍗
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black tracking-tight font-urdu">
-                نیا تازہ چکن اسٹاک آمد (Fresh Chicken Arrival)
+                تازہ چکن گوشت آمد و اسٹاک اندراج
               </h3>
               <p className="text-xs text-amber-100 font-urdu mt-0.5">
-                فارم / گاڑی سے موصول شدہ تازہ مرغی کا وزن اور قیمت کا اندراج
+                فارم / گاڑی سے موصول شدہ تازہ مرغی کو متعلقہ کیٹیگری میں شامل کریں
               </p>
             </div>
           </div>
@@ -146,6 +174,33 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-4">
+          {/* Category Selector (The key user request!) */}
+          <div className="p-3.5 bg-amber-50/70 border border-amber-200/90 rounded-2xl space-y-1.5">
+            <label className="text-xs font-bold text-amber-950 block font-urdu flex items-center justify-between">
+              <span>🍗 کس کیٹیگری میں اسٹاک شامل کرنا ہے؟ (Select Meat Cut) *</span>
+              {selectedProd && (
+                <span className="text-[11px] font-mono text-amber-800 font-bold">
+                  موجودہ: {selectedProd.stock_kg} KG
+                </span>
+              )}
+            </label>
+            <select
+              value={selectedCategoryId}
+              onChange={e => handleCategorySelect(e.target.value)}
+              className="w-full bg-white border border-amber-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-600 transition shadow-2xs"
+              required
+            >
+              {products.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.urdu_name} ({p.name}) — موجودہ اسٹاک: {p.stock_kg} KG | ریٹ: Rs. {p.rate_per_kg}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-amber-800/80 font-urdu">
+              آمد کا وزن منتخب کیٹیگری کے اسٹاک میں خودکار شامل ہو جائے گا۔
+            </p>
+          </div>
+
           {/* Live Valuation Box */}
           {wNum > 0 && pRateNum > 0 && (
             <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200/80 space-y-2">
@@ -251,7 +306,7 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
                   required
                   value={sellingRate}
                   onChange={e => setSellingRate(e.target.value)}
-                  placeholder="مثال: 440"
+                  placeholder="مثال: 450"
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-12 py-2.5 text-sm font-mono font-bold text-amber-700 focus:outline-none focus:border-amber-600 focus:bg-white"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
@@ -331,7 +386,7 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
               type="text"
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="مثال: صبح 8 بجے آمد، بہترین کوالٹی چکن"
+              placeholder="مثال: صبح کی آمد، بہترین کوالٹی"
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-amber-600 focus:bg-white"
             />
           </div>
@@ -359,7 +414,7 @@ export const FreshChickenArrivalModal: React.FC<FreshChickenArrivalModalProps> =
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>اسٹاک محفوظ کریں (Save Fresh Chicken)</span>
+                  <span>اسٹاک محفوظ کریں (Save Stock)</span>
                 </>
               )}
             </button>

@@ -112,6 +112,8 @@ export interface FreshChickenArrival {
   rate_per_kg: number; // Purchase / Cost rate per kg
   total_cost: number;
   selling_rate_per_kg: number; // Current selling rate per kg
+  category_id?: string | null;
+  category_name?: string | null;
   supplier_name?: string | null;
   birds_count?: number | null;
   vehicle_no?: string | null;

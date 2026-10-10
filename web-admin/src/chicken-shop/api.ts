@@ -928,30 +928,38 @@ export const chickenShopApi = {
       }
     }
 
-    // Ensure Fresh Chicken product exists and increase its stock
+    // Determine target category product (e.g. Gosht, Boles, Tikka, or Fresh Chicken)
+    const targetCategoryId = entry.category_id || FRESH_CHICKEN_PRODUCT_ID;
     const products = await this.getProducts();
-    let fcProd = products.find(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
-    if (!fcProd) {
-      fcProd = {
-        ...DEFAULT_FRESH_CHICKEN_PRODUCT,
-        stock_kg: entry.weight_kg,
-        rate_per_kg: entry.selling_rate_per_kg || DEFAULT_FRESH_CHICKEN_PRODUCT.rate_per_kg,
-      };
-      await this.saveProduct(fcProd);
-    } else {
-      const updatedProd = await this.updateProductStock(
-        FRESH_CHICKEN_PRODUCT_ID,
-        entry.weight_kg,
-        'purchase',
-        `تازہ چکن فارم آمد: ${entry.supplier_name || 'سپلائر'} (${entry.weight_kg}kg @ Rs.${entry.rate_per_kg})`,
-        newArrival.id
-      );
-      if (entry.selling_rate_per_kg > 0 && updatedProd) {
-        await this.saveProduct({
-          ...updatedProd,
-          rate_per_kg: entry.selling_rate_per_kg,
-        });
+    let targetProd = products.find(p => p.id === targetCategoryId);
+
+    if (!targetProd) {
+      if (targetCategoryId === FRESH_CHICKEN_PRODUCT_ID) {
+        targetProd = {
+          ...DEFAULT_FRESH_CHICKEN_PRODUCT,
+          stock_kg: entry.weight_kg,
+          rate_per_kg: entry.selling_rate_per_kg || DEFAULT_FRESH_CHICKEN_PRODUCT.rate_per_kg,
+        };
+        await this.saveProduct(targetProd);
+      } else {
+        targetProd = products[0] || DEFAULT_FRESH_CHICKEN_PRODUCT;
       }
+    }
+
+    const categoryName = targetProd.urdu_name || targetProd.name;
+    const updatedProd = await this.updateProductStock(
+      targetProd.id,
+      entry.weight_kg,
+      'purchase',
+      `تازہ چکن گوشت آمد (${categoryName}): ${entry.supplier_name || 'سپلائر'} (${entry.weight_kg}kg @ Rs.${entry.rate_per_kg})`,
+      newArrival.id
+    );
+
+    if (entry.selling_rate_per_kg > 0 && updatedProd) {
+      await this.saveProduct({
+        ...updatedProd,
+        rate_per_kg: entry.selling_rate_per_kg,
+      });
     }
 
     return newArrival;
@@ -973,9 +981,10 @@ export const chickenShopApi = {
       }
     }
 
-    // Rollback stock
+    // Rollback stock for the specific category
+    const targetCategoryId = target.category_id || FRESH_CHICKEN_PRODUCT_ID;
     await this.updateProductStock(
-      FRESH_CHICKEN_PRODUCT_ID,
+      targetCategoryId,
       -target.weight_kg,
       'adjustment',
       `حذف شدہ تازہ چکن آمد رول بیک (Reversed ${target.weight_kg}kg)`,
