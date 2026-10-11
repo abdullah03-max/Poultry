@@ -22,6 +22,7 @@ import {
   FRESH_CHICKEN_PRODUCT_ID,
   DEFAULT_FRESH_CHICKEN_PRODUCT,
 } from './api';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { SaleReceiptModal } from './SaleReceiptModal';
 import { CustomerLedgerModal } from './CustomerLedgerModal';
 import { PaymentModal } from './PaymentModal';
@@ -82,18 +83,99 @@ type TabType = 'dashboard' | 'pos' | 'daily_sales' | 'freezer' | 'customers' | '
 
 export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, standalone = false }) => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      const p = localStorage.getItem('cs_portal_products');
+      const s = localStorage.getItem('cs_portal_sales');
+      // If we have cached products or sales, don't show full-page blocking spinner!
+      return !(p || s);
+    } catch {
+      return true;
+    }
+  });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
-  // Core Data
-  const [products, setProducts] = useState<ChickenProduct[]>([]);
-  const [freezerProducts, setFreezerProducts] = useState<FreezerProduct[]>([]);
-  const [customers, setCustomers] = useState<ChickenCustomer[]>([]);
-  const [sales, setSales] = useState<ChickenSale[]>([]);
-  const [payments, setPayments] = useState<ChickenPayment[]>([]);
-  const [stockLogs, setStockLogs] = useState<ChickenStockLog[]>([]);
-  const [freshArrivals, setFreshArrivals] = useState<FreshChickenArrival[]>([]);
-  const [expenses, setExpenses] = useState<ChickenExpense[]>([]);
+  // Core Data - initialized lazily from localStorage for 0ms instant display
+  const [products, setProducts] = useState<ChickenProduct[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_products');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [freezerProducts, setFreezerProducts] = useState<FreezerProduct[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_products');
+      if (!raw) return [];
+      const pList: ChickenProduct[] = JSON.parse(raw);
+      return pList
+        .filter(p => p.category === 'Freezer Stock' || p.id.startsWith('freezer-'))
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          urdu_name: p.urdu_name || p.name,
+          category: 'Freezer Stock' as const,
+          unit: 'KG',
+          rate_per_kg: Number(p.rate_per_kg || 0),
+          stock_kg: Number(p.stock_kg || 0),
+          is_active: p.is_active !== false,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+        }));
+    } catch {
+      return [];
+    }
+  });
+  const [customers, setCustomers] = useState<ChickenCustomer[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_customers');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [sales, setSales] = useState<ChickenSale[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_sales');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [payments, setPayments] = useState<ChickenPayment[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_payments');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [stockLogs, setStockLogs] = useState<ChickenStockLog[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_stock_logs');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [freshArrivals, setFreshArrivals] = useState<FreshChickenArrival[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_fresh_arrivals');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [expenses, setExpenses] = useState<ChickenExpense[]>(() => {
+    try {
+      const raw = localStorage.getItem('cs_portal_expenses');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Modals State
   const [receiptModalSale, setReceiptModalSale] = useState<ChickenSale | null>(null);
@@ -159,15 +241,19 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     return () => clearInterval(interval);
   }, []);
 
-  const loadAllData = async () => {
+  const loadAllData = async (showSpinner = false) => {
     try {
-      setLoading(true);
+      if (showSpinner) {
+        setLoading(true);
+      }
+      setIsSyncing(true);
+
       // Clean up any stale local mock data before fetching
       chickenShopApi.clearStaleLocalMockData();
-      // Auto-migrate any previously cached genuine offline records to Supabase
-      await chickenShopApi.syncBrowserCacheToSupabase();
+      // Auto-migrate any previously cached genuine offline records to Supabase in background
+      chickenShopApi.syncBrowserCacheToSupabase().catch(() => {});
 
-      const [pList, cList, sList, payList, logs, fArrivals, expList, fzList] = await Promise.all([
+      const [pList, cList, sList, payList, logs, fArrivals, expList] = await Promise.all([
         chickenShopApi.getProducts(),
         chickenShopApi.getCustomers(),
         chickenShopApi.getSales(),
@@ -175,8 +261,22 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         chickenShopApi.getStockLogs(),
         chickenShopApi.getFreshChickenArrivals(),
         chickenShopApi.getExpenses(),
-        chickenShopApi.getFreezerProducts(),
       ]);
+
+      const fzList: FreezerProduct[] = pList
+        .filter(p => p.category === 'Freezer Stock' || p.id.startsWith('freezer-'))
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          urdu_name: p.urdu_name || p.name,
+          category: 'Freezer Stock',
+          unit: 'KG',
+          rate_per_kg: Number(p.rate_per_kg || 0),
+          stock_kg: Number(p.stock_kg || 0),
+          is_active: p.is_active !== false,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+        }));
 
       setProducts(pList);
       setCustomers(cList);
@@ -209,11 +309,41 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       console.error('Failed to load chicken shop data:', err);
     } finally {
       setLoading(false);
+      setIsSyncing(false);
     }
   };
 
   useEffect(() => {
-    loadAllData();
+    // Initial load: don't block render if cache is available
+    loadAllData(false);
+  }, []);
+
+  // Supabase Real-time Subscription: updates state across devices automatically
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    let debounceTimer: any = null;
+    const triggerReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadAllData(false);
+      }, 300);
+    };
+
+    const channel = supabase
+      .channel('chicken_shop_realtime_stream')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_sales' }, triggerReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_payments' }, triggerReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_fresh_arrivals' }, triggerReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_products' }, triggerReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_expenses' }, triggerReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_customers' }, triggerReload)
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -892,14 +1022,27 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-black text-slate-900 font-urdu tracking-tight truncate">
-                {activeTab === 'dashboard' && 'ڈیش بورڈ اور اہم جائزہ (Dashboard)'}
-                {activeTab === 'pos' && 'نیا بل اور کاؤنٹر سیل (POS)'}
-                {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && 'روزانہ نقد، ادھار و وصولی روزنامچہ (Daily Sales)'}
-                {activeTab === 'customers' && 'گاہک و ڈیجیٹل کھاتہ لیجر (Khata)'}
-                {activeTab === 'freezer' && 'فریزر اسٹاک و فروخت (Freezer Stock)'}
-                {activeTab === 'profit_loss' && 'نفع و نقصان اور مالیاتی رپورٹس (P&L)'}
-              </h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-sm sm:text-base font-black text-slate-900 font-urdu tracking-tight truncate">
+                  {activeTab === 'dashboard' && 'ڈیش بورڈ اور اہم جائزہ (Dashboard)'}
+                  {activeTab === 'pos' && 'نیا بل اور کاؤنٹر سیل (POS)'}
+                  {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && 'روزانہ نقد، ادھار و وصولی روزنامچہ (Daily Sales)'}
+                  {activeTab === 'customers' && 'گاہک و ڈیجیٹل کھاتہ لیجر (Khata)'}
+                  {activeTab === 'freezer' && 'فریزر اسٹاک و فروخت (Freezer Stock)'}
+                  {activeTab === 'profit_loss' && 'نفع و نقصان اور مالیاتی رپورٹس (P&L)'}
+                </h1>
+                {isSyncing ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                    <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-600" />
+                    <span>ہم وقت سازی...</span>
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>لائیو ریئل ٹائم</span>
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:block truncate">
                 Shan Poultry & Chicken Shop Management System
               </p>
@@ -1953,6 +2096,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 customers={customers}
                 products={products}
                 freshArrivals={freshArrivals}
+                expenses={expenses}
                 onOpenReceipt={sale => setReceiptModalSale(sale)}
                 onDeleteSale={handleDeleteSale}
                 onDeletePayment={handleDeletePayment}
@@ -1992,6 +2136,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 customers={customers}
                 onAddExpense={() => setExpenseModalOpen(true)}
                 onDeleteExpense={handleDeleteExpense}
+                onDeleteFreshArrival={handleDeleteFreshArrival}
               />
             )}
           </>

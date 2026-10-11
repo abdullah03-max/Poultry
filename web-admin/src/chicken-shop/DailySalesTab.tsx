@@ -10,6 +10,7 @@ import {
   FreshChickenArrival,
   ChickenPayment,
   ChickenCustomer,
+  ChickenExpense,
 } from './types';
 import { formatDate } from '../utils/formatters';
 import {
@@ -35,6 +36,7 @@ interface DailySalesTabProps {
   customers?: ChickenCustomer[];
   products: ChickenProduct[];
   freshArrivals?: FreshChickenArrival[];
+  expenses?: ChickenExpense[];
   onOpenReceipt: (sale: ChickenSale) => void;
   onDeleteSale: (sale: ChickenSale) => Promise<void>;
   onDeletePayment?: (payment: ChickenPayment) => Promise<void>;
@@ -50,6 +52,7 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
   customers = [],
   products,
   freshArrivals = [],
+  expenses = [],
   onOpenReceipt,
   onDeleteSale,
   onDeletePayment,
@@ -130,6 +133,11 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
     });
   }, [datePayments, searchQuery]);
 
+  // Filter expenses for the selected date
+  const dateExpenses = useMemo(() => {
+    return expenses.filter(e => e.date === selectedDate);
+  }, [expenses, selectedDate]);
+
   // Daily Summary Stats for the selected date
   const dailyStats = useMemo(() => {
     const totalSalesAmount = dateSales.reduce((acc, s) => acc + (s.total_amount || 0), 0);
@@ -138,6 +146,8 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
     const totalCreditFromSales = dateSales.reduce((acc, s) => acc + (s.remaining_due || 0), 0);
     const totalWasooli = datePayments.reduce((acc, p) => acc + (p.amount || 0), 0);
     const netCashInHand = totalCashFromSales + totalWasooli;
+    const totalExpenses = dateExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
+    const dailyDrawerCash = netCashInHand - totalExpenses;
 
     return {
       totalSalesAmount,
@@ -146,10 +156,13 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
       totalCreditFromSales,
       totalWasooli,
       netCashInHand,
+      totalExpenses,
+      dailyDrawerCash,
       billsCount: dateSales.length,
       wasooliCount: datePayments.length,
+      expensesCount: dateExpenses.length,
     };
-  }, [dateSales, datePayments]);
+  }, [dateSales, datePayments, dateExpenses]);
 
   // Handle Safe Sale Deletion
   const handleDeleteSaleClick = async (sale: ChickenSale) => {
@@ -331,22 +344,22 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
           </div>
         </div>
 
-        {/* Cash In Hand / Paid */}
-        <div className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between text-emerald-800">
-            <span className="text-[11px] font-bold uppercase tracking-wider font-urdu">
-              نقد وصولی (سیلز + وصولیاں)
+        {/* Daily Cash Drawer Net Cash */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50/70 p-4 rounded-3xl border-2 border-emerald-300 shadow-2xs">
+          <div className="flex items-center justify-between text-emerald-900">
+            <span className="text-[11px] font-black uppercase tracking-wider font-urdu">
+              کیش دراز نقد رقم (Drawer Cash)
             </span>
-            <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-600">
+            <div className="p-1.5 rounded-xl bg-emerald-600 text-white shadow-xs">
               <Banknote className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
-            <p className="text-xl font-black text-emerald-700 font-mono">
-              Rs. {dailyStats.netCashInHand.toLocaleString()}
+            <p className="text-xl font-black text-emerald-800 font-mono">
+              Rs. {dailyStats.dailyDrawerCash.toLocaleString()}
             </p>
-            <p className="text-[10px] text-emerald-600 mt-0.5">
-              سیلز نقد: Rs. {dailyStats.totalCashFromSales.toLocaleString()} • کھاتہ وصولی: Rs. {dailyStats.totalWasooli.toLocaleString()}
+            <p className="text-[10px] text-emerald-700 mt-0.5 font-urdu font-medium">
+              کل نقد آمد: Rs. {dailyStats.netCashInHand.toLocaleString()} • اخراجات: Rs. {dailyStats.totalExpenses.toLocaleString()}
             </p>
           </div>
         </div>
@@ -368,6 +381,52 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
             <p className="text-[11px] text-rose-600 mt-0.5">
               کھاتہ داروں کے نام ادھار
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Daily Cash Drawer Audit Reconciliation Bar */}
+      <div className="bg-gradient-to-r from-emerald-950 via-teal-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xs border border-emerald-600/40">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-emerald-800/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+              <Banknote className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-black text-sm sm:text-base font-urdu">
+                کیش دراز یومیہ آڈٹ (Daily Drawer Cash Reconciliation)
+              </h3>
+              <p className="text-[11px] text-emerald-200/80 font-urdu">
+                تاریخ ({formatDate(selectedDate)}): دکان کے کیش دراز میں نقد سیلز اور وصولی منہا دکان اخراجات
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider font-urdu block">
+              دراز میں کل نقد رقم (Net Cash)
+            </span>
+            <span className="text-2xl font-black font-mono text-emerald-300">
+              Rs. {dailyStats.dailyDrawerCash.toLocaleString()}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 text-xs">
+          <div className="bg-white/10 rounded-2xl p-2.5">
+            <span className="text-emerald-200 text-[11px] font-urdu block">1. نقد کاؤنٹر سیلز (+)</span>
+            <span className="text-sm font-black font-mono text-white">Rs. {dailyStats.totalCashFromSales.toLocaleString()}</span>
+          </div>
+          <div className="bg-white/10 rounded-2xl p-2.5">
+            <span className="text-emerald-200 text-[11px] font-urdu block">2. گاہک کھاتہ وصولی (+)</span>
+            <span className="text-sm font-black font-mono text-white">Rs. {dailyStats.totalWasooli.toLocaleString()}</span>
+          </div>
+          <div className="bg-white/10 rounded-2xl p-2.5">
+            <span className="text-rose-200 text-[11px] font-urdu block">3. دراز سے اخراجات (-)</span>
+            <span className="text-sm font-black font-mono text-rose-300">Rs. {dailyStats.totalExpenses.toLocaleString()}</span>
+          </div>
+          <div className="bg-emerald-500/20 border border-emerald-400/40 rounded-2xl p-2.5">
+            <span className="text-emerald-300 text-[11px] font-urdu font-bold block">کیش دراز بیلنس (=)</span>
+            <span className="text-base font-black font-mono text-emerald-200">Rs. {dailyStats.dailyDrawerCash.toLocaleString()}</span>
           </div>
         </div>
       </div>

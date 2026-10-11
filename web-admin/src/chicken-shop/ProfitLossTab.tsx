@@ -41,6 +41,7 @@ interface ProfitLossTabProps {
   customers: ChickenCustomer[];
   onAddExpense: () => void;
   onDeleteExpense: (id: string) => Promise<void>;
+  onDeleteFreshArrival?: (arrival: FreshChickenArrival) => Promise<void>;
 }
 
 export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
@@ -52,6 +53,7 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
   customers,
   onAddExpense,
   onDeleteExpense,
+  onDeleteFreshArrival,
 }) => {
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -794,12 +796,13 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
                       <th className="py-2.5 px-3 text-center">وزن (KG)</th>
                       <th className="py-2.5 px-3 text-center">خرید ریٹ فی کلو</th>
                       <th className="py-2.5 px-3 text-center">کل لاگت رقم</th>
+                      <th className="py-2.5 px-3 text-center w-16">ایکشن</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredArrivals.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-400 font-urdu">
+                        <td colSpan={6} className="py-8 text-center text-slate-400 font-urdu">
                           منتخب کردہ مدت میں کوئی چکن آمد درج نہیں۔
                         </td>
                       </tr>
@@ -811,6 +814,17 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
                           <td className="py-2 px-3 text-center font-mono font-bold text-blue-700">{a.weight_kg} KG</td>
                           <td className="py-2 px-3 text-center font-mono">Rs. {a.rate_per_kg}</td>
                           <td className="py-2 px-3 text-center font-mono font-bold text-slate-900">Rs. {a.total_cost.toLocaleString()}</td>
+                          <td className="py-2 px-3 text-center">
+                            {onDeleteFreshArrival && (
+                              <button
+                                onClick={() => onDeleteFreshArrival(a)}
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                title="چکن آمد ڈیلیٹ کریں (اسٹاک خودکار کم ہوگا)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))
                     )}

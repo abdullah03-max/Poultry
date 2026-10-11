@@ -291,6 +291,21 @@ export const FreezerStockTab: React.FC<FreezerStockTabProps> = ({
     }
   };
 
+  const handleDeleteFreezerSale = async (sale: ChickenSale) => {
+    const isConfirmed = window.confirm(
+      `کیا آپ واقعی یہ فریزر سیل انوائس #${sale.invoice_no} (${sale.customer_name} - Rs.${sale.total_amount.toLocaleString()}) حذف کرنا چاہتے ہیں؟\n\nاس عمل سے بیچے گئے فریزر پروڈکٹ کا اسٹاک خودکار بحال ہو جائے گا۔`
+    );
+    if (!isConfirmed) return;
+
+    try {
+      await chickenShopApi.deleteSale(sale.id);
+      await onRefresh();
+      alert(`انوائس #${sale.invoice_no} کامیابی سے حذف ہو گئی اور فریزر اسٹاک بحال ہو گیا۔`);
+    } catch (err: any) {
+      alert(`سیل حذف کرنے میں خرابی: ${err.message || 'Error deleting sale'}`);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn font-sans">
       {/* Top Banner Header */}
@@ -554,7 +569,7 @@ export const FreezerStockTab: React.FC<FreezerStockTabProps> = ({
                   <th className="py-2.5 px-3 text-center">ریٹ</th>
                   <th className="py-2.5 px-3 text-center">کل رقم</th>
                   <th className="py-2.5 px-3 text-center">طریقہ</th>
-                  <th className="py-2.5 px-3 text-center">رسید</th>
+                  <th className="py-2.5 px-3 text-center w-20">ایکشن</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -577,13 +592,22 @@ export const FreezerStockTab: React.FC<FreezerStockTabProps> = ({
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <button
-                        onClick={() => onOpenReceipt(sale)}
-                        className="p-1 text-slate-400 hover:text-amber-700 hover:bg-slate-100 rounded-lg transition"
-                        title="رسید دیکھیں"
-                      >
-                        <Receipt className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onOpenReceipt(sale)}
+                          className="p-1 text-slate-500 hover:text-amber-700 hover:bg-slate-100 rounded-lg transition"
+                          title="رسید دیکھیں"
+                        >
+                          <Receipt className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteFreezerSale(sale)}
+                          className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                          title="سیل ڈیلیٹ کریں (اسٹاک خودکار واپس بحال ہوگا)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
