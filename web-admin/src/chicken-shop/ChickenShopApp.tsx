@@ -171,33 +171,36 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         chickenShopApi.getExpenses(),
       ]);
 
-      // Automatically sync and repair live Fresh Chicken stock from arrivals minus sales
-      const totalArrivalKg = fArrivals.reduce((sum, a) => sum + (Number(a.weight_kg) || 0), 0);
-      const totalFreshSoldKg = sList.reduce((sum, s) => {
-        return (
-          sum +
-          s.items.reduce((iSum, it) => {
-            if (
-              it.product_id === FRESH_CHICKEN_PRODUCT_ID ||
-              it.product_name.toLowerCase().includes('fresh chicken') ||
-              (it.urdu_name && it.urdu_name.includes('تازہ مرغی'))
-            ) {
-              return iSum + (Number(it.weight_kg) || 0);
-            }
-            return iSum;
-          }, 0)
-        );
-      }, 0);
+      // Ensure Fresh Chicken product exists and has valid stock from current inventory or today arrivals
+      const today = new Date().toISOString().split('T')[0];
+      const todayFreshArrivalsKg = fArrivals
+        .filter(a => a.date === today && (a.category_id === FRESH_CHICKEN_PRODUCT_ID || !a.category_id || a.category_name?.includes('تازہ')))
+        .reduce((sum, a) => sum + (Number(a.weight_kg) || 0), 0);
+      const todayFreshSoldKg = sList
+        .filter(s => s.sale_date === today)
+        .reduce((sum, s) => sum + s.items.reduce((iSum, it) => {
+          if (
+            it.product_id === FRESH_CHICKEN_PRODUCT_ID ||
+            it.product_name?.toLowerCase().includes('fresh chicken') ||
+            (it.urdu_name && it.urdu_name.includes('تازہ مرغی'))
+          ) {
+            return iSum + (Number(it.weight_kg) || 0);
+          }
+          return iSum;
+        }, 0), 0);
 
-      const netLiveFreshStock = Math.max(0, Number((totalArrivalKg - totalFreshSoldKg).toFixed(2)));
       const fcIdx = pList.findIndex(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
       if (fcIdx !== -1) {
-        if (pList[fcIdx].stock_kg !== netLiveFreshStock) {
-          pList[fcIdx].stock_kg = netLiveFreshStock;
-          chickenShopApi.saveProduct({
-            ...pList[fcIdx],
-            stock_kg: netLiveFreshStock,
-          }).catch(console.error);
+        const currentStock = Number(pList[fcIdx].stock_kg || 0);
+        if (currentStock <= 0 && todayFreshArrivalsKg > 0) {
+          const expectedStock = Math.max(0, Number((todayFreshArrivalsKg - todayFreshSoldKg).toFixed(2)));
+          pList[fcIdx].stock_kg = expectedStock;
+          chickenShopApi.updateProductStock(
+            FRESH_CHICKEN_PRODUCT_ID,
+            expectedStock,
+            'adjustment',
+            'خودکار اسٹاک بحالی بمطابق آج کی فارم آمد'
+          ).catch(console.error);
         }
       }
 
@@ -245,36 +248,11 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     const todayWeight = todaySalesList.reduce((s, r) => s + r.total_weight_kg, 0);
     const marketDue = customers.reduce((s, c) => s + (c.current_balance || 0), 0);
 
-    // Compute fresh chicken live stock to ensure 100% accurate total stock & valuation
-    const totalFreshArrivalKg = freshArrivals.reduce((s, a) => s + (Number(a.weight_kg) || 0), 0);
-    const totalFreshSoldKg = sales.reduce((s, sale) => {
-      return (
-        s +
-        sale.items.reduce((iSum, it) => {
-          if (
-            it.product_id === FRESH_CHICKEN_PRODUCT_ID ||
-            it.product_name.toLowerCase().includes('fresh chicken') ||
-            (it.urdu_name && it.urdu_name.includes('تازہ مرغی'))
-          ) {
-            return iSum + (Number(it.weight_kg) || 0);
-          }
-          return iSum;
-        }, 0)
-      );
-    }, 0);
-    const liveFreshStockKg = Math.max(0, Number((totalFreshArrivalKg - totalFreshSoldKg).toFixed(2)));
-
     const totalStock = products.reduce((s, p) => {
-      if (p.id === FRESH_CHICKEN_PRODUCT_ID) {
-        return s + liveFreshStockKg;
-      }
       return s + (Number(p.stock_kg) || 0);
     }, 0);
 
     const totalStockValuation = products.reduce((s, p) => {
-      if (p.id === FRESH_CHICKEN_PRODUCT_ID) {
-        return s + Math.round(liveFreshStockKg * (Number(p.rate_per_kg) || 0));
-      }
       return s + Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
     }, 0);
 
@@ -328,16 +306,11 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
 
+    const currentSellingRate = Number(freshProd.rate_per_kg) || 450;
     const totalArrivalKg = Number(freshArrivals.reduce((s, a) => s + (a.weight_kg || 0), 0).toFixed(2));
     const totalArrivalCost = freshArrivals.reduce((s, a) => s + (a.total_cost || 0), 0);
-    const totalFreshSoldKg = Number(freshSalesItems.reduce((s, x) => s + (x.item.weight_kg || 0), 0).toFixed(2));
 
-    // Live Available Stock of Fresh Chicken (Accurate live calculation: arrivals minus sales)
-    const stockKg = Math.max(0, Number((totalArrivalKg - totalFreshSoldKg).toFixed(2)));
-    const currentSellingRate = Number(freshProd.rate_per_kg) || 450;
-    const currentStockValue = Math.round(stockKg * currentSellingRate);
-
-    // Arrivals stats
+    // Arrivals stats today
     const todayArrivals = freshArrivals.filter(a => a.date === today);
     const todayArrivalKg = Number(todayArrivals.reduce((s, a) => s + (a.weight_kg || 0), 0).toFixed(2));
     const todayArrivalCost = todayArrivals.reduce((s, a) => s + (a.total_cost || 0), 0);
@@ -346,12 +319,19 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         ? Math.round(todayArrivalCost / todayArrivalKg)
         : freshArrivals[0]?.rate_per_kg || 380;
 
-    // Sales stats
+    // Sales stats today
     const todaySales = freshSalesItems.filter(x => x.sale.sale_date === today);
     const todaySoldKg = Number(todaySales.reduce((s, x) => s + (x.item.weight_kg || 0), 0).toFixed(2));
     const todaySoldRevenue = todaySales.reduce((s, x) => s + (x.item.line_total || 0), 0);
     const todayAvgSellingRate =
       todaySoldKg > 0 ? Math.round(todaySoldRevenue / todaySoldKg) : currentSellingRate;
+
+    // Live Available Stock of Fresh Chicken
+    // Directly uses current product stock, or today arrivals minus today sales if stock was 0
+    const prodStock = Number(freshProd.stock_kg || 0);
+    const liveFromToday = Math.max(0, Number((todayArrivalKg - todaySoldKg).toFixed(2)));
+    const stockKg = prodStock > 0 ? prodStock : liveFromToday;
+    const currentStockValue = Math.round(stockKg * currentSellingRate);
 
     // Gross profit margin today
     const todayEstimatedCostOfSold = Math.round(todaySoldKg * todayAvgPurchaseRate);
@@ -391,8 +371,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   }, [freshProd, freshArrivals, freshSalesItems, freshSalesFilter]);
 
   const cutsOnly = useMemo(() => {
-    return products.filter(p => p.id !== FRESH_CHICKEN_PRODUCT_ID);
-  }, [products]);
+    return products.filter(
+      p =>
+        p.id !== FRESH_CHICKEN_PRODUCT_ID &&
+        p.id !== freshProd.id &&
+        !p.name.toLowerCase().includes('fresh chicken') &&
+        !(p.urdu_name && p.urdu_name.includes('تازہ چکن'))
+    );
+  }, [products, freshProd]);
 
   const cutsKpis = useMemo(() => {
     const totalWeight = Number(cutsOnly.reduce((sum, p) => sum + (Number(p.stock_kg) || 0), 0).toFixed(2));
@@ -990,37 +976,37 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         {/* Top Header inside main */}
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs px-3 sm:px-6 py-2 sm:py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile Hamburger Button */}
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="p-2 -mr-1 rounded-xl text-slate-600 hover:bg-slate-100 md:hidden"
+              className="p-1.5 -mr-1 rounded-xl text-slate-600 hover:bg-slate-100 md:hidden shrink-0"
               aria-label="کھولیں مینو"
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
-            <div>
-              <h1 className="text-base sm:text-lg font-black text-slate-900 font-urdu tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-base font-black text-slate-900 font-urdu tracking-tight truncate">
                 {activeTab === 'dashboard' && 'ڈیش بورڈ اور اہم جائزہ (Dashboard)'}
                 {activeTab === 'pos' && 'نیا بل اور کاؤنٹر سیل (POS)'}
-                {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && 'روزانہ نقد، ادھار و وصولی روزنامچہ (Daily Naqd, Odhar & Wasooli)'}
+                {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && 'روزانہ نقد، ادھار و وصولی روزنامچہ (Daily Sales)'}
                 {activeTab === 'stock' && 'تازہ چکن گوشت و اسٹاک کیٹیگریز (Stock)'}
                 {activeTab === 'customers' && 'گاہک و ڈیجیٹل کھاتہ لیجر (Khata)'}
                 {activeTab === 'products' && 'چکن مصنوعات و روزانہ ریٹ لسٹ (Products)'}
                 {activeTab === 'profit_loss' && 'نفع و نقصان اور مالیاتی رپورٹس (P&L)'}
               </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:block truncate">
                 Shan Poultry & Chicken Shop Management System
               </p>
             </div>
           </div>
 
-          {/* Quick Header Actions */}
-          <div className="flex items-center gap-2">
+          {/* Quick Header Actions: Horizontal smooth scroll on mobile */}
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar shrink-0 max-w-full py-0.5">
             <button
               onClick={() => setActiveTab('daily_sales')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu ${
+              className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0 ${
                 activeTab === 'daily_sales'
                   ? 'bg-amber-600 text-white'
                   : 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border border-slate-700'
@@ -1028,35 +1014,34 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               title="آج کی روزانہ نقد، ادھار اور وصولی دیکھیں"
             >
               <Wallet className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">نقد، ادھار و وصولی ({kpis.todayWeight}kg)</span>
-              <span className="sm:hidden">نقد و ادھار ({kpis.todayWeight}kg)</span>
+              <span className="hidden md:inline">نقد، ادھار و وصولی ({kpis.todayWeight}kg)</span>
+              <span className="md:hidden">سیلز ({kpis.todayWeight}kg)</span>
             </button>
             <button
               onClick={() => {
                 setSelectedArrivalCategoryId(null);
                 setFreshArrivalModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">+ تازہ چکن آمد</span>
-              <span className="sm:hidden">+ آمد</span>
+              <span>+ چکن آمد</span>
             </button>
             <button
               onClick={() => {
                 setBulkWalkinDate(new Date().toISOString().split('T')[0]);
                 setBulkWalkinModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0"
               title="تمام واک ان کاؤنٹر سیلز اکٹھی یکمشت درج کریں"
             >
               <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">+ واک ان سیلز (Bulk)</span>
-              <span className="sm:hidden">+ واک ان</span>
+              <span className="hidden sm:inline">+ واک ان (Bulk)</span>
+              <span className="sm:hidden">واک ان</span>
             </button>
             <button
               onClick={() => setActiveTab('pos')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
               <span>+ نیا بل</span>
@@ -1066,10 +1051,10 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 setPaymentCustomer(null);
                 setPaymentModalOpen(true);
               }}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0"
             >
               <Banknote className="w-3.5 h-3.5" />
-              <span>+ رقم وصولی</span>
+              <span>+ وصولی</span>
             </button>
           </div>
         </header>
@@ -2129,15 +2114,25 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                                   {p.urdu_name}
                                 </span>
                               </div>
-                              {isLow ? (
-                                <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-bold rounded-md">
-                                  کم اسٹاک
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">
-                                  دستیاب
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1.5">
+                                {isLow ? (
+                                  <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-bold rounded-md">
+                                    کم اسٹاک
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">
+                                    دستیاب
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProduct(p)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  title="پروڈکٹ حذف کریں (Delete Product)"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
 
                             <div className="flex items-baseline justify-between mt-3">
@@ -2160,14 +2155,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                               </span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="grid grid-cols-3 gap-1.5 pt-1">
                               <button
                                 type="button"
                                 onClick={() => setStockModalOpen(true)}
-                                className="py-1.5 px-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-blue-200/70"
+                                className="py-1.5 px-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-blue-200/70"
                                 title="اس کٹ میں اسٹاک شامل یا ایڈجسٹ کریں"
                               >
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-3 h-3 shrink-0" />
                                 <span>+ اسٹاک</span>
                               </button>
                               <button
@@ -2176,11 +2171,20 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                                   setEditingProduct(p);
                                   setProductModalOpen(true);
                                 }}
-                                className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95"
+                                className="py-1.5 px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-slate-200"
                                 title="ریٹ یا تفصیل تبدیل کریں"
                               >
-                                <Tag className="w-3.5 h-3.5 text-amber-600" />
+                                <Tag className="w-3 h-3 shrink-0 text-amber-600" />
                                 <span>ریٹ سیٹ</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteProduct(p)}
+                                className="py-1.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-rose-200/70"
+                                title="پروڈکٹ حذف کریں (Delete Product)"
+                              >
+                                <Trash2 className="w-3 h-3 shrink-0 text-rose-600" />
+                                <span>حذف</span>
                               </button>
                             </div>
                           </div>
@@ -2752,9 +2756,8 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {products.map(p => {
-                        const isFreshChicken = p.id === FRESH_CHICKEN_PRODUCT_ID || p.id === freshProd.id;
-                        const displayStock = isFreshChicken ? freshKpis.stockKg : p.stock_kg;
+                      {cutsOnly.map(p => {
+                        const displayStock = p.stock_kg;
                         const displayValuation = Math.round(
                           (Number(displayStock) || 0) * (Number(p.rate_per_kg) || 0)
                         );
@@ -2763,11 +2766,6 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                           <tr key={p.id} className="hover:bg-slate-50/70 transition">
                             <td className="py-3 px-4 font-bold text-slate-900 text-sm">
                               {p.name}
-                              {isFreshChicken && (
-                                <span className="ml-2 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
-                                  تازہ چکن
-                                </span>
-                              )}
                             </td>
                             <td className="py-3 px-3 font-urdu font-semibold text-slate-800">
                               {p.urdu_name}
@@ -2783,8 +2781,6 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                                 className={
                                   displayStock <= p.min_stock_alert
                                     ? 'text-rose-600 font-black'
-                                    : isFreshChicken
-                                    ? 'text-emerald-700 font-black'
                                     : ''
                                 }
                               >
@@ -2817,15 +2813,13 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                                 >
                                   ریٹ تبدیل کریں
                                 </button>
-                                {!isFreshChicken && (
-                                  <button
-                                    onClick={() => handleDeleteProduct(p)}
-                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
-                                    title="پروڈکٹ حذف کریں (Delete Product)"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
+                                <button
+                                  onClick={() => handleDeleteProduct(p)}
+                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                  title="پروڈکٹ حذف کریں (Delete Product)"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                             </td>
                           </tr>

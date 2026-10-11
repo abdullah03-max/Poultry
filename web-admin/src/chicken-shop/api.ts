@@ -1062,11 +1062,26 @@ export const chickenShopApi = {
       newArrival.id
     );
 
-    if (entry.selling_rate_per_kg > 0 && updatedProd) {
-      await this.saveProduct({
-        ...updatedProd,
-        rate_per_kg: entry.selling_rate_per_kg,
-      });
+    if (entry.selling_rate_per_kg > 0) {
+      try {
+        const prods = await this.getProducts();
+        const pIdx = prods.findIndex(p => p.id === targetProd.id);
+        if (pIdx !== -1) {
+          prods[pIdx].rate_per_kg = entry.selling_rate_per_kg;
+          if (updatedProd) {
+            prods[pIdx].stock_kg = updatedProd.stock_kg;
+          }
+          localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(prods));
+          if (isSupabaseConfigured()) {
+            await supabase
+              .from('chicken_shop_products')
+              .update({ rate_per_kg: entry.selling_rate_per_kg, stock_kg: prods[pIdx].stock_kg })
+              .eq('id', targetProd.id);
+          }
+        }
+      } catch (e) {
+        console.warn('[CS API] Failed to update selling rate on fresh arrival:', e);
+      }
     }
 
     return newArrival;

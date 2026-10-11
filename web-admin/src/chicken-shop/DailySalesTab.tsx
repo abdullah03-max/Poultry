@@ -763,10 +763,10 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
       {/* MASTER SEGMENTED TABS (Organized Views, No Endless Scrolling)       */}
       {/* =================================================================== */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
-        <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-urdu font-black">
+        <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-urdu font-black overflow-x-auto no-scrollbar max-w-full shrink-0">
           <button
             onClick={() => setActiveMainTab('daybook')}
-            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeMainTab === 'daybook'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -777,7 +777,7 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
           </button>
           <button
             onClick={() => setActiveMainTab('product_cuts_kg')}
-            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeMainTab === 'product_cuts_kg'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -788,7 +788,7 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
           </button>
           <button
             onClick={() => setActiveMainTab('reconciliation')}
-            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeMainTab === 'reconciliation'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -799,7 +799,7 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
           </button>
           <button
             onClick={() => setActiveMainTab('history_archive')}
-            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeMainTab === 'history_archive'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
