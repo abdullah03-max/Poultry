@@ -474,6 +474,21 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     }
   };
 
+  const handleDeletePayment = async (payment: ChickenPayment) => {
+    const isConfirmed = window.confirm(
+      `کیا آپ واقعی رقم وصولی واؤچر #${payment.voucher_no} (${payment.customer_name} - Rs.${payment.amount.toLocaleString()}) حذف کرنا چاہتے ہیں؟\n\nاس عمل سے گاہک کے کھاتے میں بقایا ادھار واپس بڑھ جائے گا۔`
+    );
+    if (!isConfirmed) return;
+
+    try {
+      await chickenShopApi.deletePayment(payment.id);
+      await loadAllData();
+      alert(`رقم وصولی واؤچر #${payment.voucher_no} کامیابی سے حذف ہو گئی اور گاہک کا بقایا ادھار بحال ہو گیا۔`);
+    } catch (err: any) {
+      alert(`رقم وصولی حذف کرنے میں خرابی: ${err.message || 'Error deleting payment'}`);
+    }
+  };
+
   const handleDeleteProduct = async (product: ChickenProduct) => {
     if (product.id === FRESH_CHICKEN_PRODUCT_ID || product.id === freshProd.id) {
       alert('تازہ چکن (Live Fresh Chicken) سسٹم کا بنیادی آئٹم ہے اور اسے حذف نہیں کیا جا سکتا۔');
@@ -782,9 +797,9 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     { id: 'pos', label: 'نیا بل / کاؤنٹر سیل', sublabel: 'Fast Counter POS Sale', icon: ShoppingCart },
     {
       id: 'daily_sales',
-      label: 'روزانہ سیلز و کلو ریکارڈ',
-      sublabel: 'Daily Sales & KG Record',
-      icon: History,
+      label: 'روزانہ نقد، ادھار و وصولی',
+      sublabel: 'Daily Naqd, Odhar & Wasooli',
+      icon: Wallet,
       badge: kpis.todayWeight > 0 ? `${kpis.todayWeight}kg` : undefined,
       badgeColor: 'bg-amber-600',
     },
@@ -974,7 +989,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               <h1 className="text-base sm:text-lg font-black text-slate-900 font-urdu tracking-tight">
                 {activeTab === 'dashboard' && 'ڈیش بورڈ اور اہم جائزہ (Dashboard)'}
                 {activeTab === 'pos' && 'نیا بل اور کاؤنٹر سیل (POS)'}
-                {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && 'روزانہ کی سیلز و کلو ریکارڈ (Daily Sales)'}
+                {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && 'روزانہ نقد، ادھار و وصولی روزنامچہ (Daily Naqd, Odhar & Wasooli)'}
                 {activeTab === 'stock' && 'تازہ چکن گوشت و اسٹاک کیٹیگریز (Stock)'}
                 {activeTab === 'customers' && 'گاہک و ڈیجیٹل کھاتہ لیجر (Khata)'}
                 {activeTab === 'products' && 'چکن مصنوعات و روزانہ ریٹ لسٹ (Products)'}
@@ -995,11 +1010,11 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                   ? 'bg-amber-600 text-white'
                   : 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border border-slate-700'
               }`}
-              title="آج کی روزانہ سیلز اور کلو ریکارڈ دیکھیں"
+              title="آج کی روزانہ نقد، ادھار اور وصولی دیکھیں"
             >
-              <History className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">روزانہ سیلز ({kpis.todayWeight}kg)</span>
-              <span className="sm:hidden">سیلز ({kpis.todayWeight}kg)</span>
+              <Wallet className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">نقد، ادھار و وصولی ({kpis.todayWeight}kg)</span>
+              <span className="sm:hidden">نقد و ادھار ({kpis.todayWeight}kg)</span>
             </button>
             <button
               onClick={() => {
@@ -2794,14 +2809,21 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
             {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && (
               <DailySalesTab
                 sales={sales}
+                payments={payments}
+                customers={customers}
                 products={products}
                 freshArrivals={freshArrivals}
                 onOpenReceipt={sale => setReceiptModalSale(sale)}
                 onDeleteSale={handleDeleteSale}
+                onDeletePayment={handleDeletePayment}
                 onNewSaleClick={() => setActiveTab('pos')}
                 onOpenBulkWalkin={date => {
                   if (date) setBulkWalkinDate(date);
                   setBulkWalkinModalOpen(true);
+                }}
+                onOpenPaymentModal={cust => {
+                  setPaymentCustomer(cust || null);
+                  setPaymentModalOpen(true);
                 }}
               />
             )}

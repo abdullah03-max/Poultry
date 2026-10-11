@@ -753,6 +753,38 @@ export const chickenShopApi = {
     return newPayment;
   },
 
+  async deletePayment(id: string): Promise<void> {
+    const payments = await this.getPayments();
+    const payment = payments.find(p => p.id === id);
+    if (!payment) return;
+
+    // Restore customer balance
+    try {
+      const cust = await this.getCustomerById(payment.customer_id);
+      if (cust) {
+        const newBal = Number(((cust.current_balance || 0) + payment.amount).toFixed(2));
+        const newTotalPay = Math.max(0, Number(((cust.total_payments || 0) - payment.amount).toFixed(2)));
+        await this.updateCustomer(cust.id, {
+          current_balance: newBal,
+          total_payments: newTotalPay,
+        });
+      }
+    } catch (e) {
+      console.warn('[CS API] Failed to restore balance on payment delete:', e);
+    }
+
+    const updated = payments.filter(p => p.id !== id);
+    localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(updated));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_payments').delete().eq('id', id);
+      } catch (e) {
+        console.warn('[CS API] Supabase payment delete fallback:', e);
+      }
+    }
+  },
+
   // ---------------------------------------------------------------------------
   // CUSTOMER CHRONOLOGICAL LEDGER BUILDER
   // ---------------------------------------------------------------------------
