@@ -32,6 +32,20 @@ export interface ChickenCustomer {
   updated_at: string;
 }
 
+export interface FreezerProduct {
+  id: string;
+  name: string;
+  urdu_name: string;
+  category?: string;
+  unit?: string;
+  rate_per_kg: number;
+  stock_kg: number;
+  cost_per_kg?: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ChickenSaleItem {
   product_id: string;
   product_name: string;
@@ -39,6 +53,7 @@ export interface ChickenSaleItem {
   weight_kg: number;
   rate_per_kg: number;
   line_total: number;
+  is_freezer?: boolean;
 }
 
 export interface ChickenSale {

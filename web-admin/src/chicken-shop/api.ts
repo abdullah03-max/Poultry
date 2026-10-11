@@ -13,6 +13,7 @@ import {
   ChickenShopLedgerEntry,
   FreshChickenArrival,
   ChickenExpense,
+  FreezerProduct,
 } from './types';
 
 export const FRESH_CHICKEN_PRODUCT_ID = 'prod-fresh-chicken';
@@ -43,6 +44,7 @@ const STORAGE_KEYS = {
   stockLogs: 'cs_portal_stock_logs',
   freshArrivals: 'cs_portal_fresh_arrivals',
   expenses: 'cs_portal_expenses',
+  deletedSaleIds: 'cs_deleted_sale_ids',
 };
 
 export const chickenShopApi = {
@@ -320,6 +322,11 @@ export const chickenShopApi = {
   // POS SALES
   // ---------------------------------------------------------------------------
   async getSales(): Promise<ChickenSale[]> {
+    let deletedIds = new Set<string>();
+    try {
+      deletedIds = new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.deletedSaleIds) || '[]'));
+    } catch {}
+
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -327,8 +334,9 @@ export const chickenShopApi = {
           .select('*')
           .order('sale_date', { ascending: false });
         if (!error && data) {
-          localStorage.setItem(STORAGE_KEYS.sales, JSON.stringify(data));
-          return data as ChickenSale[];
+          const active = (data as ChickenSale[]).filter(s => !deletedIds.has(s.id));
+          localStorage.setItem(STORAGE_KEYS.sales, JSON.stringify(active));
+          return active;
         }
       } catch (e) {
         console.warn('[CS API] Supabase sales read fallback:', e);
@@ -337,7 +345,10 @@ export const chickenShopApi = {
 
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.sales);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed: ChickenSale[] = JSON.parse(stored);
+        return parsed.filter(s => !deletedIds.has(s.id));
+      }
     } catch {}
 
     return [];
@@ -440,36 +451,85 @@ export const chickenShopApi = {
       }
     }
 
+    // Automatically deduct stock for sold items
+    for (const item of itemsWithTotals) {
+      if (item.weight_kg > 0) {
+        try {
+          await this.updateProductStock(
+            item.product_id,
+            -item.weight_kg,
+            'sale',
+            `سیل انوائس #${invoiceNo}`,
+            invoiceNo
+          );
+        } catch (e) {
+          console.warn('[CS API] Stock deduction on sale failed:', e);
+        }
+      }
+    }
+
     return newSale;
   },
 
   async deleteSale(id: string): Promise<void> {
-    let sales = await this.getSales();
+    const sales = await this.getSales();
     const target = sales.find(s => s.id === id);
     if (!target) return;
 
-    // Rollback customer balance if applicable
-    if (target.customer_id) {
-      const cust = await this.getCustomerById(target.customer_id);
-      if (cust) {
-        const rollbackBal = Math.max(0, cust.current_balance - target.remaining_due);
-        const rollbackPurchases = Math.max(0, cust.total_purchases - target.total_amount);
-        const rollbackPayments = Math.max(0, cust.total_payments - target.received_amount);
-        await this.updateCustomer(cust.id, {
-          current_balance: rollbackBal,
-          total_purchases: rollbackPurchases,
-          total_payments: rollbackPayments,
-        });
+    // 1. Delete from Supabase permanently first
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.from('chicken_shop_sales').delete().eq('id', id);
+      if (error) {
+        console.error('[CS API] Supabase sale delete error:', error);
+        throw new Error(`ڈیٹا بیس سے سیل حذف نہ ہو سکی: ${error.message}`);
       }
     }
 
-    sales = sales.filter(s => s.id !== id);
-    localStorage.setItem(STORAGE_KEYS.sales, JSON.stringify(sales));
+    // 2. Record in deleted sale IDs set to prevent resurrection from any cache
+    try {
+      const deletedIds = new Set<string>(JSON.parse(localStorage.getItem(STORAGE_KEYS.deletedSaleIds) || '[]'));
+      deletedIds.add(id);
+      localStorage.setItem(STORAGE_KEYS.deletedSaleIds, JSON.stringify(Array.from(deletedIds)));
+    } catch {}
 
-    if (isSupabaseConfigured()) {
+    // 3. Remove from localStorage cache
+    const updatedSales = sales.filter(s => s.id !== id);
+    localStorage.setItem(STORAGE_KEYS.sales, JSON.stringify(updatedSales));
+
+    // 4. Reverse stock deduction (Restore sold weight back to product inventory)
+    for (const item of target.items || []) {
+      if (item.weight_kg > 0) {
+        try {
+          await this.updateProductStock(
+            item.product_id,
+            item.weight_kg,
+            'adjustment',
+            `سیل #${target.invoice_no} منسوخ - مال واپس اسٹاک میں شامل`,
+            target.invoice_no
+          );
+        } catch (e) {
+          console.warn('[CS API] Stock reversal error on deleteSale:', e);
+        }
+      }
+    }
+
+    // 5. Rollback customer balance if applicable
+    if (target.customer_id) {
       try {
-        await supabase.from('chicken_shop_sales').delete().eq('id', id);
-      } catch {}
+        const cust = await this.getCustomerById(target.customer_id);
+        if (cust) {
+          const rollbackBal = Math.max(0, (cust.current_balance || 0) - (target.remaining_due || 0));
+          const rollbackPurchases = Math.max(0, (cust.total_purchases || 0) - (target.total_amount || 0));
+          const rollbackPayments = Math.max(0, (cust.total_payments || 0) - (target.received_amount || 0));
+          await this.updateCustomer(cust.id, {
+            current_balance: rollbackBal,
+            total_purchases: rollbackPurchases,
+            total_payments: rollbackPayments,
+          });
+        }
+      } catch (e) {
+        console.warn('[CS API] Customer balance rollback error on deleteSale:', e);
+      }
     }
   },
 
@@ -853,6 +913,21 @@ export const chickenShopApi = {
       }
     }
 
+    // Automatically add arrived weight to Fresh Chicken stock
+    if (entry.weight_kg > 0) {
+      try {
+        await this.updateProductStock(
+          FRESH_CHICKEN_PRODUCT_ID,
+          entry.weight_kg,
+          'purchase',
+          `فارم تازہ مرغی آمد (${entry.supplier_name || 'Farm'})`,
+          newArrival.id
+        );
+      } catch (e) {
+        console.warn('[CS API] Stock addition on arrival failed:', e);
+      }
+    }
+
     if (entry.selling_rate_per_kg > 0) {
       try {
         const prods = await this.getProducts();
@@ -890,6 +965,20 @@ export const chickenShopApi = {
         console.warn('[CS API] Supabase fresh arrival delete fallback:', e);
       }
     }
+
+    // Reverse stock addition
+    if (target.weight_kg > 0) {
+      try {
+        await this.updateProductStock(
+          FRESH_CHICKEN_PRODUCT_ID,
+          -target.weight_kg,
+          'adjustment',
+          `آمد انٹری منسوخ - اسٹاک کٹوتی`
+        );
+      } catch (e) {
+        console.warn('[CS API] Failed to reverse arrival stock:', e);
+      }
+    }
   },
 
   async updateFreshChickenSellingRate(newRate: number): Promise<void> {
@@ -903,6 +992,96 @@ export const chickenShopApi = {
     }
   },
 
+  // ---------------------------------------------------------------------------
+  // FRESH CHICKEN STOCK MANAGEMENT (DASHBOARD)
+  // ---------------------------------------------------------------------------
+  async getFreshChickenStock(): Promise<number> {
+    const products = await this.getProducts();
+    const fresh = products.find(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
+    return fresh?.stock_kg || 0;
+  },
+
+  async updateFreshChickenStock(newStockKg: number): Promise<ChickenProduct | null> {
+    const products = await this.getProducts();
+    const fresh = products.find(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
+    if (!fresh) return null;
+    const changeKg = Number((newStockKg - (fresh.stock_kg || 0)).toFixed(2));
+    return this.updateProductStock(FRESH_CHICKEN_PRODUCT_ID, changeKg, 'adjustment', 'ڈیش بورڈ سے براہ راست اسٹاک ایڈجسٹمنٹ');
+  },
+
+  async deleteFreshChickenStock(): Promise<ChickenProduct | null> {
+    const products = await this.getProducts();
+    const fresh = products.find(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
+    if (!fresh) return null;
+    const changeKg = -(fresh.stock_kg || 0);
+    return this.updateProductStock(FRESH_CHICKEN_PRODUCT_ID, changeKg, 'adjustment', 'ڈیش بورڈ سے تازہ چکن اسٹاک صفر (0) ری سیٹ');
+  },
+
+  // ---------------------------------------------------------------------------
+  // FREEZER STOCK & PRODUCTS (COMPLETELY SEPARATE FROM FRESH CHICKEN)
+  // ---------------------------------------------------------------------------
+  async getFreezerProducts(): Promise<FreezerProduct[]> {
+    const products = await this.getProducts();
+    return products
+      .filter(p => p.category === 'Freezer Stock' || p.id.startsWith('freezer-'))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        urdu_name: p.urdu_name || p.name,
+        category: 'Freezer Stock',
+        unit: 'KG',
+        rate_per_kg: Number(p.rate_per_kg || 0),
+        stock_kg: Number(p.stock_kg || 0),
+        is_active: p.is_active !== false,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+      }));
+  },
+
+  async saveFreezerProduct(data: {
+    id?: string;
+    name: string;
+    urdu_name?: string;
+    rate_per_kg: number;
+    stock_kg: number;
+    is_active?: boolean;
+  }): Promise<FreezerProduct> {
+    const saved = await this.saveProduct({
+      id: data.id || `freezer-${Date.now()}`,
+      name: data.name.trim(),
+      urdu_name: data.urdu_name?.trim() || data.name.trim(),
+      category: 'Freezer Stock',
+      unit: 'KG',
+      rate_per_kg: Number(data.rate_per_kg || 0),
+      stock_kg: Number(data.stock_kg || 0),
+      is_active: data.is_active !== false,
+    });
+    return {
+      id: saved.id,
+      name: saved.name,
+      urdu_name: saved.urdu_name || saved.name,
+      category: 'Freezer Stock',
+      unit: 'KG',
+      rate_per_kg: saved.rate_per_kg,
+      stock_kg: saved.stock_kg || 0,
+      is_active: saved.is_active,
+      created_at: saved.created_at,
+      updated_at: saved.updated_at,
+    };
+  },
+
+  async deleteFreezerProduct(id: string): Promise<void> {
+    await this.deleteProduct(id);
+  },
+
+  async updateFreezerStock(id: string, newStockKg: number): Promise<void> {
+    const products = await this.getProducts();
+    const target = products.find(p => p.id === id);
+    if (!target) return;
+    const diff = Number((newStockKg - (target.stock_kg || 0)).toFixed(2));
+    await this.updateProductStock(id, diff, 'adjustment', 'فریزر اسٹاک ایڈجسٹمنٹ');
+  },
+  
   // ---------------------------------------------------------------------------
   // SHOP EXPENSES (FOR NET PROFIT & LOSS)
   // ---------------------------------------------------------------------------
@@ -974,21 +1153,7 @@ export const chickenShopApi = {
     if (!isSupabaseConfigured()) return;
 
     try {
-      // 1. Sync offline sales if any
-      const storedSales = localStorage.getItem(STORAGE_KEYS.sales);
-      if (storedSales) {
-        try {
-          const salesList: ChickenSale[] = JSON.parse(storedSales);
-          if (Array.isArray(salesList) && salesList.length > 0) {
-            const { data: existing } = await supabase.from('chicken_shop_sales').select('id');
-            const existingIds = new Set((existing || []).map((s: any) => s.id));
-            const missingSales = salesList.filter(s => !existingIds.has(s.id));
-            if (missingSales.length > 0) {
-              await supabase.from('chicken_shop_sales').upsert(missingSales);
-            }
-          }
-        } catch {}
-      }
+      // Sales auto-sync removed to prevent resurrecting deleted sales
 
       // 2. Sync offline fresh arrivals if any
       const storedArrivals = localStorage.getItem(STORAGE_KEYS.freshArrivals);
