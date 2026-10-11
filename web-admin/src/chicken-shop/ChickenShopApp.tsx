@@ -31,6 +31,7 @@ import { FreshChickenArrivalModal } from './FreshChickenArrivalModal';
 import { ExpenseModal } from './ExpenseModal';
 import { ProfitLossTab } from './ProfitLossTab';
 import { DailySalesTab } from './DailySalesTab';
+import { BulkWalkinSaleModal } from './BulkWalkinSaleModal';
 import { formatDate } from '../utils/formatters';
 import {
   Store,
@@ -108,6 +109,8 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const [freshSubTab, setFreshSubTab] = useState<'arrivals' | 'sales'>('arrivals');
   const [freshSalesFilter, setFreshSalesFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
   const [expenseModalOpen, setExpenseModalOpen] = useState<boolean>(false);
+  const [bulkWalkinModalOpen, setBulkWalkinModalOpen] = useState<boolean>(false);
+  const [bulkWalkinDate, setBulkWalkinDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // POS State (Simplified: No walk-in tabs or walk-in name/phone clutter)
   const [posCustomerId, setPosCustomerId] = useState<string>('');
@@ -991,6 +994,18 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               <span className="sm:hidden">+ آمد</span>
             </button>
             <button
+              onClick={() => {
+                setBulkWalkinDate(new Date().toISOString().split('T')[0]);
+                setBulkWalkinModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+              title="تمام واک ان کاؤنٹر سیلز اکٹھی یکمشت درج کریں"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">+ واک ان سیلز (Bulk)</span>
+              <span className="sm:hidden">+ واک ان</span>
+            </button>
+            <button
               onClick={() => setActiveTab('pos')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
             >
@@ -1389,6 +1404,58 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                     <span>روزانہ سیلز و کلو ریکارڈ کھولیں</span>
                     <ArrowLeft className="w-3.5 h-3.5" />
                   </button>
+                </div>
+
+                {/* Mode Selector: Individual Khata Bill vs Bulk Walk-in Sales */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                  <div className="p-4 rounded-2xl border-2 border-amber-500/80 bg-amber-50/40 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-black text-amber-950 font-urdu flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-amber-600" />
+                          1. گاہک کھاتہ دار یا انفرادی بل
+                        </span>
+                        <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                          موجودہ فارم
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-urdu">
+                        کسی رجسٹرڈ کھاتہ دار کے کھاتے میں ادھار اندراج کرنے یا علیحدہ پرنٹ رسید بنانے کے لیے نیچے دیا گیا فارم استعمال کریں۔
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      setBulkWalkinDate(posSaleDate || new Date().toISOString().split('T')[0]);
+                      setBulkWalkinModalOpen(true);
+                    }}
+                    className="p-4 rounded-2xl border-2 border-dashed border-emerald-500 bg-emerald-50/70 hover:bg-emerald-100/90 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between group"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-black text-emerald-950 font-urdu flex items-center gap-1.5 group-hover:text-emerald-700">
+                          <Layers className="w-4 h-4 text-emerald-600" />
+                          2. واک ان نقد سیلز یکمشت درج کریں ⚡
+                        </span>
+                        <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold animate-pulse">
+                          تجویز کردہ (Bulk)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-900 leading-relaxed font-urdu">
+                        بغیر الگ الگ کسٹمر پرچیوں کے، تمام واک ان نقد کٹس (گوشت، بون لیس وغیرہ) کا وزن ایک ساتھ درج کریں اور اسٹاک سے کاٹیں۔
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between">
+                      <span className="text-[10px] text-emerald-700 font-semibold font-urdu">
+                        کھاتے سے الگ • 100% نقد • خودکار اسٹاک کٹوتی
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 font-urdu group-hover:translate-x-[-3px] transition-transform">
+                        <span>فارم کھولیں</span>
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <form onSubmit={handleSaveSale} className="space-y-6">
@@ -2677,6 +2744,10 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 onOpenReceipt={sale => setReceiptModalSale(sale)}
                 onDeleteSale={handleDeleteSale}
                 onNewSaleClick={() => setActiveTab('pos')}
+                onOpenBulkWalkin={date => {
+                  if (date) setBulkWalkinDate(date);
+                  setBulkWalkinModalOpen(true);
+                }}
               />
             )}
 
@@ -2706,6 +2777,15 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       <SaleReceiptModal
         sale={receiptModalSale}
         onClose={() => setReceiptModalSale(null)}
+      />
+
+      {/* Bulk Walk-in Cash Sale Modal (All cuts entered together, stock auto-deducted) */}
+      <BulkWalkinSaleModal
+        isOpen={bulkWalkinModalOpen}
+        onClose={() => setBulkWalkinModalOpen(false)}
+        products={products}
+        onSaveSuccess={loadAllData}
+        defaultDate={bulkWalkinDate}
       />
 
       {/* Customer Full Khata Ledger Statement Modal */}

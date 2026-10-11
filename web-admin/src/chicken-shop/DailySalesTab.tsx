@@ -26,6 +26,7 @@ import {
   Package,
   Layers,
   ShoppingBag,
+  ShoppingCart,
   CheckCircle2,
   AlertCircle,
   FileText,
@@ -42,6 +43,7 @@ interface DailySalesTabProps {
   onOpenReceipt: (sale: ChickenSale) => void;
   onDeleteSale: (sale: ChickenSale) => Promise<void>;
   onNewSaleClick: () => void;
+  onOpenBulkWalkin?: (date?: string) => void;
 }
 
 export const DailySalesTab: React.FC<DailySalesTabProps> = ({
@@ -51,6 +53,7 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
   onOpenReceipt,
   onDeleteSale,
   onNewSaleClick,
+  onOpenBulkWalkin,
 }) => {
   // Current local today string in YYYY-MM-DD
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -130,6 +133,18 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
     const avgRatePerKg = totalWeightKg > 0 ? Math.round(totalRevenue / totalWeightKg) : 0;
     const billsCount = dateSales.length;
 
+    // Separate Walk-in Counter Sales from Khata Customer Ledger Sales
+    const walkinSales = dateSales.filter(s => !s.customer_id);
+    const khataSales = dateSales.filter(s => !!s.customer_id);
+    const walkinRevenue = walkinSales.reduce((sum, s) => sum + s.total_amount, 0);
+    const walkinWeightKg = Number(
+      walkinSales.reduce((sum, s) => sum + (Number(s.total_weight_kg) || 0), 0).toFixed(2)
+    );
+    const khataRevenue = khataSales.reduce((sum, s) => sum + s.total_amount, 0);
+    const khataWeightKg = Number(
+      khataSales.reduce((sum, s) => sum + (Number(s.total_weight_kg) || 0), 0).toFixed(2)
+    );
+
     // Total available stock across all products
     const currentTotalStock = Number(
       products.reduce((sum, p) => sum + (Number(p.stock_kg) || 0), 0).toFixed(2)
@@ -143,6 +158,12 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
       avgRatePerKg,
       billsCount,
       currentTotalStock,
+      walkinRevenue,
+      walkinWeightKg,
+      khataRevenue,
+      khataWeightKg,
+      walkinBillsCount: walkinSales.length,
+      khataBillsCount: khataSales.length,
     };
   }, [dateSales, products]);
 
@@ -417,18 +438,26 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handlePrintDailyReport}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-2xs"
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-2xs font-urdu"
               title="روزانہ کی رپورٹ پرنٹ کریں"
             >
               <Printer className="w-4 h-4 text-slate-600" />
-              <span className="font-urdu">رپورٹ پرنٹ کریں</span>
+              <span>رپورٹ پرنٹ کریں</span>
+            </button>
+            <button
+              onClick={() => onOpenBulkWalkin?.(selectedDate)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 font-urdu"
+              title="عام کاؤنٹر خریداروں کی دن بھر کی سیلز ایک ساتھ درج کریں"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>+ واک ان نقد سیلز یکمشت درج کریں (Bulk)</span>
             </button>
             <button
               onClick={onNewSaleClick}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95"
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 font-urdu"
             >
               <Plus className="w-4 h-4" />
-              <span className="font-urdu">+ نیا کاؤنٹر بل بنائیں (POS)</span>
+              <span>+ گاہک کھاتہ دار بل (POS)</span>
             </button>
           </div>
         </div>
@@ -543,14 +572,16 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
               <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tracking-tight">
                 Rs. {dateKpis.totalRevenue.toLocaleString()}
               </div>
-              <div className="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2 font-urdu">
-                <span className="text-emerald-700 font-semibold font-mono">
-                  نقد: Rs. {dateKpis.totalCash.toLocaleString()}
-                </span>
-                {dateKpis.totalCredit > 0 && (
-                  <span className="text-rose-600 font-semibold font-mono">
-                    • ادھار: Rs. {dateKpis.totalCredit.toLocaleString()}
-                  </span>
+              <div className="mt-2 text-[10px] text-slate-500 space-y-0.5 font-urdu">
+                <div className="flex items-center justify-between text-emerald-800 font-semibold font-mono">
+                  <span>نقد واک ان:</span>
+                  <span>Rs. {dateKpis.walkinRevenue.toLocaleString()} ({dateKpis.walkinWeightKg}kg)</span>
+                </div>
+                {dateKpis.khataRevenue > 0 && (
+                  <div className="flex items-center justify-between text-rose-700 font-semibold font-mono">
+                    <span>کھاتہ ادھار:</span>
+                    <span>Rs. {dateKpis.khataRevenue.toLocaleString()} ({dateKpis.khataWeightKg}kg)</span>
+                  </div>
                 )}
               </div>
             </div>
