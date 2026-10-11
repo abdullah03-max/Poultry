@@ -30,6 +30,7 @@ interface CustomerLedgerModalProps {
   onRecordPayment: (customer: ChickenCustomer) => void;
   onCustomerUpdated?: () => void;
   onDeleteCustomer?: (customer: ChickenCustomer) => void;
+  refreshTrigger?: number;
 }
 
 export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
@@ -38,6 +39,7 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
   onRecordPayment,
   onCustomerUpdated,
   onDeleteCustomer,
+  refreshTrigger,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [entries, setEntries] = useState<ChickenShopLedgerEntry[]>([]);
@@ -63,7 +65,7 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
 
   useEffect(() => {
     fetchLedger();
-  }, [customer]);
+  }, [customer?.id, refreshTrigger]);
 
   if (!customer) return null;
 

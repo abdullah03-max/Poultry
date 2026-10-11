@@ -1094,8 +1094,6 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
                   <th className="py-2.5 px-3 text-center">اوسط ریٹ فی کلو</th>
                   <th className="py-2.5 px-3 text-left">مجموعی حاصل رقم</th>
                   <th className="py-2.5 px-3 text-center">بلز کی تعداد</th>
-                  <th className="py-2.5 px-3 text-center">موجودہ اسٹاک</th>
-                  <th className="py-2.5 px-3 text-center">اسٹاک کٹوتی نوٹس</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-sans">
@@ -1116,20 +1114,12 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
                     <td className="py-2.5 px-3 text-center font-mono text-slate-600">
                       {prod.billsCount} بلز
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-700">
-                      {prod.currentStockKg} KG
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold font-urdu bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        ✓ اسٹاک سے منہا
-                      </span>
-                    </td>
                   </tr>
                 ))}
 
                 {productBreakdown.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-10 text-center text-slate-400 text-xs font-urdu">
+                    <td colSpan={5} className="py-10 text-center text-slate-400 text-xs font-urdu">
                       اس تاریخ میں کسی بھی کٹ کی فروخت ریکارڈ نہیں ہوئی۔
                     </td>
                   </tr>

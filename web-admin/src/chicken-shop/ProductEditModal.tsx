@@ -25,8 +25,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [urduName, setUrduName] = useState<string>('');
   const [category, setCategory] = useState<string>('Chicken Cuts');
   const [ratePerKg, setRatePerKg] = useState<string>('');
-  const [stockKg, setStockKg] = useState<string>('0');
-  const [minStockAlert, setMinStockAlert] = useState<string>('10');
   const [isActive, setIsActive] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -37,16 +35,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         setUrduName(product.urdu_name || product.name);
         setCategory(product.category || 'Chicken Cuts');
         setRatePerKg(String(product.rate_per_kg || 0));
-        setStockKg(String(product.stock_kg || 0));
-        setMinStockAlert(String(product.min_stock_alert || 10));
         setIsActive(product.is_active !== false);
       } else {
         setName('');
         setUrduName('');
         setCategory('Chicken Cuts');
         setRatePerKg('');
-        setStockKg('0');
-        setMinStockAlert('10');
         setIsActive(true);
       }
     }
@@ -74,8 +68,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         category: category.trim(),
         unit: 'KG',
         rate_per_kg: Number(ratePerKg),
-        stock_kg: Number(stockKg) || 0,
-        min_stock_alert: Number(minStockAlert) || 5,
+        stock_kg: 0,
+        min_stock_alert: 0,
         is_active: isActive,
       });
 
@@ -155,68 +149,25 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                فروخت ریٹ فی کلو (Rate / KG) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                  Rs.
-                </span>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  required
-                  value={ratePerKg}
-                  onChange={e => setRatePerKg(e.target.value)}
-                  placeholder="550"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600 focus:bg-white"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                موجودہ اسٹاک (Stock KG)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={stockKg}
-                  onChange={e => setStockKg(e.target.value)}
-                  placeholder="0"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600 focus:bg-white"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                  KG
-                </span>
-              </div>
-            </div>
-          </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              کم سے کم اسٹاک الرٹ حد (Min Stock Alert KG)
+              فروخت ریٹ فی کلو (Rate / KG) *
             </label>
             <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                Rs.
+              </span>
               <input
                 type="number"
                 min="1"
                 step="1"
-                value={minStockAlert}
-                onChange={e => setMinStockAlert(e.target.value)}
-                placeholder="10"
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-amber-600 focus:bg-white"
+                required
+                value={ratePerKg}
+                onChange={e => setRatePerKg(e.target.value)}
+                placeholder="550"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600 focus:bg-white"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                KG
-              </span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">اس حد سے کم اسٹاک ہونے پر الرٹ شو ہوگا</p>
           </div>
 
           <div className="pt-1 flex items-center gap-2">

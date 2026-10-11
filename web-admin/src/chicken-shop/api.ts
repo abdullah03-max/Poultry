@@ -365,27 +365,6 @@ export const chickenShopApi = {
     const dateStr = saleData.sale_date || now.toISOString().split('T')[0];
     const timeStr = saleData.sale_time || now.toTimeString().split(' ')[0];
 
-    // Strict inventory stock validation before confirming sale
-    const allProducts = await this.getProducts();
-    const totalRequiredByProduct: Record<string, { weight: number; name: string }> = {};
-    for (const item of saleData.items) {
-      const w = Number(item.weight_kg) || 0;
-      if (!totalRequiredByProduct[item.product_id]) {
-        totalRequiredByProduct[item.product_id] = { weight: 0, name: item.product_name };
-      }
-      totalRequiredByProduct[item.product_id].weight += w;
-    }
-
-    for (const [prodId, req] of Object.entries(totalRequiredByProduct)) {
-      const prod = allProducts.find(p => p.id === prodId);
-      const currentStock = prod ? Number(prod.stock_kg || 0) : 0;
-      if (req.weight > currentStock) {
-        throw new Error(
-          `اسٹاک ناکافی ہے! "${req.name}" کا موجودہ دستیاب اسٹاک صرف ${currentStock} KG ہے جبکہ فروخت ${req.weight} KG کی جا رہی ہے۔ (Available stock is only ${currentStock} KG)`
-        );
-      }
-    }
-
     // Calculate line totals
     let totalWeight = 0;
     let subtotal = 0;
@@ -461,17 +440,6 @@ export const chickenShopApi = {
       }
     }
 
-    // Deduct stock for each sold item
-    for (const item of itemsWithTotals) {
-      await this.updateProductStock(
-        item.product_id,
-        -item.weight_kg,
-        'sale',
-        `Sold to ${saleData.customer_name} (Invoice ${invoiceNo})`,
-        invoiceNo
-      );
-    }
-
     return newSale;
   },
 
@@ -479,17 +447,6 @@ export const chickenShopApi = {
     let sales = await this.getSales();
     const target = sales.find(s => s.id === id);
     if (!target) return;
-
-    // Rollback stock
-    for (const item of target.items) {
-      await this.updateProductStock(
-        item.product_id,
-        item.weight_kg,
-        'adjustment',
-        `Reversed cancelled sale ${target.invoice_no}`,
-        target.invoice_no
-      );
-    }
 
     // Rollback customer balance if applicable
     if (target.customer_id) {
@@ -810,7 +767,7 @@ export const chickenShopApi = {
 
     const totalMarketOutstanding = customers.reduce((sum, c) => sum + (c.current_balance || 0), 0);
     const totalProductsCount = products.length;
-    const lowStockProductsCount = products.filter(p => p.stock_kg <= p.min_stock_alert).length;
+    const lowStockProductsCount = products.filter(p => (p.stock_kg || 0) <= (p.min_stock_alert || 0)).length;
     const totalStockKg = products.reduce((sum, p) => sum + (p.stock_kg || 0), 0);
 
     return {
@@ -896,29 +853,17 @@ export const chickenShopApi = {
       }
     }
 
-    const categoryName = targetProd.urdu_name || targetProd.name;
-    const updatedProd = await this.updateProductStock(
-      targetProd.id,
-      entry.weight_kg,
-      'purchase',
-      `تازہ چکن گوشت آمد (${categoryName}): ${entry.supplier_name || 'سپلائر'} (${entry.weight_kg}kg @ Rs.${entry.rate_per_kg})`,
-      newArrival.id
-    );
-
     if (entry.selling_rate_per_kg > 0) {
       try {
         const prods = await this.getProducts();
         const pIdx = prods.findIndex(p => p.id === targetProd.id);
         if (pIdx !== -1) {
           prods[pIdx].rate_per_kg = entry.selling_rate_per_kg;
-          if (updatedProd) {
-            prods[pIdx].stock_kg = updatedProd.stock_kg;
-          }
           localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(prods));
           if (isSupabaseConfigured()) {
             await supabase
               .from('chicken_shop_products')
-              .update({ rate_per_kg: entry.selling_rate_per_kg, stock_kg: prods[pIdx].stock_kg })
+              .update({ rate_per_kg: entry.selling_rate_per_kg })
               .eq('id', targetProd.id);
           }
         }
@@ -945,16 +890,6 @@ export const chickenShopApi = {
         console.warn('[CS API] Supabase fresh arrival delete fallback:', e);
       }
     }
-
-    // Rollback stock for the specific category
-    const targetCategoryId = target.category_id || FRESH_CHICKEN_PRODUCT_ID;
-    await this.updateProductStock(
-      targetCategoryId,
-      -target.weight_kg,
-      'adjustment',
-      `حذف شدہ تازہ چکن آمد رول بیک (Reversed ${target.weight_kg}kg)`,
-      id
-    );
   },
 
   async updateFreshChickenSellingRate(newRate: number): Promise<void> {
@@ -1094,51 +1029,45 @@ export const chickenShopApi = {
   // One-time automatic purge of stale local dummy data from user's browser
   clearStaleLocalMockData(): void {
     try {
-      if (!localStorage.getItem('cs_mock_purged_v4')) {
+      if (!localStorage.getItem('cs_purged_clean_slate_v5')) {
         localStorage.removeItem(STORAGE_KEYS.products);
         localStorage.removeItem(STORAGE_KEYS.customers);
+        localStorage.removeItem(STORAGE_KEYS.sales);
+        localStorage.removeItem(STORAGE_KEYS.payments);
+        localStorage.removeItem(STORAGE_KEYS.freshArrivals);
         localStorage.removeItem(STORAGE_KEYS.expenses);
-        localStorage.setItem('cs_mock_purged_v4', 'true');
+        localStorage.removeItem(STORAGE_KEYS.stockLogs);
+        localStorage.setItem('cs_purged_clean_slate_v5', 'true');
       }
     } catch {}
   },
 
   // Completely resets any mock / temporary dummy data from Supabase and browser localStorage
   async resetAllTemporaryData(): Promise<void> {
-    const dummyProductIds = [
-      'prod-drumsticks',
-      'prod-chicken-bongs',
-      'prod-chicken-legs',
-      'prod-chicken-breast',
-      'prod-chicken-tikka',
-      'prod-boles',
-      'prod-wings',
-      'prod-gosht',
-      'prod-kaleji-pota',
-      'prod-thai',
-    ];
-    const dummyCustomerIds = ['cust-cs-001', 'cust-cs-002', 'cust-cs-003'];
-    const dummyExpenseIds = ['exp-01', 'exp-02'];
-
     if (isSupabaseConfigured()) {
       try {
+        await supabase.from('chicken_shop_sales').delete().neq('id', '___none___');
+        await supabase.from('chicken_shop_payments').delete().neq('id', '___none___');
+        await supabase.from('chicken_shop_fresh_arrivals').delete().neq('id', '___none___');
+        await supabase.from('chicken_shop_expenses').delete().neq('id', '___none___');
+        await supabase.from('chicken_shop_stock_logs').delete().neq('id', '___none___');
+        await supabase.from('chicken_shop_customers').delete().neq('id', '___none___');
         await supabase.from('chicken_shop_products').delete().neq('id', FRESH_CHICKEN_PRODUCT_ID);
-        for (const cid of dummyCustomerIds) {
-          await supabase.from('chicken_shop_customers').delete().eq('id', cid);
-        }
-        for (const eid of dummyExpenseIds) {
-          await supabase.from('chicken_shop_expenses').delete().eq('id', eid);
-        }
+        await supabase.from('chicken_shop_products').update({ stock_kg: 0, min_stock_alert: 0 }).eq('id', FRESH_CHICKEN_PRODUCT_ID);
       } catch (e) {
-        console.warn('[CS API] Error clearing dummy data from Supabase:', e);
+        console.warn('[CS API] Error clearing data from Supabase:', e);
       }
     }
 
     try {
       localStorage.removeItem(STORAGE_KEYS.products);
       localStorage.removeItem(STORAGE_KEYS.customers);
+      localStorage.removeItem(STORAGE_KEYS.sales);
+      localStorage.removeItem(STORAGE_KEYS.payments);
+      localStorage.removeItem(STORAGE_KEYS.freshArrivals);
       localStorage.removeItem(STORAGE_KEYS.expenses);
-      localStorage.setItem('cs_mock_purged_v4', 'true');
+      localStorage.removeItem(STORAGE_KEYS.stockLogs);
+      localStorage.setItem('cs_purged_clean_slate_v5', 'true');
     } catch {}
   },
 };

@@ -46,7 +46,7 @@ export const StockModal: React.FC<StockModalProps> = ({
   if (!isOpen) return null;
 
   const currentProd = products.find(p => p.id === selectedProductId) || initialProduct;
-  const currentStock = currentProd ? currentProd.stock_kg : 0;
+  const currentStock = currentProd ? (currentProd.stock_kg || 0) : 0;
   const inputKg = Number(weightKg) || 0;
   const stockChange = actionType === 'purchase' ? inputKg : -inputKg;
   const newStock = Math.max(0, currentStock + stockChange);

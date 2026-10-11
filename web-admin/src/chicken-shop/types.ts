@@ -10,8 +10,8 @@ export interface ChickenProduct {
   category: string;
   unit: string; // usually 'KG'
   rate_per_kg: number;
-  stock_kg: number;
-  min_stock_alert: number;
+  stock_kg?: number;
+  min_stock_alert?: number;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
