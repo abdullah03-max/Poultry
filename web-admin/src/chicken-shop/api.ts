@@ -120,6 +120,28 @@ export const DEFAULT_CHICKEN_PRODUCTS: ChickenProduct[] = [
     min_stock_alert: 25.0,
     is_active: true,
   },
+  {
+    id: 'prod-wings',
+    name: 'Chicken Wings',
+    urdu_name: 'چکن ونگز',
+    category: 'Chicken Cuts',
+    unit: 'KG',
+    rate_per_kg: 460,
+    stock_kg: 45.0,
+    min_stock_alert: 10.0,
+    is_active: true,
+  },
+  {
+    id: 'prod-kaleji-pota',
+    name: 'Kaleji Pota',
+    urdu_name: 'کلیجی پوٹا',
+    category: 'Chicken Offal',
+    unit: 'KG',
+    rate_per_kg: 300,
+    stock_kg: 20.0,
+    min_stock_alert: 5.0,
+    is_active: true,
+  },
 ];
 
 const DEFAULT_CUSTOMERS: ChickenCustomer[] = [
@@ -197,7 +219,7 @@ export const chickenShopApi = {
           .select('*')
           .order('name');
         if (!error && data) {
-          if (data.length === 0) {
+          if (data.length <= 1) {
             try {
               await supabase.from('chicken_shop_products').upsert(DEFAULT_CHICKEN_PRODUCTS);
             } catch {}
