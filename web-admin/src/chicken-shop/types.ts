@@ -119,6 +119,15 @@ export interface ChickenShopLedgerEntry {
   reference_id?: string;
 }
 
+export interface SupplierPaymentItem {
+  id: string;
+  date: string;
+  amount: number;
+  payment_method: 'cash' | 'bank' | 'online' | 'cheque';
+  notes?: string | null;
+  created_at: string;
+}
+
 export interface FreshChickenArrival {
   id: string;
   date: string; // YYYY-MM-DD
@@ -130,6 +139,12 @@ export interface FreshChickenArrival {
   category_id?: string | null;
   category_name?: string | null;
   supplier_name?: string | null;
+  supplier_phone?: string | null;
+  payment_status?: 'unpaid' | 'partial' | 'paid';
+  paid_amount?: number;
+  remaining_payable?: number;
+  payment_method?: 'cash' | 'bank' | 'online' | 'cheque';
+  payment_history?: SupplierPaymentItem[];
   birds_count?: number | null;
   vehicle_no?: string | null;
   notes?: string | null;

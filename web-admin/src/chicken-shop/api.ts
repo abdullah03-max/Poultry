@@ -14,6 +14,7 @@ import {
   FreshChickenArrival,
   ChickenExpense,
   FreezerProduct,
+  SupplierPaymentItem,
 } from './types';
 
 export const FRESH_CHICKEN_PRODUCT_ID = 'prod-fresh-chicken';
@@ -45,7 +46,81 @@ const STORAGE_KEYS = {
   freshArrivals: 'cs_portal_fresh_arrivals',
   expenses: 'cs_portal_expenses',
   deletedSaleIds: 'cs_deleted_sale_ids',
+  deletedArrivalIds: 'cs_deleted_arrival_ids',
 };
+
+const SUPPLIER_META_TAG = '__SUPPLIER_PAYMENT__';
+
+function packArrivalNotes(entry: Partial<FreshChickenArrival>): string | null {
+  const meta = {
+    supplier_phone: entry.supplier_phone || null,
+    payment_status: entry.payment_status || (entry.paid_amount && entry.total_cost && entry.paid_amount >= entry.total_cost ? 'paid' : (entry.paid_amount ? 'partial' : 'unpaid')),
+    paid_amount: Number(entry.paid_amount || 0),
+    remaining_payable: Number(entry.remaining_payable ?? Math.max(0, (entry.total_cost || 0) - (entry.paid_amount || 0))),
+    payment_method: entry.payment_method || 'cash',
+    payment_history: entry.payment_history || [],
+  };
+  const baseNote = (entry.notes || '').split(SUPPLIER_META_TAG)[0].trim();
+  return `${baseNote}${baseNote ? ' ' : ''}${SUPPLIER_META_TAG}${JSON.stringify(meta)}`;
+}
+
+function unpackArrival(raw: any): FreshChickenArrival {
+  let notes = raw.notes || null;
+  let supplier_phone = raw.supplier_phone || null;
+  let payment_status: 'unpaid' | 'partial' | 'paid' = raw.payment_status || 'unpaid';
+  let paid_amount = Number(raw.paid_amount || 0);
+  let remaining_payable = Number(raw.remaining_payable ?? Math.max(0, (raw.total_cost || 0) - paid_amount));
+  let payment_method: 'cash' | 'bank' | 'online' | 'cheque' = raw.payment_method || 'cash';
+  let payment_history: any[] = raw.payment_history || [];
+
+  if (notes && typeof notes === 'string' && notes.includes(SUPPLIER_META_TAG)) {
+    const parts = notes.split(SUPPLIER_META_TAG);
+    notes = parts[0].trim() || null;
+    try {
+      const meta = JSON.parse(parts[1]);
+      if (meta.supplier_phone !== undefined) supplier_phone = meta.supplier_phone;
+      if (meta.payment_status) payment_status = meta.payment_status;
+      if (meta.paid_amount !== undefined) paid_amount = Number(meta.paid_amount);
+      if (meta.remaining_payable !== undefined) remaining_payable = Number(meta.remaining_payable);
+      if (meta.payment_method) payment_method = meta.payment_method;
+      if (Array.isArray(meta.payment_history)) payment_history = meta.payment_history;
+    } catch {}
+  }
+
+  if (remaining_payable === undefined || isNaN(remaining_payable)) {
+    remaining_payable = Math.max(0, (raw.total_cost || 0) - paid_amount);
+  }
+
+  return {
+    ...raw,
+    notes,
+    supplier_phone,
+    payment_status,
+    paid_amount,
+    remaining_payable,
+    payment_method,
+    payment_history,
+  };
+}
+
+function sanitizeArrivalForSupabase(arrival: FreshChickenArrival): any {
+  return {
+    id: arrival.id,
+    date: arrival.date,
+    time: arrival.time,
+    weight_kg: arrival.weight_kg,
+    rate_per_kg: arrival.rate_per_kg,
+    total_cost: arrival.total_cost,
+    selling_rate_per_kg: arrival.selling_rate_per_kg,
+    category_id: arrival.category_id || null,
+    category_name: arrival.category_name || null,
+    supplier_name: arrival.supplier_name || 'تازہ فارم آمد',
+    birds_count: arrival.birds_count || null,
+    vehicle_no: arrival.vehicle_no || null,
+    notes: packArrivalNotes(arrival),
+    created_at: arrival.created_at,
+  };
+}
 
 export const chickenShopApi = {
   // ---------------------------------------------------------------------------
@@ -847,6 +922,11 @@ export const chickenShopApi = {
   // FRESH CHICKEN ARRIVALS & STOCK
   // ---------------------------------------------------------------------------
   async getFreshChickenArrivals(): Promise<FreshChickenArrival[]> {
+    let deletedIds = new Set<string>();
+    try {
+      deletedIds = new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.deletedArrivalIds) || '[]'));
+    } catch {}
+
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -855,7 +935,9 @@ export const chickenShopApi = {
           .neq('id', 'fca-init-01')
           .order('date', { ascending: false });
         if (!error && data) {
-          const cleaned = (data as FreshChickenArrival[]).filter(a => a.id !== 'fca-init-01');
+          const cleaned = (data as any[])
+            .filter(a => a.id !== 'fca-init-01' && !deletedIds.has(a.id))
+            .map(a => unpackArrival(a));
           localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(cleaned));
           return cleaned;
         }
@@ -867,7 +949,9 @@ export const chickenShopApi = {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.freshArrivals);
       if (stored) {
-        const parsed = (JSON.parse(stored) as FreshChickenArrival[]).filter(a => a.id !== 'fca-init-01');
+        const parsed = (JSON.parse(stored) as any[])
+          .filter(a => a.id !== 'fca-init-01' && !deletedIds.has(a.id))
+          .map(a => unpackArrival(a));
         localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(parsed));
         return parsed;
       }
@@ -877,8 +961,32 @@ export const chickenShopApi = {
   },
 
   async saveFreshChickenArrival(entry: Omit<FreshChickenArrival, 'id' | 'created_at'>): Promise<FreshChickenArrival> {
+    const cost = Number(entry.total_cost || Math.round((entry.weight_kg || 0) * (entry.rate_per_kg || 0)));
+    const paid = Number(entry.paid_amount || 0);
+    const remaining = Math.max(0, cost - paid);
+    const status: 'unpaid' | 'partial' | 'paid' =
+      entry.payment_status || (remaining === 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid');
+
+    const initialHistory = entry.payment_history || [];
+    if (paid > 0 && initialHistory.length === 0) {
+      initialHistory.push({
+        id: `spay-init-${Date.now()}`,
+        date: entry.date,
+        amount: paid,
+        payment_method: entry.payment_method || 'cash',
+        notes: 'ابتدائی لاٹ آمد ادائیگی',
+        created_at: new Date().toISOString(),
+      });
+    }
+
     const newArrival: FreshChickenArrival = {
       ...entry,
+      total_cost: cost,
+      paid_amount: paid,
+      remaining_payable: remaining,
+      payment_status: status,
+      payment_method: entry.payment_method || 'cash',
+      payment_history: initialHistory,
       id: `fca-${Date.now()}`,
       created_at: new Date().toISOString(),
     };
@@ -889,7 +997,11 @@ export const chickenShopApi = {
 
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('chicken_shop_fresh_arrivals').insert([newArrival]);
+        const payload = sanitizeArrivalForSupabase(newArrival);
+        const { error } = await supabase.from('chicken_shop_fresh_arrivals').insert([payload]);
+        if (error) {
+          console.error('[CS API] Supabase fresh arrival insert error:', error);
+        }
       } catch (e) {
         console.warn('[CS API] Supabase fresh arrival insert fallback:', e);
       }
@@ -950,30 +1062,103 @@ export const chickenShopApi = {
     return newArrival;
   },
 
+  async recordSupplierPayment(
+    arrivalId: string,
+    payment: {
+      amount: number;
+      date?: string;
+      payment_method?: 'cash' | 'bank' | 'online' | 'cheque';
+      notes?: string;
+    }
+  ): Promise<FreshChickenArrival> {
+    const arrivals = await this.getFreshChickenArrivals();
+    const targetIdx = arrivals.findIndex(a => a.id === arrivalId);
+    if (targetIdx === -1) {
+      throw new Error('سپلائر لاٹ ریکارڈ نہیں ملا');
+    }
+
+    const current = arrivals[targetIdx];
+    const newPaidAmount = Number((current.paid_amount || 0) + payment.amount);
+    const newRemaining = Math.max(0, Number(current.total_cost - newPaidAmount));
+    const newStatus: 'unpaid' | 'partial' | 'paid' =
+      newRemaining === 0 ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
+
+    const newPaymentItem: SupplierPaymentItem = {
+      id: `spay-${Date.now()}`,
+      date: payment.date || new Date().toISOString().split('T')[0],
+      amount: payment.amount,
+      payment_method: payment.payment_method || 'cash',
+      notes: payment.notes || null,
+      created_at: new Date().toISOString(),
+    };
+
+    const updatedArrival: FreshChickenArrival = {
+      ...current,
+      paid_amount: newPaidAmount,
+      remaining_payable: newRemaining,
+      payment_status: newStatus,
+      payment_history: [...(current.payment_history || []), newPaymentItem],
+    };
+
+    arrivals[targetIdx] = updatedArrival;
+    localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(arrivals));
+
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = sanitizeArrivalForSupabase(updatedArrival);
+        const { error } = await supabase
+          .from('chicken_shop_fresh_arrivals')
+          .update({ notes: payload.notes })
+          .eq('id', arrivalId);
+        if (error) {
+          console.error('[CS API] Supabase update supplier payment error:', error);
+        }
+      } catch (e) {
+        console.warn('[CS API] Supabase supplier payment update fallback:', e);
+      }
+    }
+
+    return updatedArrival;
+  },
+
   async deleteFreshChickenArrival(id: string): Promise<void> {
     const arrivals = await this.getFreshChickenArrivals();
     const target = arrivals.find(a => a.id === id);
     if (!target) return;
 
-    const filtered = arrivals.filter(a => a.id !== id);
-    localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(filtered));
-
+    // 1. Permanently delete from Supabase first
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('chicken_shop_fresh_arrivals').delete().eq('id', id);
-      } catch (e) {
+        const { error } = await supabase.from('chicken_shop_fresh_arrivals').delete().eq('id', id);
+        if (error) {
+          console.error('[CS API] Supabase fresh arrival delete error:', error);
+          throw new Error(`ڈیٹا بیس سے آمد لاگ حذف کرنے میں خرابی: ${error.message}`);
+        }
+      } catch (e: any) {
         console.warn('[CS API] Supabase fresh arrival delete fallback:', e);
+        if (e.message?.includes('خرابی')) throw e;
       }
     }
 
-    // Reverse stock addition
+    // 2. Track in deletedArrivalIds set to prevent resurrection from ANY cache or sync
+    try {
+      const deletedIds = new Set<string>(JSON.parse(localStorage.getItem(STORAGE_KEYS.deletedArrivalIds) || '[]'));
+      deletedIds.add(id);
+      localStorage.setItem(STORAGE_KEYS.deletedArrivalIds, JSON.stringify(Array.from(deletedIds)));
+    } catch {}
+
+    // 3. Update localStorage cache
+    const filtered = arrivals.filter(a => a.id !== id);
+    localStorage.setItem(STORAGE_KEYS.freshArrivals, JSON.stringify(filtered));
+
+    // 4. Reverse stock addition on fresh scale product
     if (target.weight_kg > 0) {
       try {
         await this.updateProductStock(
           FRESH_CHICKEN_PRODUCT_ID,
           -target.weight_kg,
           'adjustment',
-          `آمد انٹری منسوخ - اسٹاک کٹوتی`
+          `آمد لاگ حذف - اسٹاک کٹوتی (${target.weight_kg} KG)`
         );
       } catch (e) {
         console.warn('[CS API] Failed to reverse arrival stock:', e);
@@ -1153,23 +1338,7 @@ export const chickenShopApi = {
     if (!isSupabaseConfigured()) return;
 
     try {
-      // Sales auto-sync removed to prevent resurrecting deleted sales
-
-      // 2. Sync offline fresh arrivals if any
-      const storedArrivals = localStorage.getItem(STORAGE_KEYS.freshArrivals);
-      if (storedArrivals) {
-        try {
-          const arrivals: FreshChickenArrival[] = JSON.parse(storedArrivals);
-          if (Array.isArray(arrivals) && arrivals.length > 0) {
-            const { data: existing } = await supabase.from('chicken_shop_fresh_arrivals').select('id');
-            const existingIds = new Set((existing || []).map((a: any) => a.id));
-            const missingArrivals = arrivals.filter(a => !existingIds.has(a.id));
-            if (missingArrivals.length > 0) {
-              await supabase.from('chicken_shop_fresh_arrivals').upsert(missingArrivals);
-            }
-          }
-        } catch {}
-      }
+      // Sales & Fresh Arrivals auto-sync removed to prevent resurrecting deleted records
 
       // 3. Sync offline payments if any
       const storedPayments = localStorage.getItem(STORAGE_KEYS.payments);
