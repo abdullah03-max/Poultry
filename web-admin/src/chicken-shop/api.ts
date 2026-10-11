@@ -196,7 +196,15 @@ export const chickenShopApi = {
           .from('chicken_shop_products')
           .select('*')
           .order('name');
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
+          if (data.length === 0) {
+            try {
+              await supabase.from('chicken_shop_products').upsert(DEFAULT_CHICKEN_PRODUCTS);
+            } catch {}
+            const merged = ensureFreshChicken(DEFAULT_CHICKEN_PRODUCTS);
+            localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(merged));
+            return merged;
+          }
           const merged = ensureFreshChicken(data as ChickenProduct[]);
           localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(merged));
           return merged;
@@ -335,7 +343,14 @@ export const chickenShopApi = {
           .from('chicken_shop_customers')
           .select('*')
           .order('name');
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
+          if (data.length === 0) {
+            try {
+              await supabase.from('chicken_shop_customers').upsert(DEFAULT_CUSTOMERS);
+            } catch {}
+            localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(DEFAULT_CUSTOMERS));
+            return [...DEFAULT_CUSTOMERS];
+          }
           localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(data));
           return data as ChickenCustomer[];
         }
@@ -446,7 +461,7 @@ export const chickenShopApi = {
           .from('chicken_shop_sales')
           .select('*')
           .order('sale_date', { ascending: false });
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           localStorage.setItem(STORAGE_KEYS.sales, JSON.stringify(data));
           return data as ChickenSale[];
         }
@@ -645,7 +660,8 @@ export const chickenShopApi = {
         let query = supabase.from('chicken_shop_payments').select('*').order('payment_date', { ascending: false });
         if (customerId) query = query.eq('customer_id', customerId);
         const { data, error } = await query;
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
+          localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(data));
           return data as ChickenPayment[];
         }
       } catch (e) {
@@ -817,7 +833,10 @@ export const chickenShopApi = {
           .from('chicken_shop_stock_logs')
           .select('*')
           .order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) return data as ChickenStockLog[];
+        if (!error && data) {
+          localStorage.setItem(STORAGE_KEYS.stockLogs, JSON.stringify(data));
+          return data as ChickenStockLog[];
+        }
       } catch {}
     }
 
@@ -1034,7 +1053,7 @@ export const chickenShopApi = {
           .from('chicken_shop_expenses')
           .select('*')
           .order('date', { ascending: false });
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(data));
           return data as ChickenExpense[];
         }
@@ -1110,6 +1129,106 @@ export const chickenShopApi = {
       } catch (e) {
         console.warn('[CS API] Supabase expense delete fallback:', e);
       }
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // AUTO-MIGRATE BROWSER CACHE (LOCALSTORAGE) TO SUPABASE
+  // Ensures any data saved in browser cache is permanently backed up to Supabase
+  // ---------------------------------------------------------------------------
+  async syncBrowserCacheToSupabase(): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+
+    try {
+      // 1. Sync custom products if any
+      const storedProds = localStorage.getItem(STORAGE_KEYS.products);
+      if (storedProds) {
+        try {
+          const prods: ChickenProduct[] = JSON.parse(storedProds);
+          if (Array.isArray(prods) && prods.length > 0) {
+            await supabase.from('chicken_shop_products').upsert(prods);
+          }
+        } catch {}
+      }
+
+      // 2. Sync customers
+      const storedCusts = localStorage.getItem(STORAGE_KEYS.customers);
+      if (storedCusts) {
+        try {
+          const custs: ChickenCustomer[] = JSON.parse(storedCusts);
+          if (Array.isArray(custs) && custs.length > 0) {
+            await supabase.from('chicken_shop_customers').upsert(custs);
+          }
+        } catch {}
+      }
+
+      // 3. Sync sales
+      const storedSales = localStorage.getItem(STORAGE_KEYS.sales);
+      if (storedSales) {
+        try {
+          const salesList: ChickenSale[] = JSON.parse(storedSales);
+          if (Array.isArray(salesList) && salesList.length > 0) {
+            const { data: existing } = await supabase.from('chicken_shop_sales').select('id');
+            const existingIds = new Set((existing || []).map((s: any) => s.id));
+            const missingSales = salesList.filter(s => !existingIds.has(s.id));
+            if (missingSales.length > 0) {
+              await supabase.from('chicken_shop_sales').upsert(missingSales);
+              console.log(`[CS API] Synced ${missingSales.length} cached sales to Supabase!`);
+            }
+          }
+        } catch {}
+      }
+
+      // 4. Sync fresh arrivals
+      const storedArrivals = localStorage.getItem(STORAGE_KEYS.freshArrivals);
+      if (storedArrivals) {
+        try {
+          const arrivals: FreshChickenArrival[] = JSON.parse(storedArrivals);
+          if (Array.isArray(arrivals) && arrivals.length > 0) {
+            const { data: existing } = await supabase.from('chicken_shop_fresh_arrivals').select('id');
+            const existingIds = new Set((existing || []).map((a: any) => a.id));
+            const missingArrivals = arrivals.filter(a => !existingIds.has(a.id));
+            if (missingArrivals.length > 0) {
+              await supabase.from('chicken_shop_fresh_arrivals').upsert(missingArrivals);
+              console.log(`[CS API] Synced ${missingArrivals.length} cached arrivals to Supabase!`);
+            }
+          }
+        } catch {}
+      }
+
+      // 5. Sync payments
+      const storedPayments = localStorage.getItem(STORAGE_KEYS.payments);
+      if (storedPayments) {
+        try {
+          const payments: ChickenPayment[] = JSON.parse(storedPayments);
+          if (Array.isArray(payments) && payments.length > 0) {
+            const { data: existing } = await supabase.from('chicken_shop_payments').select('id');
+            const existingIds = new Set((existing || []).map((p: any) => p.id));
+            const missingPayments = payments.filter(p => !existingIds.has(p.id));
+            if (missingPayments.length > 0) {
+              await supabase.from('chicken_shop_payments').upsert(missingPayments);
+            }
+          }
+        } catch {}
+      }
+
+      // 6. Sync expenses
+      const storedExpenses = localStorage.getItem(STORAGE_KEYS.expenses);
+      if (storedExpenses) {
+        try {
+          const expList: ChickenExpense[] = JSON.parse(storedExpenses);
+          if (Array.isArray(expList) && expList.length > 0) {
+            const { data: existing } = await supabase.from('chicken_shop_expenses').select('id');
+            const existingIds = new Set((existing || []).map((e: any) => e.id));
+            const missingExp = expList.filter(e => !existingIds.has(e.id));
+            if (missingExp.length > 0) {
+              await supabase.from('chicken_shop_expenses').upsert(missingExp);
+            }
+          }
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('[CS API] Sync cache to Supabase warning:', err);
     }
   },
 };

@@ -30,6 +30,7 @@ import { ProductEditModal } from './ProductEditModal';
 import { FreshChickenArrivalModal } from './FreshChickenArrivalModal';
 import { ExpenseModal } from './ExpenseModal';
 import { ProfitLossTab } from './ProfitLossTab';
+import { DailySalesTab } from './DailySalesTab';
 import { formatDate } from '../utils/formatters';
 import {
   Store,
@@ -74,7 +75,7 @@ interface ChickenShopAppProps {
   standalone?: boolean;
 }
 
-type TabType = 'dashboard' | 'pos' | 'stock' | 'customers' | 'products' | 'sales_history' | 'profit_loss';
+type TabType = 'dashboard' | 'pos' | 'daily_sales' | 'stock' | 'customers' | 'products' | 'sales_history' | 'profit_loss';
 
 export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, standalone = false }) => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -154,6 +155,9 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const loadAllData = async () => {
     try {
       setLoading(true);
+      // Auto-migrate any previously cached browser records to Supabase
+      await chickenShopApi.syncBrowserCacheToSupabase();
+
       const [pList, cList, sList, payList, logs, fArrivals, expList] = await Promise.all([
         chickenShopApi.getProducts(),
         chickenShopApi.getCustomers(),
@@ -755,6 +759,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     { id: 'dashboard', label: 'ڈیش بورڈ', sublabel: 'Dashboard Overview', icon: LayoutDashboard },
     { id: 'pos', label: 'نیا بل / کاؤنٹر سیل', sublabel: 'Fast Counter POS Sale', icon: ShoppingCart },
     {
+      id: 'daily_sales',
+      label: 'روزانہ سیلز و کلو ریکارڈ',
+      sublabel: 'Daily Sales & KG Record',
+      icon: History,
+      badge: kpis.todayWeight > 0 ? `${kpis.todayWeight}kg` : undefined,
+      badgeColor: 'bg-amber-600',
+    },
+    {
       id: 'stock',
       label: 'تازہ گوشت و اسٹاک کٹس',
       sublabel: 'Fresh Stock & Meat Cuts',
@@ -771,7 +783,6 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       badgeColor: 'bg-rose-500',
     },
     { id: 'products', label: 'مصنوعات و ریٹ لسٹ', sublabel: 'Products & Daily Rates', icon: Tag },
-    { id: 'sales_history', label: 'سیلز رجسٹر و بلز', sublabel: 'Sales Invoices & History', icon: History },
     { id: 'profit_loss', label: 'نفع و نقصان رپورٹس', sublabel: 'Profit & Loss (P&L)', icon: BarChart3 },
   ];
 
@@ -792,13 +803,13 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         }`}
       >
         {/* Brand / Logo */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-amber-500/20">
+        <div className="p-3 sm:p-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-white text-xl shadow-lg shadow-amber-500/20">
               🐔
             </div>
             <div>
-              <h1 className="text-base font-black text-white tracking-tight font-urdu">
+              <h1 className="text-sm sm:text-base font-black text-white tracking-tight font-urdu">
                 شان چکن شاپ
               </h1>
               <span className="text-[10px] text-amber-400 font-semibold tracking-wide block">
@@ -815,17 +826,17 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
           </button>
         </div>
 
-        {/* Quick CTA inside sidebar */}
-        <div className="p-3 border-b border-slate-800 space-y-2">
+        {/* Quick CTA inside sidebar - compact 2 buttons */}
+        <div className="p-2 border-b border-slate-800 grid grid-cols-2 gap-1.5">
           <button
             onClick={() => {
               setActiveTab('pos');
               setMobileSidebarOpen(false);
             }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black text-xs rounded-xl shadow-md shadow-amber-500/20 transition active:scale-95 font-urdu"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black text-[11px] rounded-xl shadow-md shadow-amber-500/20 transition active:scale-95 font-urdu"
           >
-            <ShoppingCart className="w-4 h-4" />
-            <span>+ نیا بل بنائیں (POS Sale)</span>
+            <ShoppingCart className="w-3.5 h-3.5" />
+            <span>+ نیا بل (POS)</span>
           </button>
           <button
             onClick={() => {
@@ -833,18 +844,18 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               setFreshArrivalModalOpen(true);
               setMobileSidebarOpen(false);
             }}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-slate-800 hover:bg-slate-750 text-blue-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700 transition active:scale-95 font-urdu"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-800 hover:bg-slate-750 text-blue-300 hover:text-white font-bold text-[11px] rounded-xl border border-slate-700 transition active:scale-95 font-urdu"
           >
             <Plus className="w-3.5 h-3.5 text-blue-400" />
-            <span>+ تازہ چکن گوشت آمد</span>
+            <span>+ چکن آمد</span>
           </button>
         </div>
 
         {/* Navigation Items */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-none">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-none">
           {navItems.map(item => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = activeTab === item.id || (item.id === 'daily_sales' && (activeTab as string) === 'sales_history');
             return (
               <button
                 key={item.id}
@@ -852,15 +863,15 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                   setActiveTab(item.id);
                   setMobileSidebarOpen(false);
                 }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition text-right group ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition text-right group ${
                   isActive
-                    ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30 font-bold'
+                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 font-bold'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div
-                    className={`p-2 rounded-xl transition ${
+                    className={`p-1.5 rounded-lg transition ${
                       isActive
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-800 text-slate-400 group-hover:text-amber-400'
@@ -872,7 +883,11 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                     <span className="block text-xs font-black font-urdu leading-tight">
                       {item.label}
                     </span>
-                    <span className="block text-[10px] text-slate-400 group-hover:text-slate-300 font-sans leading-tight mt-0.5">
+                    <span
+                      className={`block text-[9px] font-sans leading-tight mt-0.5 truncate ${
+                        isActive ? 'text-amber-100' : 'text-slate-400 group-hover:text-slate-300'
+                      }`}
+                    >
                       {item.sublabel}
                     </span>
                   </div>
@@ -937,10 +952,10 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               <h1 className="text-base sm:text-lg font-black text-slate-900 font-urdu tracking-tight">
                 {activeTab === 'dashboard' && 'ڈیش بورڈ اور اہم جائزہ (Dashboard)'}
                 {activeTab === 'pos' && 'نیا بل اور کاؤنٹر سیل (POS)'}
+                {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && 'روزانہ کی سیلز و کلو ریکارڈ (Daily Sales)'}
                 {activeTab === 'stock' && 'تازہ چکن گوشت و اسٹاک کیٹیگریز (Stock)'}
                 {activeTab === 'customers' && 'گاہک و ڈیجیٹل کھاتہ لیجر (Khata)'}
                 {activeTab === 'products' && 'چکن مصنوعات و روزانہ ریٹ لسٹ (Products)'}
-                {activeTab === 'sales_history' && 'سیلز رجسٹر و سابقہ بلز (Invoices)'}
                 {activeTab === 'profit_loss' && 'نفع و نقصان اور مالیاتی رپورٹس (P&L)'}
               </h1>
               <p className="text-[11px] text-slate-500 hidden sm:block">
@@ -951,6 +966,19 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
 
           {/* Quick Header Actions */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('daily_sales')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu ${
+                activeTab === 'daily_sales'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border border-slate-700'
+              }`}
+              title="آج کی روزانہ سیلز اور کلو ریکارڈ دیکھیں"
+            >
+              <History className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">روزانہ سیلز ({kpis.todayWeight}kg)</span>
+              <span className="sm:hidden">سیلز ({kpis.todayWeight}kg)</span>
+            </button>
             <button
               onClick={() => {
                 setSelectedArrivalCategoryId(null);
@@ -1197,10 +1225,10 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                         <span>آج کی تازہ فروخت (Today's Sales)</span>
                       </h3>
                       <button
-                        onClick={() => setActiveTab('sales_history')}
-                        className="text-xs font-bold text-amber-700 hover:text-amber-800 transition"
+                        onClick={() => setActiveTab('daily_sales')}
+                        className="text-xs font-bold text-amber-700 hover:text-amber-800 transition font-urdu"
                       >
-                        مکمل ہسٹری دیکھیں →
+                        روزانہ سیلز و کلو ریکارڈ دیکھیں →
                       </button>
                     </div>
 
@@ -1341,6 +1369,26 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono font-medium"
                     />
                   </div>
+                </div>
+
+                {/* Daily Sales Quick Stat & Link */}
+                <div className="mb-5 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 bg-amber-500/15 text-amber-700 rounded-xl">
+                      <Scale className="w-4 h-4 text-amber-700 shrink-0" />
+                    </div>
+                    <span className="font-urdu text-amber-950">
+                      آج کی کل سیلز: <strong className="font-mono text-slate-900">{kpis.todayWeight} KG</strong> فروخت • رقم: <strong className="font-mono text-slate-900">Rs. {kpis.todaySales.toLocaleString()}</strong> • کل دستیاب مال: <strong className="font-mono text-emerald-800">{kpis.totalStock} KG</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('daily_sales')}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-urdu font-bold text-xs transition flex items-center gap-1.5 shadow-2xs active:scale-95"
+                  >
+                    <span>روزانہ سیلز و کلو ریکارڈ کھولیں</span>
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                  </button>
                 </div>
 
                 <form onSubmit={handleSaveSale} className="space-y-6">
@@ -1494,6 +1542,12 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                                 {weight > availableStock && (
                                   <span className="text-[10px] text-rose-600 font-bold block mt-1 font-urdu">
                                     ⚠️ دستیاب اسٹاک ({availableStock} KG) سے زیادہ ہے!
+                                  </span>
+                                )}
+
+                                {weight > 0 && weight <= availableStock && (
+                                  <span className="text-[10px] text-emerald-700 font-bold block mt-1 font-urdu font-mono">
+                                    مال سے کٹوتی: -{weight} KG (بقایا مال: {Number((availableStock - weight).toFixed(2))} KG)
                                   </span>
                                 )}
 
@@ -2613,172 +2667,17 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
 
 
             {/* =============================================================== */}
-            {/* TAB 6: SALES HISTORY                                            */}
+            {/* TAB: DAILY SALES & KG RECORD                                    */}
             {/* =============================================================== */}
-            {activeTab === 'sales_history' && (
-              <div className="space-y-5 animate-fadeIn">
-                <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base sm:text-lg font-black text-slate-900 font-urdu tracking-tight">
-                      سیلز رجسٹر و روزنامچہ (Daily Sales History Register)
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      فروخت شدہ بلز: {sales.length} • مجموعی فروخت: Rs.{sales.reduce((s, r) => s + r.total_amount, 0).toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Search */}
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="انوائس #، گاہک، فون..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-600"
-                      />
-                    </div>
-
-                    {/* Date filter pills */}
-                    <div className="flex bg-slate-100 p-1 rounded-xl text-xs">
-                      <button
-                        onClick={() => setSalesDateFilter('today')}
-                        className={`px-3 py-1 rounded-lg font-bold transition ${
-                          salesDateFilter === 'today' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600'
-                        }`}
-                      >
-                        آج
-                      </button>
-                      <button
-                        onClick={() => setSalesDateFilter('week')}
-                        className={`px-3 py-1 rounded-lg font-bold transition ${
-                          salesDateFilter === 'week' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600'
-                        }`}
-                      >
-                        7 دن
-                      </button>
-                      <button
-                        onClick={() => setSalesDateFilter('month')}
-                        className={`px-3 py-1 rounded-lg font-bold transition ${
-                          salesDateFilter === 'month' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600'
-                        }`}
-                      >
-                        یہ مہینہ
-                      </button>
-                      <button
-                        onClick={() => setSalesDateFilter('all')}
-                        className={`px-3 py-1 rounded-lg font-bold transition ${
-                          salesDateFilter === 'all' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600'
-                        }`}
-                      >
-                        تمام
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sales Table */}
-                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-xs text-right">
-                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 px-3">انوائس #</th>
-                        <th className="py-3 px-3">تاریخ و وقت</th>
-                        <th className="py-3 px-3">گاہک کا نام</th>
-                        <th className="py-3 px-3 text-center">کل وزن</th>
-                        <th className="py-3 px-3 text-left">ٹوٹل بل رقم</th>
-                        <th className="py-3 px-3 text-left">وصول شدہ</th>
-                        <th className="py-3 px-3 text-left">بقایا رقم</th>
-                        <th className="py-3 px-3 text-left">تخمینہ منافع</th>
-                        <th className="py-3 px-3 text-center">طریقہ</th>
-                        <th className="py-3 px-3 text-center">ایکشنز</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredSales.map(sale => {
-                        const saleCost = sale.items.reduce((sCost, it) => {
-                          const costRate = (it.product_id === FRESH_CHICKEN_PRODUCT_ID || it.product_name.toLowerCase().includes('fresh chicken'))
-                            ? (freshArrivals[0]?.rate_per_kg || 380)
-                            : Math.round(it.rate_per_kg * 0.82);
-                          return sCost + Math.round((Number(it.weight_kg) || 0) * costRate);
-                        }, 0);
-                        const estProfit = sale.total_amount - saleCost;
-
-                        return (
-                          <tr key={sale.id} className="hover:bg-slate-50/70 transition">
-                            <td className="py-3 px-3 font-mono font-bold text-slate-900">
-                              {sale.invoice_no}
-                            </td>
-                            <td className="py-3 px-3 font-mono text-slate-500 whitespace-nowrap">
-                              {formatDate(sale.sale_date)} <span className="text-[10px] text-slate-400">{sale.sale_time}</span>
-                            </td>
-                            <td className="py-3 px-3 font-semibold text-slate-900">
-                              {sale.customer_name}
-                              {sale.phone && <span className="text-[10px] text-slate-400 block font-mono">{sale.phone}</span>}
-                            </td>
-                            <td className="py-3 px-3 text-center font-mono font-bold text-slate-800">
-                              {sale.total_weight_kg} KG
-                            </td>
-                            <td className="py-3 px-3 text-left font-mono font-black text-slate-900">
-                              Rs. {sale.total_amount.toLocaleString()}
-                            </td>
-                            <td className="py-3 px-3 text-left font-mono font-bold text-emerald-700">
-                              Rs. {sale.received_amount.toLocaleString()}
-                            </td>
-                            <td className="py-3 px-3 text-left font-mono font-bold text-rose-700">
-                              {sale.remaining_due > 0 ? `Rs. ${sale.remaining_due.toLocaleString()}` : '—'}
-                            </td>
-                            <td className="py-3 px-3 text-left font-mono font-black">
-                              <span className={estProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                                {estProfit >= 0 ? `+Rs. ${estProfit.toLocaleString()}` : `-Rs. ${Math.abs(estProfit).toLocaleString()}`}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                sale.payment_method === 'cash'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : sale.payment_method === 'credit'
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {sale.payment_method === 'cash' ? 'نقد' : sale.payment_method === 'credit' ? 'ادھار' : 'جزوی'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button
-                                  onClick={() => setReceiptModalSale(sale)}
-                                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg transition inline-flex items-center gap-1"
-                                  title="رسید پرنٹ کریں"
-                                >
-                                  <Printer className="w-3.5 h-3.5" />
-                                  <span>رسید</span>
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteSale(sale)}
-                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg transition inline-flex items-center gap-1"
-                                  title="سیل ڈیلیٹ کریں اور اسٹاک بحال کریں"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                                  <span>حذف</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {filteredSales.length === 0 && (
-                        <tr>
-                          <td colSpan={10} className="py-12 text-center text-slate-400 text-xs">
-                            کوئی سیل ریکارڈ نہیں ملا۔
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+            {(activeTab === 'daily_sales' || (activeTab as string) === 'sales_history') && (
+              <DailySalesTab
+                sales={sales}
+                products={products}
+                freshArrivals={freshArrivals}
+                onOpenReceipt={sale => setReceiptModalSale(sale)}
+                onDeleteSale={handleDeleteSale}
+                onNewSaleClick={() => setActiveTab('pos')}
+              />
             )}
 
             {/* =============================================================== */}
