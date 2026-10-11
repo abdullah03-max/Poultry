@@ -1122,9 +1122,13 @@ export const chickenShopApi = {
 
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('chicken_shop_products').delete().in('id', dummyProductIds);
-        await supabase.from('chicken_shop_customers').delete().in('id', dummyCustomerIds);
-        await supabase.from('chicken_shop_expenses').delete().in('id', dummyExpenseIds);
+        await supabase.from('chicken_shop_products').delete().neq('id', FRESH_CHICKEN_PRODUCT_ID);
+        for (const cid of dummyCustomerIds) {
+          await supabase.from('chicken_shop_customers').delete().eq('id', cid);
+        }
+        for (const eid of dummyExpenseIds) {
+          await supabase.from('chicken_shop_expenses').delete().eq('id', eid);
+        }
       } catch (e) {
         console.warn('[CS API] Error clearing dummy data from Supabase:', e);
       }
