@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { Collection, Customer, WeightCategory } from '../types/database';
 
 export interface OfflineCollectionItem {
+  id?: string;
   client_uuid: string;
   receipt_no: string;
   customer_id: string;

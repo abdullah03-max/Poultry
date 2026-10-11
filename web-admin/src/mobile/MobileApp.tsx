@@ -51,7 +51,8 @@ import {
   getCustomerDailyStatus,
   getDailyStatusSummary,
   CustomerDailyStatus,
-  getLocalDateString
+  getLocalDateString,
+  getPKTDateString
 } from '../utils/customerDailyStatus';
 
 type Tab = 'home' | 'new_collection' | 'collections' | 'customers' | 'profile';
@@ -451,7 +452,13 @@ export const MobileApp: React.FC = () => {
           schema: 'public',
           table: 'collections',
         },
-        () => {
+        (payload: any) => {
+          if (payload.eventType === 'DELETE') {
+            const oldId = payload.old?.id || payload.old?.client_uuid;
+            if (oldId) {
+              setSlips(prev => prev.filter(s => (s as any).id !== oldId && s.client_uuid !== oldId));
+            }
+          }
           // Immediately reload data when ANY worker or admin inserts, updates, or deletes
           loadData();
         }
@@ -470,10 +477,10 @@ export const MobileApp: React.FC = () => {
       )
       .subscribe();
 
-    // 10-second polling fallback to guarantee fresh updates
+    // 5-second polling fallback to guarantee fresh updates across all devices
     const pollInterval = setInterval(() => {
       loadData();
-    }, 10000);
+    }, 5000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -519,10 +526,11 @@ export const MobileApp: React.FC = () => {
           worker:profiles(id, full_name, phone)
         `)
         .order('collection_timestamp', { ascending: false })
-        .limit(200);
+        .limit(300);
 
       if (!colError && remoteData) {
         const mappedRemote: OfflineCollectionItem[] = remoteData.map((r: any) => ({
+          id: r.id,
           client_uuid: r.client_uuid || r.id,
           receipt_no: r.receipt_no,
           customer_id: r.customer_id,
@@ -687,6 +695,44 @@ export const MobileApp: React.FC = () => {
       alert(`Error updating slip: ${e.message || 'Database update failed'}`);
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteSlip = async (slipToDelete: OfflineCollectionItem | null) => {
+    if (!slipToDelete) return;
+    const confirmMsg = `کیا آپ رسید نمبر ${slipToDelete.receipt_no} (${slipToDelete.customer_name}) کو ڈیلیٹ کرنا چاہتے ہیں؟\n\nAre you sure you want to delete this collection slip?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      // 1. Immediately remove from local state for instant responsiveness
+      setSlips(prev => prev.filter(s =>
+        s.client_uuid !== slipToDelete.client_uuid &&
+        s.receipt_no !== slipToDelete.receipt_no &&
+        (s as any).id !== (slipToDelete as any).id
+      ));
+
+      if (receiptModalSlip && (receiptModalSlip.client_uuid === slipToDelete.client_uuid || receiptModalSlip.receipt_no === slipToDelete.receipt_no)) {
+        setReceiptModalSlip(null);
+      }
+
+      // 2. Delete from Supabase
+      const { error: delErr } = await supabase
+        .from('collections')
+        .delete()
+        .or(`client_uuid.eq.${slipToDelete.client_uuid},receipt_no.eq.${slipToDelete.receipt_no}`);
+
+      if (delErr) {
+        console.warn('Could not delete by UUID/receipt_no from Supabase, attempting ID fallback:', delErr);
+        if ((slipToDelete as any).id) {
+          await supabase.from('collections').delete().eq('id', (slipToDelete as any).id);
+        }
+      }
+
+      // 3. Immediately pull latest cloud state
+      await loadData();
+    } catch (err: any) {
+      alert(`رسید ڈیلیٹ کرنے میں خرابی: ${err?.message || err}`);
+      loadData();
     }
   };
 
@@ -989,7 +1035,7 @@ export const MobileApp: React.FC = () => {
         return;
       }
 
-      // Persist customer daily completion status & automatically adjust advance in Supabase
+      // Persist customer advance balance in Supabase
       try {
         const existingRates = selectedCustomer.category_rates || {};
         const totalAdv = Number(selectedCustomer.advance_amount || existingRates.advance_amount || 0);
@@ -1007,26 +1053,13 @@ export const MobileApp: React.FC = () => {
               total_waste_deductions: newTotalWaste,
               total_waste_weight: newTotalWeight,
               remaining_advance: remainingAdv,
-              daily_record_status: {
-                last_completed_at: newSlip.created_at,
-                last_collection_date: dateStr,
-                receipt_no: receiptNo,
-                status: 'completed',
-                updated_at: new Date().toISOString(),
-                total_net_weight: effectiveNetWeight,
-                total_amount: totalAmount,
-                charbi_net: cNet,
-                kachara_net: kNet,
-                charbi_rate: cRate,
-                kachara_rate: kRate,
-              },
             },
             bakaya_raqam: remainingAdv < 0 ? Math.abs(remainingAdv) : 0,
             total_raqam: newTotalWaste,
           })
           .eq('id', selectedCustomer.id);
       } catch (custErr) {
-        console.warn('Could not update customer daily status & advance balance in DB:', custErr);
+        console.warn('Could not update customer advance balance in DB:', custErr);
       }
 
       // Insert scale photo attachment if captured
@@ -1045,30 +1078,36 @@ export const MobileApp: React.FC = () => {
         }
       }
 
-      // Prepend to live state immediately
-      setSlips(prev => [newSlip, ...prev]);
+      // Construct verified saved slip with cloud record ID
+      const savedSlip: OfflineCollectionItem = {
+        ...newSlip,
+        id: colData.id,
+        client_uuid: colData.client_uuid || clientUuid,
+      };
 
-      // Instantly update customer record in cache and state so status changes from Red to Green immediately
+      // Prepend to live state immediately - dynamically marks customer as GREEN
+      setSlips(prev => [savedSlip, ...prev.filter(s => s.client_uuid !== clientUuid && (s as any).id !== colData.id)]);
+
+      // Update customer record in cache and state
       const updatedCustList = customers.map(c => {
         if (c.id === selectedCustomer.id) {
+          const existingRates = c.category_rates || {};
+          const totalAdv = Number(c.advance_amount || existingRates.advance_amount || 0);
+          const prevWasteAmount = Number(existingRates.total_waste_deductions || 0);
+          const prevWasteWeight = Number(existingRates.total_waste_weight || 0);
+          const newTotalWaste = prevWasteAmount + totalAmount;
+          const newTotalWeight = prevWasteWeight + effectiveNetWeight;
+          const remainingAdv = totalAdv - newTotalWaste;
           return {
             ...c,
             category_rates: {
-              ...(c.category_rates || {}),
-              daily_record_status: {
-                last_completed_at: newSlip.created_at,
-                last_collection_date: dateStr,
-                receipt_no: receiptNo,
-                status: 'completed',
-                updated_at: new Date().toISOString(),
-                total_net_weight: effectiveNetWeight,
-                total_amount: totalAmount,
-                charbi_net: cNet,
-                kachara_net: kNet,
-                charbi_rate: cRate,
-                kachara_rate: kRate,
-              },
+              ...existingRates,
+              total_waste_deductions: newTotalWaste,
+              total_waste_weight: newTotalWeight,
+              remaining_advance: remainingAdv,
             },
+            bakaya_raqam: remainingAdv < 0 ? Math.abs(remainingAdv) : 0,
+            total_raqam: newTotalWaste,
           };
         }
         return c;
@@ -1079,8 +1118,8 @@ export const MobileApp: React.FC = () => {
       // Trigger background fresh data load
       loadData(worker);
 
-      // Show digital receipt popup (worker stays inside app, does not auto-redirect)
-      setReceiptModalSlip(newSlip);
+      // Show digital receipt popup
+      setReceiptModalSlip(savedSlip);
 
       // Reset form
       setSelectedCustomer(null);
@@ -1099,9 +1138,9 @@ export const MobileApp: React.FC = () => {
     }
   };
 
-  // Today's Combined Totals (All Workers from Real-time Supabase)
-  const todayStr = getLocalDateString(new Date());
-  const todaySlips = slips.filter(s => s.collection_date === todayStr);
+  // Today's Combined Totals (All Workers from Real-time Supabase in PKT)
+  const todayStr = getPKTDateString(new Date());
+  const todaySlips = slips.filter(s => (s.collection_date && s.collection_date.substring(0, 10) === todayStr));
   const todayTotalWeight = todaySlips.reduce((acc, s) => acc + s.total_net_weight, 0);
   const todayTotalAmount = todaySlips.reduce((acc, s) => acc + s.total_amount, 0);
 
@@ -2033,6 +2072,18 @@ export const MobileApp: React.FC = () => {
                           <Edit2 className="w-3 h-3" />
                           <span>ایڈٹ</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSlip(s);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center gap-1 transition ml-1"
+                          title="ڈیلیٹ کریں / Delete Slip"
+                        >
+                          <Trash2 className="w-3 h-3 text-rose-600" />
+                          <span>ڈیلیٹ</span>
+                        </button>
                       </div>
                     </div>
                     <div className="font-bold text-slate-900 text-sm truncate">{s.customer_name}</div>
@@ -2150,7 +2201,7 @@ export const MobileApp: React.FC = () => {
                           {isCompleted ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-xs">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>🟢 مکمل (Done)</span>
+                              <span>🟢 مکمل (Served)</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-xs">
@@ -2387,7 +2438,7 @@ export const MobileApp: React.FC = () => {
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">Select Customer / Shop</h3>
                 <div className="flex items-center gap-2 mt-0.5 text-xs">
-                  <span className="text-slate-500 font-medium">{filteredCustomers.length} shops</span>
+                  <span className="text-slate-500 font-medium">{customers.length} shops</span>
                   <span className="text-slate-300">•</span>
                   <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md text-[11px]">
                     🟢 {dailyStatusSummary.completedCount} مکمل
@@ -2501,7 +2552,7 @@ export const MobileApp: React.FC = () => {
                           {isCompleted ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-xs">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>🟢 مکمل (Done)</span>
+                              <span>🟢 مکمل (Served)</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-xs">
@@ -2511,7 +2562,7 @@ export const MobileApp: React.FC = () => {
                           )}
                           {isCompleted && status.formattedTime && (
                             <span className="block text-[11px] font-bold text-emerald-800 mt-1">
-                              {status.formattedTime}
+                              {status.formattedTime} آج
                             </span>
                           )}
                         </div>
@@ -2824,6 +2875,16 @@ export const MobileApp: React.FC = () => {
                   <span>مکمل (Done)</span>
                 </button>
               </div>
+
+              {/* Delete Slip Button */}
+              <button
+                type="button"
+                onClick={() => handleDeleteSlip(receiptModalSlip)}
+                className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 rounded-xl text-xs font-bold border border-rose-200 flex items-center justify-center gap-1.5 transition"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                <span>رسید ڈیلیٹ کریں (Delete Slip)</span>
+              </button>
             </div>
           </div>
         </div>

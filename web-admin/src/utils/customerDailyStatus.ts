@@ -64,13 +64,31 @@ export interface MinimalCustomerRecord {
 }
 
 /**
+ * Returns current date string in Pakistan Standard Time (PKT, UTC+5) in YYYY-MM-DD format
+ */
+export function getPKTDateString(date: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date); // Strictly YYYY-MM-DD in PKT
+  } catch {
+    const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+    const pktDate = new Date(utc + (5 * 3600000));
+    const y = pktDate.getFullYear();
+    const m = String(pktDate.getMonth() + 1).padStart(2, '0');
+    const d = String(pktDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+}
+
+/**
  * Returns current date string in local YYYY-MM-DD format (Pakistan/browser local time)
  */
 export function getLocalDateString(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return getPKTDateString(date);
 }
 
 /**
@@ -86,6 +104,20 @@ export function formatFriendlyTime(date: Date): string {
 }
 
 /**
+ * Extracts YYYY-MM-DD string in PKT from a collection record
+ */
+export function getCollectionPKTDate(col: MinimalCollectionRecord): string | null {
+  if (col.collection_date && typeof col.collection_date === 'string' && col.collection_date.trim()) {
+    return col.collection_date.trim().substring(0, 10);
+  }
+  const dateObj = parseColDate(col);
+  if (dateObj) {
+    return getPKTDateString(dateObj);
+  }
+  return null;
+}
+
+/**
  * Formats a Date into friendly Urdu/PKT date & time string:
  * - Same day -> "آج 10:30 AM"
  * - Yesterday -> "کل 4:26 PM"
@@ -93,8 +125,8 @@ export function formatFriendlyTime(date: Date): string {
  */
 export function formatFriendlyDateTime(date: Date, referenceDate: Date = new Date()): string {
   const timeStr = formatFriendlyTime(date);
-  const dateStr = getLocalDateString(date);
-  const refStr = getLocalDateString(referenceDate);
+  const dateStr = getPKTDateString(date);
+  const refStr = getPKTDateString(referenceDate);
 
   if (dateStr === refStr) {
     return `آج ${timeStr}`;
@@ -103,7 +135,7 @@ export function formatFriendlyDateTime(date: Date, referenceDate: Date = new Dat
   // Check if yesterday in calendar dates
   const yesterday = new Date(referenceDate);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yestStr = getLocalDateString(yesterday);
+  const yestStr = getPKTDateString(yesterday);
   if (dateStr === yestStr) {
     return `کل ${timeStr}`;
   }
@@ -140,23 +172,24 @@ function parseColTimestamp(col: MinimalCollectionRecord): number {
 /**
  * Computes the Daily Completion Status for a single customer.
  * 
- * Strict Daily Reset Rules:
- * 1. GREEN (Completed): An entry was saved on TODAY'S calendar date (between 12:00 AM and 11:59 PM today).
- * 2. RED (Pending): No entry exists for TODAY. (Resets back to RED automatically after 12:00 AM midnight).
- * 3. Shows previous entry in short (آخری اینٹری کا وزن، رقم اور تاریخ) so field workers can easily identify shops.
+ * Strict Dynamic Rules:
+ * 1. GREEN (Completed/Served): A valid collection entry exists for this customer on TODAY'S date in PKT.
+ * 2. RED (Pending): No valid collection entry exists for this customer on TODAY'S date in PKT.
+ * 3. Never permanently saved on customer. Derived 100% dynamically from active collections.
+ *    If today's record is deleted, it IMMEDIATELY turns back to RED.
  */
 export function getCustomerDailyStatus(
   customer: MinimalCustomerRecord,
   collections: MinimalCollectionRecord[] = [],
   referenceDate: Date = new Date()
 ): CustomerDailyStatus {
-  const todayStr = getLocalDateString(referenceDate);
+  const todayStr = getPKTDateString(referenceDate);
 
   // 1. Filter valid non-cancelled collections for this customer
   const relevantCols = collections.filter(c => {
-    if (c.customer_id !== customer.id) return false;
-    const s = (c.status || '').toLowerCase();
-    return s !== 'cancelled' && s !== 'draft';
+    if (!c || c.customer_id !== customer.id) return false;
+    const s = String(c.status || '').toLowerCase();
+    return s !== 'cancelled' && s !== 'draft' && s !== 'deleted';
   });
 
   // 2. Sort collections by timestamp descending (newest first)
@@ -164,60 +197,50 @@ export function getCustomerDailyStatus(
     return parseColTimestamp(b) - parseColTimestamp(a);
   });
 
-  let hasTodayRecord = false;
+  // 3. Filter valid collections for TODAY in Pakistan Standard Time (PKT)
+  const todayCols = relevantCols.filter(col => {
+    const cDate = getCollectionPKTDate(col);
+    return cDate === todayStr;
+  });
+
+  // Dynamic Rule: Completed ONLY if at least one valid collection exists for TODAY in PKT!
+  const hasTodayRecord = todayCols.length > 0;
+  const isCompleted = hasTodayRecord;
+
+  // Newest collection overall
   let latestTimestamp: Date | null = null;
   let latestDateStr: string | null = null;
   let latestReceiptNo: string | null = null;
 
-  for (const col of relevantCols) {
-    const colDate = parseColDate(col);
-    const cDateStr = col.collection_date || (colDate ? getLocalDateString(colDate) : null);
-
-    // Strict Today's Calendar Date Check (Matches YYYY-MM-DD local)
-    if (cDateStr === todayStr) {
-      hasTodayRecord = true;
-    }
-
-    if (colDate) {
-      if (!latestTimestamp || colDate.getTime() > latestTimestamp.getTime()) {
-        latestTimestamp = colDate;
-        latestDateStr = cDateStr;
-        latestReceiptNo = col.receipt_no || null;
-      }
-    }
+  if (sortedCols.length > 0) {
+    const newestCol = sortedCols[0];
+    latestTimestamp = parseColDate(newestCol);
+    latestDateStr = getCollectionPKTDate(newestCol);
+    latestReceiptNo = newestCol.receipt_no || null;
   }
-
-  // Also check database-persisted daily_record_status on customer record
-  const persistedDaily = customer.category_rates?.daily_record_status;
-  if (persistedDaily && typeof persistedDaily === 'object') {
-    if (persistedDaily.last_collection_date === todayStr) {
-      hasTodayRecord = true;
-    }
-    if (persistedDaily.last_completed_at) {
-      const pDate = new Date(persistedDaily.last_completed_at);
-      if (!isNaN(pDate.getTime())) {
-        if (!latestTimestamp || pDate.getTime() > latestTimestamp.getTime()) {
-          latestTimestamp = pDate;
-          latestDateStr = persistedDaily.last_collection_date || getLocalDateString(pDate);
-          latestReceiptNo = persistedDaily.receipt_no || latestReceiptNo;
-        }
-      }
-    }
-  }
-
-  // 3. Strict 12:00 AM Midnight Reset Decision:
-  // Is it completed? ONLY if recorded TODAY. If yesterday or older, it is strictly RED (Pending).
-  const isCompleted = Boolean(hasTodayRecord);
 
   let formattedTime: string | null = null;
   let hoursAgo: number | null = null;
+
+  // If completed today, formattedTime shows today's collection time
+  if (isCompleted && todayCols.length > 0) {
+    const sortedToday = [...todayCols].sort((a, b) => parseColTimestamp(b) - parseColTimestamp(a));
+    const latestTodayCol = sortedToday[0];
+    const tDate = parseColDate(latestTodayCol);
+    if (tDate) {
+      formattedTime = formatFriendlyTime(tDate);
+    } else if (latestTodayCol.collection_time) {
+      formattedTime = latestTodayCol.collection_time.substring(0, 5);
+    }
+  } else if (latestTimestamp) {
+    formattedTime = formatFriendlyDateTime(latestTimestamp, referenceDate);
+  }
 
   if (latestTimestamp) {
     const diffMs = referenceDate.getTime() - latestTimestamp.getTime();
     if (diffMs >= 0) {
       hoursAgo = Math.floor(diffMs / (1000 * 60 * 60));
     }
-    formattedTime = formatFriendlyDateTime(latestTimestamp, referenceDate);
   }
 
   // 4. Previous entry short summary (آخری اینٹری کا خلاصہ)
@@ -260,37 +283,15 @@ export function getCustomerDailyStatus(
       charbiRate,
       kacharaRate,
     };
-  } else if (persistedDaily && (persistedDaily.last_collection_date || persistedDaily.last_completed_at)) {
-    const pDate = persistedDaily.last_completed_at ? new Date(persistedDaily.last_completed_at) : null;
-    const friendlyDateText = pDate && !isNaN(pDate.getTime())
-      ? formatFriendlyDateTime(pDate, referenceDate)
-      : (persistedDaily.last_collection_date || 'پچھلی تاریخ');
-    const pWeight = Number(persistedDaily.total_net_weight || customer.category_rates?.total_waste_weight || 0);
-    const pAmount = Number(persistedDaily.total_amount || 0);
-
-    if (pWeight > 0 || pAmount > 0 || persistedDaily.receipt_no) {
-      previousEntryShort = {
-        date: persistedDaily.last_collection_date || '',
-        time: '',
-        friendlyDateText,
-        receiptNo: persistedDaily.receipt_no,
-        totalWeight: Number(pWeight.toFixed(1)),
-        totalAmount: Math.round(pAmount),
-        charbiWeight: persistedDaily.charbi_net ? Number(persistedDaily.charbi_net.toFixed(1)) : undefined,
-        kacharaWeight: persistedDaily.kachara_net ? Number(persistedDaily.kachara_net.toFixed(1)) : undefined,
-        charbiRate: persistedDaily.charbi_rate,
-        kacharaRate: persistedDaily.kachara_rate,
-      };
-    }
   }
 
   let summaryText = '';
   if (isCompleted) {
-    summaryText = `آج کا ریکارڈ مکمل ہے (${formattedTime || 'Served Today'})`;
+    summaryText = `آج کا ریکارڈ مکمل ہے (${formattedTime || 'Completed'})`;
   } else {
     summaryText = latestTimestamp
       ? `آج بقایہ ہے (آخری اینٹری: ${formattedTime})`
-      : 'آج کا ریکارڈ بقایہ ہے (Pending Record)';
+      : 'آج کا ریکارڈ بقایہ ہے (Pending)';
   }
 
   return {
@@ -298,13 +299,13 @@ export function getCustomerDailyStatus(
     isCompleted,
     status: isCompleted ? 'completed' : 'pending',
     labelUrdu: isCompleted ? 'مکمل' : 'بقایہ',
-    labelEn: isCompleted ? 'Served Today' : 'Pending Today',
+    labelEn: isCompleted ? 'Completed (Served)' : 'Pending',
     badgeColor: isCompleted ? 'green' : 'red',
     lastCompletedAt: latestTimestamp,
     lastCompletedDateStr: latestDateStr,
     lastReceiptNo: latestReceiptNo,
     hoursAgo,
-    isTodayServed: hasTodayRecord,
+    isTodayServed: isCompleted,
     formattedTime,
     summaryText,
     previousEntryShort,
