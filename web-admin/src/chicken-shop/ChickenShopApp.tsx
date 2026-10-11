@@ -158,7 +158,9 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const loadAllData = async () => {
     try {
       setLoading(true);
-      // Auto-migrate any previously cached browser records to Supabase
+      // Clean up any stale local mock data before fetching
+      chickenShopApi.clearStaleLocalMockData();
+      // Auto-migrate any previously cached genuine offline records to Supabase
       await chickenShopApi.syncBrowserCacheToSupabase();
 
       const [pList, cList, sList, payList, logs, fArrivals, expList] = await Promise.all([
@@ -226,6 +228,24 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       }
     } catch (err) {
       console.error('Failed to load chicken shop data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetTemporaryData = async () => {
+    const isConfirmed = window.confirm(
+      'کیا آپ واقعی تمام عارضی و فرضی ڈیٹا صاف کر کے صرف ڈیٹا بیس کا اصلی ڈیٹا لوڈ کرنا چاہتے ہیں؟\n\n(Are you sure you want to clear all temporary mock data and load only real database data?)'
+    );
+    if (!isConfirmed) return;
+
+    try {
+      setLoading(true);
+      await chickenShopApi.resetAllTemporaryData();
+      await loadAllData();
+      alert('تمام عارضی ڈیٹا کامیابی سے صاف ہو گیا ہے۔ اب صرف ڈیٹا بیس کا اصلی ڈیٹا ظاہر ہو رہا ہے۔');
+    } catch (err: any) {
+      alert(`عارضی ڈیٹا صاف کرنے میں خرابی: ${err.message || 'Error clearing data'}`);
     } finally {
       setLoading(false);
     }
@@ -1005,6 +1025,15 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
           {/* Quick Header Actions: Horizontal smooth scroll on mobile */}
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar shrink-0 max-w-full py-0.5">
             <button
+              type="button"
+              onClick={handleResetTemporaryData}
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 text-xs font-bold rounded-xl border border-rose-200 transition active:scale-95 font-urdu whitespace-nowrap shrink-0"
+              title="تمام عارضی و فرضی ڈیٹا صاف کریں اور صرف ڈیٹا بیس کا اصلی ڈیٹا رکھیں"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-rose-600" />
+              <span>عارضی ڈیٹا صاف</span>
+            </button>
+            <button
               onClick={() => setActiveTab('daily_sales')}
               className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0 ${
                 activeTab === 'daily_sales'
@@ -1252,38 +1281,46 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       + نیا اسٹاک شامل کریں
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-                    {cutsOnly.map(p => {
-                      const isLow = p.stock_kg <= p.min_stock_alert;
-                      const totalVal = Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
-                      return (
-                        <div
-                          key={p.id}
-                          className={`p-2.5 rounded-2xl border text-center transition flex flex-col justify-between ${
-                            isLow
-                              ? 'bg-rose-50/70 border-rose-200 text-rose-900'
-                              : 'bg-slate-50 border-slate-200/80 text-slate-900'
-                          }`}
-                        >
-                          <div>
-                            <span className="text-[11px] font-bold block truncate">{p.name}</span>
-                            <span className="text-[10px] text-slate-500 block font-urdu truncate">{p.urdu_name}</span>
-                            <p className="text-base font-black font-mono mt-1">
-                              {p.stock_kg} <span className="text-[10px] font-normal">KG</span>
-                            </p>
-                            <span className="text-[10px] font-semibold text-amber-700 block">
-                              Rs. {p.rate_per_kg}/kg
-                            </span>
+                  {cutsOnly.length === 0 ? (
+                    <div className="py-6 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                      <p className="text-xs text-slate-500 font-urdu font-medium">
+                        کوئی اضافی کٹس پروڈکٹ شامل نہیں (ڈیٹا بیس صاف ہے • صرف لائیو تازہ چکن فعال ہے)
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+                      {cutsOnly.map(p => {
+                        const isLow = p.stock_kg <= p.min_stock_alert;
+                        const totalVal = Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-2.5 rounded-2xl border text-center transition flex flex-col justify-between ${
+                              isLow
+                                ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                                : 'bg-slate-50 border-slate-200/80 text-slate-900'
+                            }`}
+                          >
+                            <div>
+                              <span className="text-[11px] font-bold block truncate">{p.name}</span>
+                              <span className="text-[10px] text-slate-500 block font-urdu truncate">{p.urdu_name}</span>
+                              <p className="text-base font-black font-mono mt-1">
+                                {p.stock_kg} <span className="text-[10px] font-normal">KG</span>
+                              </p>
+                              <span className="text-[10px] font-semibold text-amber-700 block">
+                                Rs. {p.rate_per_kg}/kg
+                              </span>
+                            </div>
+                            <div className="mt-1.5 pt-1 border-t border-slate-200/60">
+                              <span className="text-[10px] font-bold text-emerald-800 block font-mono">
+                                Rs. {totalVal.toLocaleString()}
+                              </span>
+                            </div>
                           </div>
-                          <div className="mt-1.5 pt-1 border-t border-slate-200/60">
-                            <span className="text-[10px] font-bold text-emerald-800 block font-mono">
-                              Rs. {totalVal.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Today's Recent Sales & Top Debtors Grid */}
@@ -2080,118 +2117,159 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                         مخصوص کٹ (گوشت، بون لیس، ونگز، لیگز وغیرہ) کے کارڈ پر "+ اسٹاک" دبائیں یا "ریٹ سیٹ" سے قیمت تبدیل کریں
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setStockModalOpen(true)}
-                      className="text-xs font-bold text-blue-700 hover:text-blue-800 transition font-urdu flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ نیا اسٹاک درج کریں</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetTemporaryData}
+                        className="text-xs font-bold text-rose-600 hover:text-rose-700 transition font-urdu flex items-center gap-1 bg-rose-50 hover:bg-rose-100 px-2.5 py-1.5 rounded-xl border border-rose-200"
+                        title="تمام عارضی ڈمی ڈیٹا ختم کریں"
+                      >
+                        <RefreshCw className="w-3 h-3 text-rose-600" />
+                        <span>عارضی ڈیٹا صاف</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingProduct(null);
+                          setProductModalOpen(true);
+                        }}
+                        className="text-xs font-bold text-blue-700 hover:text-blue-800 transition font-urdu flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl border border-blue-200"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ نئی پروڈکٹ / کٹ</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {cutsOnly.map(p => {
-                      const isLow = p.stock_kg <= p.min_stock_alert;
-                      const totalVal = Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
-
-                      return (
-                        <div
-                          key={p.id}
-                          className={`p-4 rounded-3xl border transition flex flex-col justify-between ${
-                            isLow
-                              ? 'bg-rose-50/70 border-rose-200'
-                              : 'bg-white border-slate-200/90 shadow-2xs hover:shadow-xs'
-                          }`}
+                  {cutsOnly.length === 0 ? (
+                    <div className="bg-white p-8 rounded-3xl border border-dashed border-slate-300 text-center space-y-2">
+                      <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
+                        🍗
+                      </div>
+                      <h4 className="font-black text-slate-800 font-urdu text-sm">
+                        کوئی اضافی کٹس یا ڈمی پروڈکٹس موجود نہیں (ڈیٹا صاف ہے)
+                      </h4>
+                      <p className="text-xs text-slate-500 font-urdu max-w-md mx-auto">
+                        آپ کا ڈیٹا بیس بالکل صاف ہے۔ اگر آپ کوئی کٹ (جیسے بون لیس، ونگز، لیگز، کلیجی وغیرہ) شامل کرنا چاہیں تو نیچے بٹن سے شامل کر سکتے ہیں۔
+                      </p>
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingProduct(null);
+                            setProductModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition font-urdu shadow-xs active:scale-95"
                         >
-                          <div>
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="font-extrabold text-sm text-slate-900 block">
-                                  {p.name}
-                                </span>
-                                <span className="text-xs text-slate-500 font-urdu block">
-                                  {p.urdu_name}
+                          <Plus className="w-4 h-4" />
+                          <span>+ نئی پروڈکٹ / کٹ شامل کریں</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {cutsOnly.map(p => {
+                        const isLow = p.stock_kg <= p.min_stock_alert;
+                        const totalVal = Math.round((Number(p.stock_kg) || 0) * (Number(p.rate_per_kg) || 0));
+
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-4 rounded-3xl border transition flex flex-col justify-between ${
+                              isLow
+                                ? 'bg-rose-50/70 border-rose-200'
+                                : 'bg-white border-slate-200/90 shadow-2xs hover:shadow-xs'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="font-extrabold text-sm text-slate-900 block">
+                                    {p.name}
+                                  </span>
+                                  <span className="text-xs text-slate-500 font-urdu block">
+                                    {p.urdu_name}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  {isLow ? (
+                                    <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-bold rounded-md">
+                                      کم اسٹاک
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">
+                                      دستیاب
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteProduct(p)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                    title="پروڈکٹ حذف کریں (Delete Product)"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex items-baseline justify-between mt-3">
+                                <p className="text-2xl font-black font-mono text-slate-900">
+                                  {p.stock_kg} <span className="text-xs font-normal text-slate-500 font-sans">KG</span>
+                                </p>
+                                <span className="font-mono font-bold text-xs text-amber-700">
+                                  Rs. {p.rate_per_kg} / kg
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                {isLow ? (
-                                  <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-bold rounded-md">
-                                    کم اسٹاک
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">
-                                    دستیاب
-                                  </span>
-                                )}
+                            </div>
+
+                            <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2">
+                              <div className="p-2 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 flex items-center justify-between shadow-2xs">
+                                <span className="text-[11px] font-black text-emerald-900 font-urdu">
+                                  کل مالیت (ٹوٹل قیمت):
+                                </span>
+                                <span className="font-mono font-black text-sm text-emerald-800 tracking-tight">
+                                  Rs. {totalVal.toLocaleString()}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setStockModalOpen(true)}
+                                  className="py-1.5 px-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-blue-200/70"
+                                  title="اس کٹ میں اسٹاک شامل یا ایڈجسٹ کریں"
+                                >
+                                  <Plus className="w-3 h-3 shrink-0" />
+                                  <span>+ اسٹاک</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingProduct(p);
+                                    setProductModalOpen(true);
+                                  }}
+                                  className="py-1.5 px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-slate-200"
+                                  title="ریٹ یا تفصیل تبدیل کریں"
+                                >
+                                  <Tag className="w-3 h-3 shrink-0 text-amber-600" />
+                                  <span>ریٹ سیٹ</span>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteProduct(p)}
-                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  className="py-1.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-rose-200/70"
                                   title="پروڈکٹ حذف کریں (Delete Product)"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3 h-3 shrink-0 text-rose-600" />
+                                  <span>حذف</span>
                                 </button>
                               </div>
                             </div>
-
-                            <div className="flex items-baseline justify-between mt-3">
-                              <p className="text-2xl font-black font-mono text-slate-900">
-                                {p.stock_kg} <span className="text-xs font-normal text-slate-500 font-sans">KG</span>
-                              </p>
-                              <span className="font-mono font-bold text-xs text-amber-700">
-                                Rs. {p.rate_per_kg} / kg
-                              </span>
-                            </div>
                           </div>
-
-                          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2">
-                            <div className="p-2 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 flex items-center justify-between shadow-2xs">
-                              <span className="text-[11px] font-black text-emerald-900 font-urdu">
-                                کل مالیت (ٹوٹل قیمت):
-                              </span>
-                              <span className="font-mono font-black text-sm text-emerald-800 tracking-tight">
-                                Rs. {totalVal.toLocaleString()}
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-1.5 pt-1">
-                              <button
-                                type="button"
-                                onClick={() => setStockModalOpen(true)}
-                                className="py-1.5 px-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-blue-200/70"
-                                title="اس کٹ میں اسٹاک شامل یا ایڈجسٹ کریں"
-                              >
-                                <Plus className="w-3 h-3 shrink-0" />
-                                <span>+ اسٹاک</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingProduct(p);
-                                  setProductModalOpen(true);
-                                }}
-                                className="py-1.5 px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-slate-200"
-                                title="ریٹ یا تفصیل تبدیل کریں"
-                              >
-                                <Tag className="w-3 h-3 shrink-0 text-amber-600" />
-                                <span>ریٹ سیٹ</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteProduct(p)}
-                                className="py-1.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold rounded-xl transition flex items-center justify-center gap-1 font-urdu active:scale-95 border border-rose-200/70"
-                                title="پروڈکٹ حذف کریں (Delete Product)"
-                              >
-                                <Trash2 className="w-3 h-3 shrink-0 text-rose-600" />
-                                <span>حذف</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Sub-Tab Navigation Header & Tables (Arrivals, Stock Logs, Sales) */}
@@ -2756,7 +2834,15 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {cutsOnly.map(p => {
+                      {cutsOnly.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-12 text-center text-slate-500 font-urdu">
+                            <p className="font-bold text-sm text-slate-700">کوئی کٹ پروڈکٹ درج نہیں (ڈیٹا بیس صاف ہے)</p>
+                            <p className="text-xs text-slate-400 mt-1">نئی پروڈکٹ شامل کرنے کے لیے اوپر دیے گئے بٹن (+ نئی پروڈکٹ شامل کریں) پر کلک کریں۔</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        cutsOnly.map(p => {
                         const displayStock = p.stock_kg;
                         const displayValuation = Math.round(
                           (Number(displayStock) || 0) * (Number(p.rate_per_kg) || 0)
@@ -2824,7 +2910,8 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                             </td>
                           </tr>
                         );
-                      })}
+                      })
+                    )}
                     </tbody>
                   </table>
                 </div>

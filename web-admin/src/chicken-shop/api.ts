@@ -29,164 +29,9 @@ export const DEFAULT_FRESH_CHICKEN_PRODUCT: ChickenProduct = {
   is_active: true,
 };
 
-// Default Chicken cuts + Fresh Chicken as explicitly requested
+// Default core product (Only Fresh Live Chicken as initial base)
 export const DEFAULT_CHICKEN_PRODUCTS: ChickenProduct[] = [
   DEFAULT_FRESH_CHICKEN_PRODUCT,
-  {
-    id: 'prod-drumsticks',
-    name: 'Drumsticks',
-    urdu_name: 'ڈرم اسٹکس',
-    category: 'Chicken Cuts',
-    unit: 'KG',
-    rate_per_kg: 580,
-    stock_kg: 35.0,
-    min_stock_alert: 10.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-chicken-bongs',
-    name: 'Chicken Bongs',
-    urdu_name: 'چکن بونگز',
-    category: 'Chicken Cuts',
-    unit: 'KG',
-    rate_per_kg: 520,
-    stock_kg: 25.0,
-    min_stock_alert: 8.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-chicken-legs',
-    name: 'Chicken Legs',
-    urdu_name: 'چکن لیگز',
-    category: 'Chicken Cuts',
-    unit: 'KG',
-    rate_per_kg: 560,
-    stock_kg: 40.0,
-    min_stock_alert: 10.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-chicken-breast',
-    name: 'Chicken Breast / Chest',
-    urdu_name: 'چکن چیسٹ / بریسٹ',
-    category: 'Chicken Cuts',
-    unit: 'KG',
-    rate_per_kg: 640,
-    stock_kg: 45.0,
-    min_stock_alert: 12.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-chicken-tikka',
-    name: 'Chicken Tikka',
-    urdu_name: 'چکن تکہ کٹ',
-    category: 'Chicken Cuts',
-    unit: 'KG',
-    rate_per_kg: 600,
-    stock_kg: 30.0,
-    min_stock_alert: 8.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-boles',
-    name: 'Boles (Boneless)',
-    urdu_name: 'بون لیس (Boles)',
-    category: 'Boneless Cuts',
-    unit: 'KG',
-    rate_per_kg: 680,
-    stock_kg: 60.0,
-    min_stock_alert: 15.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-thai',
-    name: 'Thai',
-    urdu_name: 'تھائی (Thai)',
-    category: 'Chicken Cuts',
-    unit: 'KG',
-    rate_per_kg: 490,
-    stock_kg: 35.0,
-    min_stock_alert: 10.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-gosht',
-    name: 'Gosht (Chicken Meat)',
-    urdu_name: 'چکن گوشت مکس (Gosht)',
-    category: 'Fresh Meat',
-    unit: 'KG',
-    rate_per_kg: 420,
-    stock_kg: 120.0,
-    min_stock_alert: 25.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-wings',
-    name: 'Chicken Wings',
-    urdu_name: 'چکن ونگز',
-    category: 'Chicken Cuts',
-    unit: 'KG',
-    rate_per_kg: 460,
-    stock_kg: 45.0,
-    min_stock_alert: 10.0,
-    is_active: true,
-  },
-  {
-    id: 'prod-kaleji-pota',
-    name: 'Kaleji Pota',
-    urdu_name: 'کلیجی پوٹا',
-    category: 'Chicken Offal',
-    unit: 'KG',
-    rate_per_kg: 300,
-    stock_kg: 20.0,
-    min_stock_alert: 5.0,
-    is_active: true,
-  },
-];
-
-const DEFAULT_CUSTOMERS: ChickenCustomer[] = [
-  {
-    id: 'cust-cs-001',
-    name: 'الحرمین تکہ شاپ',
-    phone: '0301-7654321',
-    address: 'مین بازار، ساہیوال',
-    shop_name: 'Al-Haramain Tikka Shop',
-    opening_balance: 12000,
-    current_balance: 12000,
-    total_purchases: 0,
-    total_payments: 0,
-    notes: 'ہفتہ وار ادھار کھاتہ',
-    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'cust-cs-002',
-    name: 'بسم اللہ بروسٹ کارنر',
-    phone: '0302-8889911',
-    address: 'کالج روڈ',
-    shop_name: 'Bismillah Broast',
-    opening_balance: 5000,
-    current_balance: 5000,
-    total_purchases: 0,
-    total_payments: 0,
-    notes: 'ڈیلی سپلائی',
-    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'cust-cs-003',
-    name: 'خان شنواری ہوٹل',
-    phone: '0345-1234567',
-    address: 'جی ٹی روڈ بائی پاس',
-    shop_name: 'Khan Shinwari Hotel',
-    opening_balance: 0,
-    current_balance: 0,
-    total_purchases: 0,
-    total_payments: 0,
-    notes: 'نقد و فوری کلیئرنگ',
-    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
 ];
 
 // Helper storage keys
@@ -219,13 +64,10 @@ export const chickenShopApi = {
           .select('*')
           .order('name');
         if (!error && data) {
-          if (data.length <= 1) {
+          if (!data.some(p => p.id === FRESH_CHICKEN_PRODUCT_ID)) {
             try {
-              await supabase.from('chicken_shop_products').upsert(DEFAULT_CHICKEN_PRODUCTS);
+              await supabase.from('chicken_shop_products').upsert(DEFAULT_FRESH_CHICKEN_PRODUCT);
             } catch {}
-            const merged = ensureFreshChicken(DEFAULT_CHICKEN_PRODUCTS);
-            localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(merged));
-            return merged;
           }
           const merged = ensureFreshChicken(data as ChickenProduct[]);
           localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(merged));
@@ -241,13 +83,13 @@ export const chickenShopApi = {
       if (stored) {
         const parsed = JSON.parse(stored);
         const merged = ensureFreshChicken(parsed);
-        localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(merged));
         return merged;
       }
     } catch {}
 
-    localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(DEFAULT_CHICKEN_PRODUCTS));
-    return [...DEFAULT_CHICKEN_PRODUCTS];
+    const onlyFresh = [DEFAULT_FRESH_CHICKEN_PRODUCT];
+    localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(onlyFresh));
+    return onlyFresh;
   },
 
   async saveProduct(product: Partial<ChickenProduct> & { name: string }): Promise<ChickenProduct> {
@@ -309,17 +151,26 @@ export const chickenShopApi = {
   },
 
   async deleteProduct(id: string): Promise<void> {
-    let products = await this.getProducts();
-    products = products.filter(p => p.id !== id);
-    localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
+    if (id === FRESH_CHICKEN_PRODUCT_ID) {
+      throw new Error('تازہ مرغی (Fresh Chicken) بنیادی آئٹم ہے اور ڈیلیٹ نہیں ہو سکتی۔');
+    }
 
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('chicken_shop_products').delete().eq('id', id);
+        const { error } = await supabase.from('chicken_shop_products').delete().eq('id', id);
+        if (error) console.error('[CS API] Supabase product delete error:', error);
       } catch (e) {
         console.warn('[CS API] Supabase product delete fallback:', e);
       }
     }
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.products);
+      if (stored) {
+        const prods = (JSON.parse(stored) as ChickenProduct[]).filter(p => p.id !== id);
+        localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(prods));
+      }
+    } catch {}
   },
 
   async updateProductStock(productId: string, changeKg: number, reason: 'sale' | 'purchase' | 'adjustment' | 'waste_loss', notes?: string, refId?: string): Promise<ChickenProduct | null> {
@@ -366,13 +217,6 @@ export const chickenShopApi = {
           .select('*')
           .order('name');
         if (!error && data) {
-          if (data.length === 0) {
-            try {
-              await supabase.from('chicken_shop_customers').upsert(DEFAULT_CUSTOMERS);
-            } catch {}
-            localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(DEFAULT_CUSTOMERS));
-            return [...DEFAULT_CUSTOMERS];
-          }
           localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(data));
           return data as ChickenCustomer[];
         }
@@ -388,8 +232,7 @@ export const chickenShopApi = {
       }
     } catch {}
 
-    localStorage.setItem(STORAGE_KEYS.customers, JSON.stringify(DEFAULT_CUSTOMERS));
-    return [...DEFAULT_CUSTOMERS];
+    return [];
   },
 
   async getCustomerById(id: string): Promise<ChickenCustomer | null> {
@@ -1149,33 +992,7 @@ export const chickenShopApi = {
       if (stored) return JSON.parse(stored);
     } catch {}
 
-    const initialExpenses: ChickenExpense[] = [
-      {
-        id: 'exp-01',
-        date: new Date().toISOString().split('T')[0],
-        category: 'ice_cutting',
-        category_urdu: 'برف و کٹنگ خرچہ',
-        title: 'برف اور کٹنگ ضرورت',
-        amount: 800,
-        payment_method: 'cash',
-        notes: 'روزانہ دکان ضرورت',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'exp-02',
-        date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-        category: 'packaging',
-        category_urdu: 'شاپر و پیکنگ',
-        title: 'شاپر بیگز بنڈل',
-        amount: 1500,
-        payment_method: 'cash',
-        notes: '5kg اور 1kg بیگز',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ];
-
-    localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(initialExpenses));
-    return initialExpenses;
+    return [];
   },
 
   async saveExpense(exp: Omit<ChickenExpense, 'id' | 'created_at'>): Promise<ChickenExpense> {
@@ -1216,35 +1033,13 @@ export const chickenShopApi = {
 
   // ---------------------------------------------------------------------------
   // AUTO-MIGRATE BROWSER CACHE (LOCALSTORAGE) TO SUPABASE
-  // Ensures any data saved in browser cache is permanently backed up to Supabase
+  // Only syncs genuine offline transactions; never pushes dummy items
   // ---------------------------------------------------------------------------
   async syncBrowserCacheToSupabase(): Promise<void> {
     if (!isSupabaseConfigured()) return;
 
     try {
-      // 1. Sync custom products if any
-      const storedProds = localStorage.getItem(STORAGE_KEYS.products);
-      if (storedProds) {
-        try {
-          const prods: ChickenProduct[] = JSON.parse(storedProds);
-          if (Array.isArray(prods) && prods.length > 0) {
-            await supabase.from('chicken_shop_products').upsert(prods);
-          }
-        } catch {}
-      }
-
-      // 2. Sync customers
-      const storedCusts = localStorage.getItem(STORAGE_KEYS.customers);
-      if (storedCusts) {
-        try {
-          const custs: ChickenCustomer[] = JSON.parse(storedCusts);
-          if (Array.isArray(custs) && custs.length > 0) {
-            await supabase.from('chicken_shop_customers').upsert(custs);
-          }
-        } catch {}
-      }
-
-      // 3. Sync sales
+      // 1. Sync offline sales if any
       const storedSales = localStorage.getItem(STORAGE_KEYS.sales);
       if (storedSales) {
         try {
@@ -1255,13 +1050,12 @@ export const chickenShopApi = {
             const missingSales = salesList.filter(s => !existingIds.has(s.id));
             if (missingSales.length > 0) {
               await supabase.from('chicken_shop_sales').upsert(missingSales);
-              console.log(`[CS API] Synced ${missingSales.length} cached sales to Supabase!`);
             }
           }
         } catch {}
       }
 
-      // 4. Sync fresh arrivals
+      // 2. Sync offline fresh arrivals if any
       const storedArrivals = localStorage.getItem(STORAGE_KEYS.freshArrivals);
       if (storedArrivals) {
         try {
@@ -1272,13 +1066,12 @@ export const chickenShopApi = {
             const missingArrivals = arrivals.filter(a => !existingIds.has(a.id));
             if (missingArrivals.length > 0) {
               await supabase.from('chicken_shop_fresh_arrivals').upsert(missingArrivals);
-              console.log(`[CS API] Synced ${missingArrivals.length} cached arrivals to Supabase!`);
             }
           }
         } catch {}
       }
 
-      // 5. Sync payments
+      // 3. Sync offline payments if any
       const storedPayments = localStorage.getItem(STORAGE_KEYS.payments);
       if (storedPayments) {
         try {
@@ -1293,24 +1086,55 @@ export const chickenShopApi = {
           }
         } catch {}
       }
-
-      // 6. Sync expenses
-      const storedExpenses = localStorage.getItem(STORAGE_KEYS.expenses);
-      if (storedExpenses) {
-        try {
-          const expList: ChickenExpense[] = JSON.parse(storedExpenses);
-          if (Array.isArray(expList) && expList.length > 0) {
-            const { data: existing } = await supabase.from('chicken_shop_expenses').select('id');
-            const existingIds = new Set((existing || []).map((e: any) => e.id));
-            const missingExp = expList.filter(e => !existingIds.has(e.id));
-            if (missingExp.length > 0) {
-              await supabase.from('chicken_shop_expenses').upsert(missingExp);
-            }
-          }
-        } catch {}
-      }
     } catch (err) {
       console.warn('[CS API] Sync cache to Supabase warning:', err);
     }
+  },
+
+  // One-time automatic purge of stale local dummy data from user's browser
+  clearStaleLocalMockData(): void {
+    try {
+      if (!localStorage.getItem('cs_mock_purged_v4')) {
+        localStorage.removeItem(STORAGE_KEYS.products);
+        localStorage.removeItem(STORAGE_KEYS.customers);
+        localStorage.removeItem(STORAGE_KEYS.expenses);
+        localStorage.setItem('cs_mock_purged_v4', 'true');
+      }
+    } catch {}
+  },
+
+  // Completely resets any mock / temporary dummy data from Supabase and browser localStorage
+  async resetAllTemporaryData(): Promise<void> {
+    const dummyProductIds = [
+      'prod-drumsticks',
+      'prod-chicken-bongs',
+      'prod-chicken-legs',
+      'prod-chicken-breast',
+      'prod-chicken-tikka',
+      'prod-boles',
+      'prod-wings',
+      'prod-gosht',
+      'prod-kaleji-pota',
+      'prod-thai',
+    ];
+    const dummyCustomerIds = ['cust-cs-001', 'cust-cs-002', 'cust-cs-003'];
+    const dummyExpenseIds = ['exp-01', 'exp-02'];
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_products').delete().in('id', dummyProductIds);
+        await supabase.from('chicken_shop_customers').delete().in('id', dummyCustomerIds);
+        await supabase.from('chicken_shop_expenses').delete().in('id', dummyExpenseIds);
+      } catch (e) {
+        console.warn('[CS API] Error clearing dummy data from Supabase:', e);
+      }
+    }
+
+    try {
+      localStorage.removeItem(STORAGE_KEYS.products);
+      localStorage.removeItem(STORAGE_KEYS.customers);
+      localStorage.removeItem(STORAGE_KEYS.expenses);
+      localStorage.setItem('cs_mock_purged_v4', 'true');
+    } catch {}
   },
 };
