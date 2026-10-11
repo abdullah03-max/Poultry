@@ -489,6 +489,21 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     }
   };
 
+  const handleResetStockLogs = async () => {
+    const isConfirmed = window.confirm(
+      'کیا آپ واقعی تمام اسٹاک موومنٹ لاگز (Stock In/Out Logs) ری سیٹ اور صاف کرنا چاہتے ہیں؟\n\nاس عمل سے صرف موومنٹ لاگز کی ہسٹری صاف ہوگی، دکان کا موجودہ اسٹاک برقرار رہے گا۔'
+    );
+    if (!isConfirmed) return;
+
+    try {
+      await chickenShopApi.resetStockLogs();
+      setStockLogs([]);
+      alert('اسٹاک موومنٹ لاگز کامیابی سے ری سیٹ اور صاف ہو گئے۔');
+    } catch (err: any) {
+      alert(`لاگز ری سیٹ کرنے میں مسئلہ: ${err.message || 'Error resetting stock logs'}`);
+    }
+  };
+
   const handleDeleteProduct = async (product: ChickenProduct) => {
     if (product.id === FRESH_CHICKEN_PRODUCT_ID || product.id === freshProd.id) {
       alert('تازہ چکن (Live Fresh Chicken) سسٹم کا بنیادی آئٹم ہے اور اسے حذف نہیں کیا جا سکتا۔');
@@ -2447,9 +2462,30 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
 
                 {/* Stock Movement Audit Logs */}
                 <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs">
-                  <h3 className="font-extrabold text-sm text-slate-900 font-urdu mb-3">
-                    📜 اسٹاک موومنٹ ہسٹری (Stock In/Out Logs)
-                  </h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900 font-urdu flex items-center gap-2">
+                        <span>📜 اسٹاک موومنٹ ہسٹری (Stock In/Out Logs)</span>
+                        <span className="text-[11px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+                          {stockLogs.length} لاگز
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-urdu mt-0.5">
+                        اسٹاک میں ہونے والی تمام تر تبدیلیوں، کٹوتی اور اندراج کی خودکار ہسٹری
+                      </p>
+                    </div>
+
+                    {stockLogs.length > 0 && (
+                      <button
+                        onClick={handleResetStockLogs}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 text-xs font-bold rounded-xl border border-rose-200 transition flex items-center gap-1.5 active:scale-95 font-urdu shadow-2xs self-start sm:self-auto"
+                        title="تمام اسٹاک موومنٹ لاگز صاف اور ری سیٹ کریں"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>ری سیٹ لاگز (Reset Logs)</span>
+                      </button>
+                    )}
+                  </div>
                   {stockLogs.length === 0 ? (
                     <div className="py-12 text-center text-slate-400 text-xs">
                       ابھی تک کوئی لاگ ریکارڈ نہیں ہے۔ نیا اسٹاک شامل کرنے پر یہاں خودکار اندراج ہوگا۔
@@ -2816,7 +2852,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 onOpenReceipt={sale => setReceiptModalSale(sale)}
                 onDeleteSale={handleDeleteSale}
                 onDeletePayment={handleDeletePayment}
-                onNewSaleClick={() => setActiveTab('pos')}
+                onNewSaleClick={(mode?: 'cash' | 'credit') => {
+                  if (mode === 'credit') {
+                    setPosPaymentMethod('credit');
+                  } else {
+                    setPosPaymentMethod('cash');
+                  }
+                  setActiveTab('pos');
+                }}
                 onOpenBulkWalkin={date => {
                   if (date) setBulkWalkinDate(date);
                   setBulkWalkinModalOpen(true);
@@ -2824,6 +2867,10 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                 onOpenPaymentModal={cust => {
                   setPaymentCustomer(cust || null);
                   setPaymentModalOpen(true);
+                }}
+                onOpenFreshArrival={() => {
+                  setSelectedArrivalCategoryId(null);
+                  setFreshArrivalModalOpen(true);
                 }}
               />
             )}

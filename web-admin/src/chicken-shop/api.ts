@@ -923,6 +923,19 @@ export const chickenShopApi = {
     return newLog;
   },
 
+  async resetStockLogs(): Promise<void> {
+    localStorage.removeItem(STORAGE_KEYS.stockLogs);
+    localStorage.setItem(STORAGE_KEYS.stockLogs, JSON.stringify([]));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_stock_logs').delete().neq('id', '___all___');
+      } catch (e) {
+        console.warn('[CS API] Supabase reset stock logs fallback:', e);
+      }
+    }
+  },
+
   // ---------------------------------------------------------------------------
   // DASHBOARD KPIS & STATS
   // ---------------------------------------------------------------------------
