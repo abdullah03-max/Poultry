@@ -37,6 +37,16 @@ function copyChickenRoutesPlugin() {
 export default defineConfig({
   base: '/',
   plugins: [react(), copyChickenRoutesPlugin()],
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      react: resolve(__dirname, 'node_modules/react'),
+      'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+    },
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'lucide-react', '@supabase/supabase-js'],
+  },
   build: {
     rollupOptions: {
       input: {
