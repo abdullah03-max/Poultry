@@ -2,6 +2,8 @@
 // SHAN POULTRY PROTEIN - TypeScript Type Definitions
 // =============================================================================
 
+import { MonthlyReceiptConfig } from './receiptConfig';
+
 export type UserRole = 'admin' | 'worker' | 'manager';
 
 export interface Profile {
@@ -207,6 +209,7 @@ export interface BusinessSettings {
   receipt_title?: string;                // Default: '🐔 SHAN POULTRY PROTEIN - رسید 🐔'
   receipt_tagline?: string;              // e.g. 'Official B2B Weigh-in Collection & Factory Supply Receipt'
   receipt_footer_phone?: string;         // Dedicated Shan contact on receipt
+  monthly_receipt_config?: MonthlyReceiptConfig; // Customizable Monthly Register Receipt settings
   updated_at: string;
   updated_by: string | null;
 }

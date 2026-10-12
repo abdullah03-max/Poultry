@@ -8,7 +8,9 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BusinessSettings } from '../types/database';
-import { Settings, Save, Check, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle, Unlock, CheckSquare, Square, Trash2 } from 'lucide-react';
+import { MonthlyReceiptConfig } from '../types/receiptConfig';
+import { MonthlyReceiptSettingsSection } from '../components/settings/MonthlyReceiptSettingsSection';
+import { Settings, Save, Check, Building, Shield, Lock, Key, Eye, EyeOff, AlertCircle, Unlock, CheckSquare, Square, Trash2, FileText } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
   const { user, updateAdminCredentials } = useAuth();
@@ -34,6 +36,24 @@ export const SettingsPage: React.FC = () => {
   const [lockSaving, setLockSaving] = useState<boolean>(false);
   const [lockSuccessMsg, setLockSuccessMsg] = useState<string | null>(null);
   const [lockErrorMsg, setLockErrorMsg] = useState<string | null>(null);
+
+  // Tab Filtering & Monthly Receipt Customization
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'all' | 'receipt' | 'profile' | 'rules' | 'security' | 'credentials'>('all');
+  const [receiptSaving, setReceiptSaving] = useState<boolean>(false);
+
+  const handleSaveReceiptConfig = async (receiptConfig: MonthlyReceiptConfig) => {
+    if (!settings) return;
+    try {
+      setReceiptSaving(true);
+      const updated = await api.updateSettings({
+        ...settings,
+        monthly_receipt_config: receiptConfig,
+      });
+      setSettings(updated);
+    } finally {
+      setReceiptSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (isSupabaseConfigured()) {
@@ -271,8 +291,95 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 1. Business Profile Section */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
+      {/* Settings Category Navigation Bar */}
+      <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 overflow-x-auto text-xs no-scrollbar border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('all')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold transition font-urdu whitespace-nowrap ${
+            activeSettingsTab === 'all'
+              ? 'bg-white text-blue-700 shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5" />
+          <span>تمام ترتیبات (All)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('receipt')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold transition font-urdu whitespace-nowrap ${
+            activeSettingsTab === 'receipt'
+              ? 'bg-blue-600 text-white shadow-sm font-black'
+              : 'text-blue-700 hover:bg-blue-50 bg-blue-50/50'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>🧾 ماہانہ رجسٹر پرچی کسٹمائزیشن (Receipt Editor)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('profile')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold transition font-urdu whitespace-nowrap ${
+            activeSettingsTab === 'profile'
+              ? 'bg-white text-blue-700 shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Building className="w-3.5 h-3.5" />
+          <span>کمپنی پروفائل (Company)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('rules')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold transition font-urdu whitespace-nowrap ${
+            activeSettingsTab === 'rules'
+              ? 'bg-white text-blue-700 shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Shield className="w-3.5 h-3.5" />
+          <span>آپریشنل رولز (Rules)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('security')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold transition font-urdu whitespace-nowrap ${
+            activeSettingsTab === 'security'
+              ? 'bg-white text-blue-700 shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span>سیکیورٹی پن و لاک (Security PIN)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('credentials')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold transition font-urdu whitespace-nowrap ${
+            activeSettingsTab === 'credentials'
+              ? 'bg-white text-blue-700 shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Key className="w-3.5 h-3.5" />
+          <span>ایڈمن پاس ورڈ (Password)</span>
+        </button>
+      </div>
+
+      {/* 1. Monthly Register Receipt Customization (Prominent & Full Featured) */}
+      {(activeSettingsTab === 'all' || activeSettingsTab === 'receipt') && (
+        <MonthlyReceiptSettingsSection
+          initialConfig={settings.monthly_receipt_config}
+          onSave={handleSaveReceiptConfig}
+          saving={receiptSaving}
+        />
+      )}
+
+      {/* 2. Business Profile Section & Standard Branding */}
+      {(activeSettingsTab === 'all' || activeSettingsTab === 'profile') && (
+        <>
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
           <Building className="w-4 h-4 text-blue-600" /> Company Profile
         </h3>
@@ -437,9 +544,12 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {/* 3. Section Lock System */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
+      {(activeSettingsTab === 'all' || activeSettingsTab === 'security') && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
@@ -681,60 +791,64 @@ export const SettingsPage: React.FC = () => {
           </button>
         </div>
       </div>
+      )}
 
-      {/* 3. Register & System Rules */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
-        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Shield className="w-4 h-4 text-blue-600" /> Operational & Register Rules
-        </h3>
+      {/* 4. Register & System Rules */}
+      {(activeSettingsTab === 'all' || activeSettingsTab === 'rules') && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
+          <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+            <Shield className="w-4 h-4 text-blue-600" /> Operational & Register Rules
+          </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-              Monthly Register Empty Day Symbol
-            </label>
-            <input
-              type="text"
-              maxLength={3}
-              value={settings.monthly_register_empty_symbol}
-              onChange={e => setSettings({ ...settings, monthly_register_empty_symbol: e.target.value })}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono font-bold text-center text-slate-800 focus:outline-none focus:border-blue-500"
-            />
-            <p className="text-[10px] text-slate-400 mt-1">Default is "X" (no collection on that day)</p>
-          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                Monthly Register Empty Day Symbol
+              </label>
+              <input
+                type="text"
+                maxLength={3}
+                value={settings.monthly_register_empty_symbol}
+                onChange={e => setSettings({ ...settings, monthly_register_empty_symbol: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono font-bold text-center text-slate-800 focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">Default is "X" (no collection on that day)</p>
+            </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-              Worker Edit Timeout (Hours)
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="48"
-              value={settings.allow_worker_edit_hours}
-              onChange={e => setSettings({ ...settings, allow_worker_edit_hours: parseInt(e.target.value, 10) || 0 })}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500"
-            />
-            <p className="text-[10px] text-slate-400 mt-1">Hours before record locks for field workers</p>
-          </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                Worker Edit Timeout (Hours)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="48"
+                value={settings.allow_worker_edit_hours}
+                onChange={e => setSettings({ ...settings, allow_worker_edit_hours: parseInt(e.target.value, 10) || 0 })}
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">Hours before record locks for field workers</p>
+            </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-              System Timezone
-            </label>
-            <input
-              type="text"
-              disabled
-              value={settings.timezone}
-              className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono text-slate-500"
-            />
-            <p className="text-[10px] text-slate-400 mt-1">Fixed to Asia/Karachi (PKT)</p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                System Timezone
+              </label>
+              <input
+                type="text"
+                disabled
+                value={settings.timezone}
+                className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono text-slate-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">Fixed to Asia/Karachi (PKT)</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* 4. Administrator Login & Security Credentials */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
+      {/* 5. Administrator Login & Security Credentials */}
+      {(activeSettingsTab === 'all' || activeSettingsTab === 'credentials') && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-card space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
             <Lock className="w-4 h-4 text-blue-600" /> Admin Security & Login Credentials
@@ -824,6 +938,7 @@ export const SettingsPage: React.FC = () => {
           </button>
         </div>
       </div>
+      )}
     </form>
   );
 };

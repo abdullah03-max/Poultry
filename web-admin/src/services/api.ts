@@ -20,6 +20,12 @@ import {
 } from '../types/database';
 import { getDaysInMonth } from '../utils/formatters';
 import { calculateCustomerAdvanceBalance } from '../utils/advanceUtils';
+import {
+  packReceiptTaglineWithConfig,
+  unpackReceiptTaglineWithConfig,
+  getStoredMonthlyReceiptConfig,
+  saveStoredMonthlyReceiptConfig,
+} from '../types/receiptConfig';
 
 // -----------------------------------------------------------------------------
 // In-Memory Seed State for Instant Demonstrability
@@ -637,13 +643,21 @@ export const api = {
   // Business Settings
   async getSettings(): Promise<BusinessSettings> {
     const cachedReceiptTitle = localStorage.getItem('spp_receipt_title');
+    const localConfig = getStoredMonthlyReceiptConfig();
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase.from('business_settings').select('*').limit(1).maybeSingle();
         if (!error && data) {
+          const { userTagline, config: cloudConfig } = unpackReceiptTaglineWithConfig(data.receipt_tagline);
+          const effectiveConfig = cloudConfig || localConfig;
+          if (cloudConfig) {
+            saveStoredMonthlyReceiptConfig(cloudConfig);
+          }
           const merged: BusinessSettings = {
             ...data,
+            receipt_tagline: userTagline || data.receipt_tagline || '',
             receipt_title: cachedReceiptTitle || data.receipt_title || '🐔 SHAN POULTRY PROTEIN - رسید 🐔',
+            monthly_receipt_config: effectiveConfig,
           };
           mockSettings = merged;
           return merged;
@@ -655,6 +669,7 @@ export const api = {
     return {
       ...mockSettings,
       receipt_title: cachedReceiptTitle || mockSettings.receipt_title || '🐔 SHAN POULTRY PROTEIN - رسید 🐔',
+      monthly_receipt_config: localConfig,
     };
   },
 
@@ -662,12 +677,26 @@ export const api = {
     if (settings.receipt_title) {
       localStorage.setItem('spp_receipt_title', settings.receipt_title);
     }
+    if (settings.monthly_receipt_config) {
+      saveStoredMonthlyReceiptConfig(settings.monthly_receipt_config);
+    }
+
+    const activeConfig = settings.monthly_receipt_config || getStoredMonthlyReceiptConfig();
+    const activeTagline = settings.receipt_tagline !== undefined ? settings.receipt_tagline : (mockSettings.receipt_tagline || '');
+    const packedTagline = packReceiptTaglineWithConfig(activeTagline, activeConfig);
+
     if (isSupabaseConfigured()) {
       try {
-        const { data: existing } = await supabase.from('business_settings').select('id').limit(1).maybeSingle();
+        const { data: existing } = await supabase.from('business_settings').select('id, receipt_tagline').limit(1).maybeSingle();
         const targetId = existing?.id || mockSettings.id;
 
-        const payload: any = { ...settings, updated_at: new Date().toISOString() };
+        const { monthly_receipt_config, ...cleanSettings } = settings;
+        const payload: any = {
+          ...cleanSettings,
+          receipt_tagline: packedTagline,
+          updated_at: new Date().toISOString(),
+        };
+
         let { data, error } = await supabase
           .from('business_settings')
           .update(payload)
@@ -691,14 +720,25 @@ export const api = {
         }
 
         if (!error && data) {
-          mockSettings = { ...data, ...settings };
+          const { userTagline, config: cloudConfig } = unpackReceiptTaglineWithConfig(data.receipt_tagline);
+          mockSettings = {
+            ...data,
+            receipt_tagline: userTagline || activeTagline,
+            monthly_receipt_config: cloudConfig || activeConfig,
+          };
           return mockSettings;
         }
       } catch (err) {
         console.warn('[API] Could not update settings in Supabase, updating mock state:', err);
       }
     }
-    mockSettings = { ...mockSettings, ...settings, updated_at: new Date().toISOString() };
+    mockSettings = {
+      ...mockSettings,
+      ...settings,
+      receipt_tagline: activeTagline,
+      monthly_receipt_config: activeConfig,
+      updated_at: new Date().toISOString(),
+    };
     return { ...mockSettings };
   },
 

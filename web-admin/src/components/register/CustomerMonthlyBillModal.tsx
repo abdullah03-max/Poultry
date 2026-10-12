@@ -1,15 +1,19 @@
 // =============================================================================
 // SHAN POULTRY PROTEIN - Customer Monthly Bill & Statement Modal
-// Printable invoice with Monthly Advance Settlement & Reminder (No Daily Breakdown)
+// Printable invoice with Customizable Monthly Advance Settlement & Reminder
 // =============================================================================
 
 import React, { useRef, useState, useEffect } from 'react';
 import { MonthlyRegisterCustomerRow, CustomerAdvanceRecord, Collection } from '../../types/database';
 import { formatCurrency, formatWeight } from '../../utils/formatters';
 import { Modal } from '../common/Modal';
-import { Printer, Building, Phone, MapPin, Wallet, AlertTriangle, CheckCircle2, Info, ArrowDownRight, Clock } from 'lucide-react';
+import { Printer, Building, Phone, MapPin, Wallet, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import { api } from '../../services/api';
 import { calculateCustomerAdvanceBalance } from '../../utils/advanceUtils';
+import {
+  MonthlyReceiptConfig,
+  getStoredMonthlyReceiptConfig,
+} from '../../types/receiptConfig';
 
 interface CustomerMonthlyBillModalProps {
   isOpen: boolean;
@@ -32,6 +36,25 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
   const [advanceRecords, setAdvanceRecords] = useState<CustomerAdvanceRecord[]>([]);
   const [customerCollections, setCustomerCollections] = useState<Collection[]>([]);
   const [loadingAdvance, setLoadingAdvance] = useState<boolean>(true);
+  const [receiptConfig, setReceiptConfig] = useState<MonthlyReceiptConfig>(() =>
+    getStoredMonthlyReceiptConfig()
+  );
+
+  // Sync receipt config whenever settings are updated in Settings page
+  useEffect(() => {
+    setReceiptConfig(getStoredMonthlyReceiptConfig());
+    const handleConfigUpdated = (e: any) => {
+      if (e.detail) {
+        setReceiptConfig(e.detail);
+      } else {
+        setReceiptConfig(getStoredMonthlyReceiptConfig());
+      }
+    };
+    window.addEventListener('spp_monthly_receipt_config_updated', handleConfigUpdated);
+    return () => {
+      window.removeEventListener('spp_monthly_receipt_config_updated', handleConfigUpdated);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!row?.customer?.id || !isOpen) return;
@@ -80,6 +103,8 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
   const activeDays = Object.entries(dailyWeights)
     .filter(([_, w]) => w !== null && w !== undefined && Number(w) > 0);
 
+  const cfg = receiptConfig || getStoredMonthlyReceiptConfig();
+
   const handlePrint = () => {
     const printWindow = window.open('', '_blank', 'width=850,height=900');
     if (!printWindow) {
@@ -87,17 +112,21 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
       return;
     }
 
-    const title = (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) || 'SHAN POULTRY PROTEIN';
-    const phone = (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) || '0300-0000000';
+    const titleEn = cfg.header.companyNameEn || 'SHAN POULTRY PROTEIN';
+    const titleUrdu = cfg.header.companyNameUrdu || 'شان پولٹری پروٹین';
+    const receiptTitle = cfg.header.receiptTitleUrdu || 'ماہانہ بل و کھاتہ رسید';
+    const phone = cfg.header.contactPhone || '0300-0000000';
+    const logoUrl = cfg.header.logoUrl || '/app_icon.png';
+    const monthBadge = cfg.header.monthBadgeLabel || `${monthName} ${year}`;
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html dir="rtl" lang="ur">
       <head>
         <meta charset="utf-8" />
-        <title>ماہانہ بل — ${customer.name} (${customer.customer_code})</title>
+        <title>${receiptTitle} — ${customer.name} (${customer.customer_code})</title>
         <style>
-          @page { size: A4 portrait; margin: 12mm 15mm; }
+          @page { size: A4 portrait; margin: 10mm 14mm; }
           * { box-sizing: border-box; }
           body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; padding: 15px; color: #0f172a; direction: rtl; background: #fff; font-size: 13px; }
           .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; }
@@ -139,88 +168,103 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
       </head>
       <body>
         <div class="header">
-          <h1>${title}</h1>
-          <h2>شان پولٹری پروٹین — ماہانہ بل و کھاتہ رسید</h2>
-          <p>B2B Poultry Protein Materials • رابطہ: ${phone}</p>
+          ${cfg.header.showLogo ? `
+            <div style="margin-bottom: 8px;">
+              <img src="${logoUrl}" alt="Logo" style="height: 52px; width: 52px; object-fit: contain; border-radius: 10px;" />
+            </div>
+          ` : ''}
+          <h1>${titleEn}</h1>
+          <h2>${titleUrdu} — ${receiptTitle}</h2>
+          <p>${cfg.header.taglineEn || 'B2B Poultry Protein Materials'}${phone ? ` • رابطہ: ${phone}` : ''}</p>
           <div style="margin-top: 8px;">
-            <span class="badge">${monthName} ${year}</span>
-            <span style="font-size: 11px; color: #64748b; margin-right: 15px;">تاریخ پرنٹ: ${new Date().toLocaleDateString('en-GB')}</span>
+            <span class="badge">${monthBadge}</span>
+            ${cfg.header.showPrintDate ? `<span style="font-size: 11px; color: #64748b; margin-right: 15px;">${cfg.header.printDateLabel || 'تاریخ پرنٹ:'} ${new Date().toLocaleDateString('en-GB')}</span>` : ''}
           </div>
         </div>
 
+        ${cfg.customerInfo.showBox ? `
         <div class="customer-box">
           <div>
-            <div><strong>دکان / گاہک:</strong> ${customer.name}</div>
-            <div><strong>کوڈ (Code):</strong> <span class="num">${customer.customer_code}</span></div>
-            ${customer.contact_person ? `<div><strong>رابطہ شخص:</strong> ${customer.contact_person}</div>` : ''}
+            <div><strong>${cfg.customerInfo.shopNameLabel || 'دکان / گاہک:'}</strong> ${customer.name}</div>
+            <div><strong>${cfg.customerInfo.customerCodeLabel || 'کوڈ (Code):'}</strong> <span class="num">${customer.customer_code}</span></div>
+            ${cfg.customerInfo.showContactPerson && customer.contact_person ? `<div><strong>${cfg.customerInfo.contactPersonLabel || 'رابطہ شخص:'}</strong> ${customer.contact_person}</div>` : ''}
           </div>
           <div>
-            <div><strong>فون نمبر:</strong> <span class="num">${customer.phone || '—'}</span></div>
-            <div><strong>علاقہ و پتہ:</strong> ${customer.area} — ${customer.address || 'Address'}</div>
-            <div><strong>وصولی کے کل دن:</strong> <strong class="num">${activeDays.length} دن</strong></div>
+            ${cfg.customerInfo.showPhone ? `<div><strong>${cfg.customerInfo.phoneLabel || 'فون نمبر:'}</strong> <span class="num">${customer.phone || '—'}</span></div>` : ''}
+            ${cfg.customerInfo.showAreaAddress ? `<div><strong>${cfg.customerInfo.areaAddressLabel || 'علاقہ و پتہ:'}</strong> ${customer.area} — ${customer.address || 'Address'}</div>` : ''}
+            ${cfg.customerInfo.showActiveDays ? `<div><strong>${cfg.customerInfo.activeDaysLabel || 'وصولی کے کل دن:'}</strong> <strong class="num">${activeDays.length} دن</strong></div>` : ''}
           </div>
         </div>
+        ` : ''}
 
+        ${cfg.weightTable.showTable ? `
         <table>
           <thead>
             <tr>
-              <th style="width: 35%;">قسم (Category)</th>
-              <th style="text-align: right; width: 20%;">کل وزن (Weight)</th>
-              <th style="text-align: right; width: 20%;">ریٹ فی کلو (Rate)</th>
-              <th style="text-align: right; width: 25%;">کل رقم (Amount)</th>
+              <th style="width: 35%;">${cfg.weightTable.categoryColumnLabel || 'قسم (Category)'}</th>
+              <th style="text-align: right; width: 20%;">${cfg.weightTable.weightColumnLabel || 'کل وزن (Weight)'}</th>
+              ${cfg.weightTable.showRates ? `<th style="text-align: right; width: 20%;">${cfg.weightTable.rateColumnLabel || 'ریٹ فی کلو (Rate)'}</th>` : ''}
+              <th style="text-align: right; width: 25%;">${cfg.weightTable.amountColumnLabel || 'کل رقم (Amount)'}</th>
             </tr>
           </thead>
           <tbody>
+            ${cfg.weightTable.showCharbiRow ? `
             <tr>
-              <td><strong>چربی وزن (Charbi)</strong></td>
+              <td><strong>${cfg.weightTable.charbiRowLabel || 'چربی وزن (Charbi)'}</strong></td>
               <td class="num" style="text-align: right;">${charbiWeight.toFixed(2)} KG</td>
-              <td class="num" style="text-align: right;">${charbiRate} PKR</td>
+              ${cfg.weightTable.showRates ? `<td class="num" style="text-align: right;">${charbiRate} PKR</td>` : ''}
               <td class="num adv-green" style="text-align: right;">Rs. ${charbiAmount.toLocaleString()}</td>
             </tr>
+            ` : ''}
+            ${cfg.weightTable.showKacharaRow ? `
             <tr>
-              <td><strong>کچرا وزن (Kachara)</strong></td>
+              <td><strong>${cfg.weightTable.kacharaRowLabel || 'کچرا وزن (Kachara)'}</strong></td>
               <td class="num" style="text-align: right;">${kacharaWeight.toFixed(2)} KG</td>
-              <td class="num" style="text-align: right;">${kacharaRate} PKR</td>
+              ${cfg.weightTable.showRates ? `<td class="num" style="text-align: right;">${kacharaRate} PKR</td>` : ''}
               <td class="num adv-amber" style="text-align: right;">Rs. ${kacharaAmount.toLocaleString()}</td>
             </tr>
+            ` : ''}
             <tr class="tot-row">
-              <td><strong>گرینڈ ٹوٹل بل (Grand Total)</strong></td>
+              <td><strong>${cfg.weightTable.grandTotalRowLabel || 'گرینڈ ٹوٹل بل (Grand Total)'}</strong></td>
               <td class="num" style="text-align: right; font-size: 14px; color: #1e40af;">${totalWeight.toFixed(2)} KG</td>
-              <td style="text-align: right;">—</td>
+              ${cfg.weightTable.showRates ? `<td style="text-align: right;">—</td>` : ''}
               <td class="num" style="text-align: right; font-size: 15px; color: #b45309;">Rs. ${totalAmount.toLocaleString()}</td>
             </tr>
           </tbody>
         </table>
+        ` : ''}
 
         <!-- Monthly Advance & Settlement Section -->
+        ${cfg.advanceBox.showSection ? `
         <div class="advance-box ${bal.isExhausted ? 'exhausted' : ''}">
           <div style="font-weight: 900; font-size: 14px; color: #0f172a; margin-bottom: 10px; display: flex; justify-content: space-between;">
-            <span>💵 پیشگی ایڈوانس و بل کا حساب کتاب (Advance Settlement & Reminder)</span>
-            <span style="font-size: 11px; font-weight: normal; color: #64748b;">طریقہ ادائیگی: ${String(advMethod).toUpperCase()} • تاریخ: ${advDate}</span>
+            <span>💵 ${cfg.advanceBox.sectionTitle || 'پیشگی ایڈوانس و بل کا حساب کتاب (Advance Settlement & Reminder)'}</span>
+            <span style="font-size: 11px; font-weight: normal; color: #64748b;">${cfg.advanceBox.paymentMethodLabel || 'طریقہ ادائیگی:'} ${String(advMethod).toUpperCase()} • ${cfg.advanceBox.dateLabel || 'تاریخ:'} ${advDate}</span>
           </div>
 
           <div class="adv-grid">
             <div class="adv-card">
-              <div class="adv-title">کل پیشگی ایڈوانس دیا گیا</div>
+              <div class="adv-title">${cfg.advanceBox.totalAdvanceCardTitle || 'کل پیشگی ایڈوانس دیا گیا'}</div>
               <div class="adv-val adv-green">Rs. ${bal.totalAdvance.toLocaleString()}</div>
-              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">کل پیشگی ادائیگی</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${cfg.advanceBox.totalAdvanceSubtext || 'کل پیشگی ادائیگی'}</div>
             </div>
             <div class="adv-card">
-              <div class="adv-title">اس ماہ کا ویسٹ بل کٹوتی</div>
+              <div class="adv-title">${cfg.advanceBox.monthlyBillCardTitle || 'اس ماہ کا ویسٹ بل کٹوتی'}</div>
               <div class="adv-val adv-amber">Rs. ${totalAmount.toLocaleString()}</div>
-              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${totalWeight.toFixed(2)} KG وزن</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${totalWeight.toFixed(2)} KG ${cfg.advanceBox.monthlyBillSubtext || 'وزن'}</div>
             </div>
             <div class="adv-card" style="${bal.isExhausted ? 'border-color: #f87171; background: #fff5f5;' : 'border-color: #86efac; background: #f0fdf4;'}">
-              <div class="adv-title">موجودہ باقی ایڈوانس بیلنس</div>
+              <div class="adv-title">${cfg.advanceBox.remainingAdvanceCardTitle || 'موجودہ باقی ایڈوانس بیلنس'}</div>
               <div class="adv-val ${bal.isExhausted ? 'adv-red' : 'adv-green'}">
                 Rs. ${bal.remainingAdvance.toLocaleString()}
               </div>
               <div style="font-size: 10px; font-weight: bold; margin-top: 2px; color: ${bal.isExhausted ? '#be123c' : '#047857'};">
-                ${bal.isExhausted ? '⚠️ ایڈوانس ختم (بقایا بل واجب)' : '✓ ایڈوانس کریڈٹ فعال'}
+                ${bal.isExhausted ? (cfg.advanceBox.advanceExhaustedBadge || '⚠️ ایڈوانس ختم (بقایا بل واجب)') : (cfg.advanceBox.advanceActiveBadge || '✓ ایڈوانس کریڈٹ فعال')}
               </div>
             </div>
           </div>
 
+          ${cfg.advanceBox.showFormulaBar ? `
           <div class="formula-bar">
             <span>حساب: [کل ایڈوانس: Rs. ${bal.totalAdvance.toLocaleString()}]</span>
             <span style="margin: 0 8px;">منہا (-)</span>
@@ -228,38 +272,52 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
             <span style="margin: 0 8px;">=</span>
             <span style="color: ${bal.isExhausted ? '#be123c' : '#047857'};">[باقی ایڈوانس: Rs. ${bal.remainingAdvance.toLocaleString()}]</span>
           </div>
+          ` : ''}
 
-          ${bal.totalAdvance > 0 && bal.remainingAdvance > 0 ? `
-            <div class="alert-banner alert-green">
-              🟢 <strong>ایڈوانس ریمائنڈر (Advance Active Reminder):</strong> گاہک کا پیشگی ایڈوانس ابھی باقی ہے۔ اس ماہ کا کل بل (Rs. ${totalAmount.toLocaleString()}) پیشگی ایڈوانس سے منہا ہو چکا ہے۔ گاہک کے کھاتے میں <strong>Rs. ${bal.remainingAdvance.toLocaleString()}</strong> کا پیشگی ایڈوانس باقی محفوظ ہے جو آئندہ کی ویسٹ وصولیوں میں کٹتا رہے گا۔
-            </div>
-          ` : bal.totalAdvance > 0 && bal.remainingAdvance <= 0 ? `
-            <div class="alert-banner alert-red">
-              🔴 <strong>⚠️ اہم الرٹ: پیشگی ایڈوانس ختم ہو چکا ہے! (Advance Exhausted):</strong> گاہک کو دیا گیا پیشگی ایڈوانس مکمل ختم ہو چکا ہے۔ ایڈوانس سے زائد مال اٹھایا جا چکا ہے۔ اس ماہ کا بقیہ واجب الادا بل <strong>Rs. ${Math.abs(bal.remainingAdvance).toLocaleString()}</strong> بنتا ہے۔ برائے مہربانی نیا ایڈوانس شامل کریں یا یہ بقایا بل وصول کریں۔
-            </div>
-          ` : `
-            <div class="alert-banner alert-blue">
-              ℹ️ <strong>نوٹس:</strong> اس گاہک کا کوئی پیشگی ایڈوانس رجسٹرڈ نہیں ہے۔ یہ ماہانہ بل (Rs. ${totalAmount.toLocaleString()}) نقد / کیش پر واجب الادا ہے۔
-            </div>
-          `}
+          ${cfg.advanceBox.showReminderAlerts ? (
+            bal.totalAdvance > 0 && bal.remainingAdvance > 0 ? `
+              <div class="alert-banner alert-green">
+                🟢 <strong>ایڈوانس ریمائنڈر (Advance Active Reminder):</strong> ${cfg.advanceBox.activeReminderText || 'گاہک کا پیشگی ایڈوانس ابھی باقی ہے۔ اس ماہ کا کل بل پیشگی ایڈوانس سے منہا ہو چکا ہے۔ گاہک کے کھاتے میں باقی ایڈوانس محفوظ ہے جو آئندہ کی ویسٹ وصولیوں میں کٹتا رہے گا۔'} (ماہانہ بل: Rs. ${totalAmount.toLocaleString()} منہا، باقی ایڈوانس: Rs. ${bal.remainingAdvance.toLocaleString()})
+              </div>
+            ` : bal.totalAdvance > 0 && bal.remainingAdvance <= 0 ? `
+              <div class="alert-banner alert-red">
+                🔴 <strong>${cfg.advanceBox.advanceExhaustedBadge || '⚠️ اہم الرٹ: پیشگی ایڈوانس ختم ہو چکا ہے!'}:</strong> ${cfg.advanceBox.exhaustedAlertText || 'گاہک کو دیا گیا پیشگی ایڈوانس مکمل ختم ہو چکا ہے۔ ایڈوانس سے زائد مال اٹھایا جا چکا ہے۔ برائے مہربانی نیا ایڈوانس شامل کریں یا یہ بقایا بل وصول کریں۔'} (واجب الادا بل: Rs. ${Math.abs(bal.remainingAdvance).toLocaleString()})
+              </div>
+            ` : `
+              <div class="alert-banner alert-blue">
+                ℹ️ <strong>نوٹس:</strong> ${cfg.advanceBox.noAdvanceNoticeText || 'اس گاہک کا کوئی پیشگی ایڈوانس رجسٹرڈ نہیں ہے۔ یہ ماہانہ بل نقد / کیش پر واجب الادا ہے۔'} (رقم: Rs. ${totalAmount.toLocaleString()})
+              </div>
+            `
+          ) : ''}
 
-          ${advNotes ? `<div style="font-size: 11px; color: #64748b; margin-top: 8px;">نوٹس / حوالہ: ${advNotes}</div>` : ''}
+          ${cfg.advanceBox.showNotes && advNotes ? `<div style="font-size: 11px; color: #64748b; margin-top: 8px;">${cfg.advanceBox.notesLabel || 'نوٹس / حوالہ:'} ${advNotes}</div>` : ''}
         </div>
+        ` : ''}
 
+        ${cfg.footer.showSignatures ? `
         <div class="signatures">
           <div>
-            <div class="sig-line">دستخط / مہر گاہک (Customer Signature)</div>
+            <div class="sig-line">${cfg.footer.customerSignatureLabel || 'دستخط / مہر گاہک (Customer Signature)'}</div>
             <p style="font-size: 11px; color: #64748b; margin-top: 4px;">${customer.name}</p>
           </div>
           <div>
-            <div class="sig-line">دستخط شان پولٹری (Authorized Signatory)</div>
-            <p style="font-size: 11px; color: #64748b; margin-top: 4px;">حاجی شان / ایڈمنسٹریٹر</p>
+            <div class="sig-line">${cfg.footer.authorizedSignatureLabel || 'دستخط شان پولٹری (Authorized Signatory)'}</div>
+            ${cfg.footer.authorizedPersonTitle ? `<p style="font-size: 11px; color: #64748b; margin-top: 4px;">${cfg.footer.authorizedPersonTitle}</p>` : ''}
           </div>
         </div>
+        ` : ''}
 
-        <div class="footer-note">
-          کمپیوٹرائزڈ ماہانہ بل رسید • Shan Poultry Protein Digitized Register System
+        ${cfg.footer.additionalTerms ? `
+        <div style="margin-top: 18px; padding: 8px 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; font-size: 11px; color: #475569; text-align: center;">
+          ${cfg.footer.additionalTerms}
         </div>
+        ` : ''}
+
+        ${cfg.footer.showCustomFooterNote && cfg.footer.customFooterText ? `
+        <div class="footer-note">
+          ${cfg.footer.customFooterText}
+        </div>
+        ` : ''}
 
         <script>
           window.onload = function() {
@@ -276,7 +334,7 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="ماہانہ کسٹمر بل و اسٹیٹمنٹ (Monthly Bill)"
+      title={`${cfg.header.receiptTitleUrdu || 'ماہانہ بل رسید'} (Monthly Bill)`}
       subtitle={`${customer.name} (${customer.customer_code}) — ${monthName} ${year}`}
       maxWidth="2xl"
     >
@@ -285,205 +343,265 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
         <div ref={printRef} className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
           {/* Header Banner */}
           <div className="border-b-2 border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-center sm:text-left">
-            <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight font-mono">
-                {(typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) || '🐔 SHAN POULTRY PROTEIN - رسید 🐔'}
-              </h2>
-              <h3 className="text-sm font-bold text-blue-700 font-urdu mt-0.5">شان پولٹری پروٹین — ماہانہ بل رسید</h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                B2B Poultry Protein Materials • Shan Contact: {(typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) || '0300-0000000'}
-              </p>
+            <div className="flex items-center gap-3">
+              {cfg.header.showLogo && (
+                <img
+                  src={cfg.header.logoUrl || '/app_icon.png'}
+                  alt="Logo"
+                  className="w-12 h-12 rounded-xl object-contain border border-slate-200 p-0.5 shrink-0"
+                  onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
+                />
+              )}
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight font-mono">
+                  {cfg.header.companyNameEn || 'SHAN POULTRY PROTEIN'}
+                </h2>
+                <h3 className="text-sm font-bold text-blue-700 font-urdu mt-0.5">
+                  {cfg.header.companyNameUrdu || 'شان پولٹری پروٹین'} — {cfg.header.receiptTitleUrdu || 'ماہانہ بل رسید'}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {cfg.header.taglineEn || 'B2B Poultry Protein Materials'}{cfg.header.contactPhone ? ` • رابطہ: ${cfg.header.contactPhone}` : ''}
+                </p>
+              </div>
             </div>
-            <div className="text-center sm:text-right">
+            <div className="text-center sm:text-right shrink-0">
               <span className="inline-block px-3 py-1 bg-blue-50 border border-blue-200 text-blue-800 font-bold rounded-lg text-xs font-mono">
-                {monthName} {year}
+                {cfg.header.monthBadgeLabel || `${monthName} ${year}`}
               </span>
-              <p className="text-[10px] text-slate-400 mt-1">تاریخ پرنٹ: {new Date().toLocaleDateString('en-GB')}</p>
+              {cfg.header.showPrintDate && (
+                <p className="text-[10px] text-slate-400 mt-1 font-urdu">
+                  {cfg.header.printDateLabel || 'تاریخ پرنٹ:'} {new Date().toLocaleDateString('en-GB')}
+                </p>
+              )}
             </div>
           </div>
 
           {/* Customer Profile & Info Box */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                <Building className="w-3.5 h-3.5 text-slate-400" />
-                <span>دکان / کسٹمر: {customer.name}</span>
+          {cfg.customerInfo.showBox && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 font-urdu">
+                  <Building className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{cfg.customerInfo.shopNameLabel || 'دکان / کسٹمر:'} {customer.name}</span>
+                </div>
+                <div className="text-slate-600 font-mono">
+                  {cfg.customerInfo.customerCodeLabel || 'کوڈ (Code):'} {customer.customer_code}
+                </div>
+                {cfg.customerInfo.showContactPerson && customer.contact_person && (
+                  <div className="text-slate-600 font-urdu">
+                    {cfg.customerInfo.contactPersonLabel || 'رابطہ شخص:'} {customer.contact_person}
+                  </div>
+                )}
               </div>
-              <div className="text-slate-600 font-mono">کوڈ (Code): {customer.customer_code}</div>
-              {customer.contact_person && (
-                <div className="text-slate-600">رابطہ شخص: {customer.contact_person}</div>
-              )}
+              <div className="space-y-1">
+                {cfg.customerInfo.showPhone && (
+                  <div className="flex items-center gap-1.5 text-slate-600">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-mono">{customer.phone || '—'}</span>
+                  </div>
+                )}
+                {cfg.customerInfo.showAreaAddress && (
+                  <div className="flex items-center gap-1.5 text-slate-600 font-urdu">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{customer.area} — {customer.address || 'Address'}</span>
+                  </div>
+                )}
+                {cfg.customerInfo.showActiveDays && (
+                  <div className="text-slate-600 font-urdu">
+                    {cfg.customerInfo.activeDaysLabel || 'وصولی کے کل دن:'}{' '}
+                    <strong className="text-slate-900 font-mono">{activeDays.length} دن</strong>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 text-slate-600">
-                <Phone className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-mono">{customer.phone}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-slate-600">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                <span>{customer.area} — {customer.address || 'Address'}</span>
-              </div>
-              <div className="text-slate-600">
-                وصولی کے کل دن: <strong className="text-slate-900 font-mono">{activeDays.length} دن</strong>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Breakdown Rates & Totals Matrix */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-100 font-bold text-slate-700 uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="py-2.5 px-3 text-left">قسم (Category)</th>
-                  <th className="py-2.5 px-3 text-right">کل وزن (Weight)</th>
-                  <th className="py-2.5 px-3 text-right">ریٹ فی کلو (Rate)</th>
-                  <th className="py-2.5 px-3 text-right">کل رقم (Amount)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-mono">
-                <tr>
-                  <td className="py-2.5 px-3 font-sans font-bold text-emerald-800">چربی وزن (Charbi)</td>
-                  <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatWeight(charbiWeight)}</td>
-                  <td className="py-2.5 px-3 text-right text-slate-600">{charbiRate} PKR</td>
-                  <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{formatCurrency(charbiAmount)}</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-sans font-bold text-amber-800">کچرا وزن (Kachara)</td>
-                  <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatWeight(kacharaWeight)}</td>
-                  <td className="py-2.5 px-3 text-right text-slate-600">{kacharaRate} PKR</td>
-                  <td className="py-2.5 px-3 text-right font-bold text-amber-700">{formatCurrency(kacharaAmount)}</td>
-                </tr>
-              </tbody>
-              <tfoot className="bg-blue-50/70 border-t-2 border-slate-300 font-bold">
-                <tr>
-                  <td className="py-2.5 px-3 uppercase tracking-wider text-slate-900 font-sans">
-                    گرینڈ ٹوٹل بل (Grand Total)
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-black text-blue-900 font-mono text-sm">
-                    {formatWeight(totalWeight)}
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-slate-400">—</td>
-                  <td className="py-2.5 px-3 text-right font-black text-amber-900 font-mono text-base">
-                    {formatCurrency(totalAmount)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {/* Monthly Advance Settlement & Reminder Section (Clean & Easy Interface) */}
-          <div className={`p-4 rounded-2xl border transition-all ${
-            bal.isExhausted ? 'bg-rose-50/70 border-rose-300' : 'bg-emerald-50/60 border-emerald-300'
-          }`}>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5 mb-3">
-              <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs">
-                <Wallet className="w-4 h-4 text-emerald-700" />
-                <span>پیشگی ایڈوانس و بل کا حساب کتاب (Advance Settlement & Reminder)</span>
-              </div>
-              <div className="text-[11px] text-slate-500 font-mono font-medium">
-                طریقہ: <strong className="text-slate-800 uppercase">{String(advMethod)}</strong> • تاریخ: {advDate}
-              </div>
+          {cfg.weightTable.showTable && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100 font-bold text-slate-700 text-[11px]">
+                  <tr>
+                    <th className="py-2.5 px-3 text-right font-urdu">{cfg.weightTable.categoryColumnLabel || 'قسم (Category)'}</th>
+                    <th className="py-2.5 px-3 text-right font-urdu">{cfg.weightTable.weightColumnLabel || 'کل وزن (Weight)'}</th>
+                    {cfg.weightTable.showRates && (
+                      <th className="py-2.5 px-3 text-right font-urdu">{cfg.weightTable.rateColumnLabel || 'ریٹ فی کلو (Rate)'}</th>
+                    )}
+                    <th className="py-2.5 px-3 text-right font-urdu">{cfg.weightTable.amountColumnLabel || 'کل رقم (Amount)'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-mono">
+                  {cfg.weightTable.showCharbiRow && (
+                    <tr>
+                      <td className="py-2.5 px-3 font-sans font-bold text-emerald-800 font-urdu">{cfg.weightTable.charbiRowLabel || 'چربی وزن (Charbi)'}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatWeight(charbiWeight)}</td>
+                      {cfg.weightTable.showRates && <td className="py-2.5 px-3 text-right text-slate-600">{charbiRate} PKR</td>}
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{formatCurrency(charbiAmount)}</td>
+                    </tr>
+                  )}
+                  {cfg.weightTable.showKacharaRow && (
+                    <tr>
+                      <td className="py-2.5 px-3 font-sans font-bold text-amber-800 font-urdu">{cfg.weightTable.kacharaRowLabel || 'کچرا وزن (Kachara)'}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatWeight(kacharaWeight)}</td>
+                      {cfg.weightTable.showRates && <td className="py-2.5 px-3 text-right text-slate-600">{kacharaRate} PKR</td>}
+                      <td className="py-2.5 px-3 text-right font-bold text-amber-700">{formatCurrency(kacharaAmount)}</td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot className="bg-blue-50/70 border-t-2 border-slate-300 font-bold">
+                  <tr>
+                    <td className="py-2.5 px-3 uppercase tracking-wider text-slate-900 font-urdu font-bold">
+                      {cfg.weightTable.grandTotalRowLabel || 'گرینڈ ٹوٹل بل (Grand Total)'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-black text-blue-900 font-mono text-sm">
+                      {formatWeight(totalWeight)}
+                    </td>
+                    {cfg.weightTable.showRates && <td className="py-2.5 px-3 text-right text-slate-400">—</td>}
+                    <td className="py-2.5 px-3 text-right font-black text-amber-900 font-mono text-base">
+                      {formatCurrency(totalAmount)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
+          )}
 
-            {/* 3 High-Impact Balance Snapshot Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center text-xs mb-3">
-              <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
-                <p className="text-[10px] text-slate-500 font-bold uppercase">کل پیشگی ایڈوانس</p>
-                <p className="text-base font-black text-slate-900 font-mono mt-0.5">
-                  Rs. {bal.totalAdvance.toLocaleString()}
-                </p>
-                <span className="text-[9px] text-slate-400">کل پیشگی ادائیگی</span>
+          {/* Monthly Advance Settlement & Reminder Section */}
+          {cfg.advanceBox.showSection && (
+            <div className={`p-4 rounded-2xl border transition-all ${
+              bal.isExhausted ? 'bg-rose-50/70 border-rose-300' : 'bg-emerald-50/60 border-emerald-300'
+            }`}>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5 mb-3">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs font-urdu">
+                  <Wallet className="w-4 h-4 text-emerald-700" />
+                  <span>{cfg.advanceBox.sectionTitle || 'پیشگی ایڈوانس و بل کا حساب کتاب (Advance Settlement & Reminder)'}</span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono font-medium">
+                  {cfg.advanceBox.paymentMethodLabel || 'طریقہ:'} <strong className="text-slate-800 uppercase">{String(advMethod)}</strong> • {cfg.advanceBox.dateLabel || 'تاریخ:'} {advDate}
+                </div>
               </div>
 
-              <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
-                <p className="text-[10px] text-amber-700 font-bold uppercase">اس ماہ کا ویسٹ بل</p>
-                <p className="text-base font-black text-amber-700 font-mono mt-0.5">
-                  Rs. {totalAmount.toLocaleString()}
-                </p>
-                <span className="text-[9px] text-amber-600 font-medium">{formatWeight(totalWeight)} کٹوتی</span>
-              </div>
+              {/* 3 High-Impact Balance Snapshot Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center text-xs mb-3">
+                <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                  <p className="text-[10px] text-slate-500 font-bold font-urdu">{cfg.advanceBox.totalAdvanceCardTitle || 'کل پیشگی ایڈوانس'}</p>
+                  <p className="text-base font-black text-slate-900 font-mono mt-0.5">
+                    Rs. {bal.totalAdvance.toLocaleString()}
+                  </p>
+                  <span className="text-[9px] text-slate-400 font-urdu">{cfg.advanceBox.totalAdvanceSubtext || 'کل پیشگی ادائیگی'}</span>
+                </div>
 
-              <div className={`p-3 rounded-xl border shadow-2xs ${
-                bal.isExhausted ? 'bg-rose-100/80 border-rose-300' : 'bg-emerald-100/80 border-emerald-300'
-              }`}>
-                <p className="text-[10px] font-black uppercase text-slate-700">موجودہ باقی ایڈوانس</p>
-                <p className={`text-base font-black font-mono mt-0.5 ${
-                  bal.isExhausted ? 'text-rose-700' : 'text-emerald-800'
+                <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                  <p className="text-[10px] text-amber-700 font-bold font-urdu">{cfg.advanceBox.monthlyBillCardTitle || 'اس ماہ کا ویسٹ بل'}</p>
+                  <p className="text-base font-black text-amber-700 font-mono mt-0.5">
+                    Rs. {totalAmount.toLocaleString()}
+                  </p>
+                  <span className="text-[9px] text-amber-600 font-medium font-urdu">{formatWeight(totalWeight)} {cfg.advanceBox.monthlyBillSubtext || 'کٹوتی'}</span>
+                </div>
+
+                <div className={`p-3 rounded-xl border shadow-2xs ${
+                  bal.isExhausted ? 'bg-rose-100/80 border-rose-300' : 'bg-emerald-100/80 border-emerald-300'
                 }`}>
-                  Rs. {bal.remainingAdvance.toLocaleString()}
+                  <p className="text-[10px] font-black font-urdu text-slate-700">{cfg.advanceBox.remainingAdvanceCardTitle || 'موجودہ باقی ایڈوانس'}</p>
+                  <p className={`text-base font-black font-mono mt-0.5 ${
+                    bal.isExhausted ? 'text-rose-700' : 'text-emerald-800'
+                  }`}>
+                    Rs. {bal.remainingAdvance.toLocaleString()}
+                  </p>
+                  <span className={`text-[9px] font-bold font-urdu ${bal.isExhausted ? 'text-rose-600' : 'text-emerald-700'}`}>
+                    {bal.isExhausted ? (cfg.advanceBox.advanceExhaustedBadge || '⚠️ ایڈوانس ختم (بقایا بل واجب)') : (cfg.advanceBox.advanceActiveBadge || '✓ ایڈوانس کریڈٹ فعال')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Math Formula Bar */}
+              {cfg.advanceBox.showFormulaBar && (
+                <div className="p-2 bg-white/90 border border-slate-200 rounded-xl text-center text-[11px] font-mono font-bold text-slate-700 mb-3 flex flex-wrap items-center justify-center gap-1.5 shadow-2xs">
+                  <span>[کل ایڈوانس: Rs. {bal.totalAdvance.toLocaleString()}]</span>
+                  <span className="text-rose-600 font-black">-</span>
+                  <span>[ماہانہ بل: Rs. {totalAmount.toLocaleString()}]</span>
+                  <span className="text-slate-400">=</span>
+                  <span className={bal.isExhausted ? 'text-rose-700 font-black' : 'text-emerald-700 font-black'}>
+                    [باقی ایڈوانس: Rs. {bal.remainingAdvance.toLocaleString()}]
+                  </span>
+                </div>
+              )}
+
+              {/* Visual Status Reminder Box */}
+              {cfg.advanceBox.showReminderAlerts && (
+                bal.totalAdvance > 0 && bal.remainingAdvance > 0 ? (
+                  <div className="p-2.5 rounded-xl bg-emerald-100/90 border border-emerald-300 text-emerald-950 text-xs font-semibold flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                    <div className="leading-snug font-urdu">
+                      <span className="font-bold block text-emerald-900">🟢 ایڈوانس ریمائنڈر (Advance Active Reminder):</span>
+                      <span>
+                        {cfg.advanceBox.activeReminderText || 'گاہک کا پیشگی ایڈوانس ابھی باقی ہے۔ اس ماہ کا کل بل پیشگی ایڈوانس سے منہا ہو چکا ہے۔'} (ماہانہ بل: <strong className="font-mono text-emerald-900">Rs. {totalAmount.toLocaleString()}</strong> منہا، باقی ایڈوانس: <strong className="font-mono text-emerald-900">Rs. {bal.remainingAdvance.toLocaleString()}</strong> محفوظ)
+                      </span>
+                    </div>
+                  </div>
+                ) : bal.totalAdvance > 0 && bal.remainingAdvance <= 0 ? (
+                  <div className="p-2.5 rounded-xl bg-rose-100/90 border border-rose-300 text-rose-950 text-xs font-semibold flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
+                    <div className="leading-snug font-urdu">
+                      <span className="font-bold block text-rose-900">🔴 {cfg.advanceBox.advanceExhaustedBadge || '⚠️ اہم الرٹ: پیشگی ایڈوانس ختم ہو چکا ہے!'}:</span>
+                      <span>
+                        {cfg.advanceBox.exhaustedAlertText || 'گاہک کو دیا گیا پیشگی ایڈوانس مکمل ختم ہو چکا ہے۔ ایڈوانس سے زائد مال اٹھایا جا چکا ہے۔'} (بقیہ واجب الادا بل: <strong className="font-mono text-rose-900 font-black">Rs. {Math.abs(bal.remainingAdvance).toLocaleString()}</strong>)
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-blue-100/90 border border-blue-300 text-blue-950 text-xs font-semibold flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                    <div className="leading-snug font-urdu">
+                      <span className="font-bold block text-blue-900">ℹ️ نقد بل نوٹس (Standard Cash Bill):</span>
+                      <span>
+                        {cfg.advanceBox.noAdvanceNoticeText || 'اس گاہک کا کوئی پیشگی ایڈوانس رجسٹرڈ نہیں ہے۔ یہ ماہانہ بل نقد / کیش پر واجب الادا ہے۔'} (رقم: <strong className="font-mono">Rs. {totalAmount.toLocaleString()}</strong>)
+                      </span>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {cfg.advanceBox.showNotes && advNotes && (
+                <p className="text-[10px] text-slate-500 mt-2 font-medium font-urdu">
+                  {cfg.advanceBox.notesLabel || 'تفصیل / نوٹس:'} {advNotes}
                 </p>
-                <span className={`text-[9px] font-bold ${bal.isExhausted ? 'text-rose-600' : 'text-emerald-700'}`}>
-                  {bal.isExhausted ? '⚠️ ایڈوانس ختم (بقایا بل واجب)' : '✓ ایڈوانس کریڈٹ فعال'}
-                </span>
-              </div>
+              )}
             </div>
-
-            {/* Math Formula Bar */}
-            <div className="p-2 bg-white/90 border border-slate-200 rounded-xl text-center text-[11px] font-mono font-bold text-slate-700 mb-3 flex flex-wrap items-center justify-center gap-1.5 shadow-2xs">
-              <span>[کل ایڈوانس: Rs. {bal.totalAdvance.toLocaleString()}]</span>
-              <span className="text-rose-600 font-black">-</span>
-              <span>[ماہانہ بل: Rs. {totalAmount.toLocaleString()}]</span>
-              <span className="text-slate-400">=</span>
-              <span className={bal.isExhausted ? 'text-rose-700 font-black' : 'text-emerald-700 font-black'}>
-                [باقی ایڈوانس: Rs. {bal.remainingAdvance.toLocaleString()}]
-              </span>
-            </div>
-
-            {/* Visual Status Reminder Box */}
-            {bal.totalAdvance > 0 && bal.remainingAdvance > 0 ? (
-              <div className="p-2.5 rounded-xl bg-emerald-100/90 border border-emerald-300 text-emerald-950 text-xs font-semibold flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div className="leading-snug">
-                  <span className="font-bold block text-emerald-900">🟢 ایڈوانس ریمائنڈر (Advance Active Reminder):</span>
-                  <span>
-                    گاہک کا پیشگی ایڈوانس ابھی باقی ہے۔ اس ماہ کا کل بل (Rs. {totalAmount.toLocaleString()}) پیشگی ایڈوانس سے منہا ہو چکا ہے۔ گاہک کے پاس اب بھی <strong className="font-mono text-emerald-900">Rs. {bal.remainingAdvance.toLocaleString()}</strong> کا پیشگی ایڈوانس محفوظ ہے جو آئندہ کی ویسٹ وصولیوں میں کٹتا رہے گا۔
-                  </span>
-                </div>
-              </div>
-            ) : bal.totalAdvance > 0 && bal.remainingAdvance <= 0 ? (
-              <div className="p-2.5 rounded-xl bg-rose-100/90 border border-rose-300 text-rose-950 text-xs font-semibold flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
-                <div className="leading-snug">
-                  <span className="font-bold block text-rose-900">🔴 ⚠️ اہم الرٹ: پیشگی ایڈوانس ختم ہو چکا ہے! (Advance Exhausted Alert):</span>
-                  <span>
-                    گاہک کو دیا گیا پیشگی ایڈوانس مکمل ختم ہو چکا ہے۔ ایڈوانس سے زائد مال اٹھایا جا چکا ہے۔ اس ماہ کا بقیہ واجب الادا بل <strong className="font-mono text-rose-900 font-black">Rs. {Math.abs(bal.remainingAdvance).toLocaleString()}</strong> بنتا ہے۔ برائے مہربانی نیا ایڈوانس شامل کریں یا یہ بقایا بل وصول کریں۔
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="p-2.5 rounded-xl bg-blue-100/90 border border-blue-300 text-blue-950 text-xs font-semibold flex items-start gap-2">
-                <Info className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
-                <div className="leading-snug">
-                  <span className="font-bold block text-blue-900">ℹ️ نقد بل نوٹس (Standard Cash Bill):</span>
-                  <span>
-                    اس گاہک کا کوئی پیشگی ایڈوانس رجسٹرڈ نہیں ہے۔ یہ ماہانہ بل <strong className="font-mono">Rs. {totalAmount.toLocaleString()}</strong> نقد / کیش پر واجب الادا ہے۔
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {advNotes && (
-              <p className="text-[10px] text-slate-500 mt-2 font-medium">
-                تفصیل / نوٹس: {advNotes}
-              </p>
-            )}
-          </div>
+          )}
 
           {/* Signatures & Footer Note */}
-          <div className="pt-6 border-t border-dashed border-slate-300 grid grid-cols-2 gap-8 text-center text-xs">
-            <div>
-              <div className="border-b border-slate-400 pb-1 mb-1.5 font-bold text-slate-700">
-                دستخط / مہر گاہک (Customer Signature)
+          {cfg.footer.showSignatures && (
+            <div className="pt-6 border-t border-dashed border-slate-300 grid grid-cols-2 gap-8 text-center text-xs">
+              <div>
+                <div className="border-b border-slate-400 pb-1 mb-1.5 font-bold text-slate-700 font-urdu">
+                  {cfg.footer.customerSignatureLabel || 'دستخط / مہر گاہک (Customer Signature)'}
+                </div>
+                <p className="text-[10px] text-slate-400">{customer.name}</p>
               </div>
-              <p className="text-[10px] text-slate-400">{customer.name}</p>
-            </div>
-            <div>
-              <div className="border-b border-slate-400 pb-1 mb-1.5 font-bold text-slate-700">
-                دستخط شان پولٹری (Authorized Signatory)
+              <div>
+                <div className="border-b border-slate-400 pb-1 mb-1.5 font-bold text-slate-700 font-urdu">
+                  {cfg.footer.authorizedSignatureLabel || 'دستخط شان پولٹری (Authorized Signatory)'}
+                </div>
+                {/* User requirement: "Remove Haji Shan / Administrator text by default" */}
+                {cfg.footer.authorizedPersonTitle ? (
+                  <p className="text-[10px] text-slate-500 font-urdu">{cfg.footer.authorizedPersonTitle}</p>
+                ) : null}
               </div>
-              <p className="text-[10px] text-slate-400">حاجی شان / ایڈمنسٹریٹر</p>
             </div>
-          </div>
+          )}
+
+          {cfg.footer.additionalTerms && (
+            <div className="p-2.5 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-xs font-urdu text-slate-600">
+              {cfg.footer.additionalTerms}
+            </div>
+          )}
+
+          {cfg.footer.showCustomFooterNote && cfg.footer.customFooterText && (
+            <div className="pt-2 text-center text-[10px] text-slate-400 border-t border-dashed border-slate-200 font-urdu">
+              {cfg.footer.customFooterText}
+            </div>
+          )}
         </div>
 
         {/* Action Controls */}
@@ -491,14 +609,14 @@ export const CustomerMonthlyBillModal: React.FC<CustomerMonthlyBillModalProps> =
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition font-urdu"
           >
             بند کریں (Close)
           </button>
           <button
             type="button"
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition active:scale-95"
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition active:scale-95 font-urdu"
           >
             <Printer className="w-4 h-4" />
             <span>بل پرنٹ کریں (Print Bill)</span>
