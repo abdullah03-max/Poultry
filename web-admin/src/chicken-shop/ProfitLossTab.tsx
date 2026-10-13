@@ -269,9 +269,10 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
 
     filteredSales.forEach(s => {
       s.items.forEach(it => {
+        const prodKey = it.product_id || it.product_name;
         const isFreezerItem =
           it.is_freezer ||
-          freezerProductIds.has(it.product_id) ||
+          (it.product_id ? freezerProductIds.has(it.product_id) : false) ||
           it.product_name.toLowerCase().includes('frozen') ||
           it.product_name.toLowerCase().includes('freezer');
 
@@ -279,13 +280,13 @@ export const ProfitLossTab: React.FC<ProfitLossTabProps> = ({
           totalFreezerSoldKg += it.weight_kg || 0;
           totalFreezerRevenue += it.line_total || 0;
 
-          const existing = productStatsMap.get(it.product_id);
+          const existing = productStatsMap.get(prodKey);
           if (existing) {
             existing.sold_kg += it.weight_kg || 0;
             existing.revenue += it.line_total || 0;
           } else {
-            productStatsMap.set(it.product_id, {
-              id: it.product_id,
+            productStatsMap.set(prodKey, {
+              id: prodKey,
               name: it.product_name,
               urdu_name: it.urdu_name || it.product_name,
               rate_per_kg: it.rate_per_kg,

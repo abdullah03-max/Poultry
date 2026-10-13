@@ -46,10 +46,38 @@ export interface FreezerProduct {
   updated_at?: string;
 }
 
+export interface ChickenCategory {
+  id: string;
+  name: string;
+  urdu_name: string;
+  default_rate_per_kg: number;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ChickenShopWorker {
+  id: string;
+  name: string;
+  phone: string;
+  password?: string;
+  pin?: string;
+  role: 'worker' | 'manager';
+  can_daily_sales: boolean;
+  can_khata: boolean;
+  can_wasooli: boolean;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ChickenSaleItem {
-  product_id: string;
+  product_id?: string;
   product_name: string;
   urdu_name?: string;
+  category_id?: string;
+  category_name?: string;
   weight_kg: number;
   rate_per_kg: number;
   line_total: number;

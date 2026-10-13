@@ -19,6 +19,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChickenShopPage } from './pages/ChickenShopPage';
 import { ChickenShopApp } from './chicken-shop/ChickenShopApp';
+import { ChickenWorkerApp } from './chicken-shop/worker/ChickenWorkerApp';
 import { LoginPage } from './pages/LoginPage';
 import { useRealtimeCollections } from './hooks/useRealtimeCollections';
 import { NewCollectionModal } from './components/collections/NewCollectionModal';
@@ -43,6 +44,19 @@ const sectionLabels: Record<string, string> = {
 };
 
 const AdminApp: React.FC = () => {
+  // Check if current browser window is requesting dedicated Chicken Shop Worker App
+  const isChickenWorkerRoute =
+    window.location.pathname.includes('/chicken-worker') ||
+    window.location.pathname.includes('/chicken-shop-worker') ||
+    window.location.hash.includes('chicken-worker') ||
+    window.location.hash.includes('chicken-shop-worker') ||
+    window.location.search.includes('chicken-worker') ||
+    window.location.search.includes('chicken-shop-worker');
+
+  if (isChickenWorkerRoute) {
+    return <ChickenWorkerApp />;
+  }
+
   // Check if current browser window is requesting dedicated Chicken Shop Management
   const isChickenShopRoute =
     window.location.pathname.includes('/chicken-management') ||

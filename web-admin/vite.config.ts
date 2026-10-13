@@ -24,7 +24,19 @@ function copyChickenRoutesPlugin() {
           fs.copyFileSync(indexHtml, resolve(cmDir2, 'index.html'));
           fs.copyFileSync(indexHtml, resolve(distDir, 'chiken-mangement.html'));
 
-          console.log('[Vite Build] Successfully generated static route files for /chicken-management');
+          // 3. Worker App: dist/chicken-worker/index.html & dist/chicken-worker.html
+          const cwDir = resolve(distDir, 'chicken-worker');
+          if (!fs.existsSync(cwDir)) fs.mkdirSync(cwDir, { recursive: true });
+          fs.copyFileSync(indexHtml, resolve(cwDir, 'index.html'));
+          fs.copyFileSync(indexHtml, resolve(distDir, 'chicken-worker.html'));
+
+          // 4. Also alias chicken-shop-worker
+          const cwDir2 = resolve(distDir, 'chicken-shop-worker');
+          if (!fs.existsSync(cwDir2)) fs.mkdirSync(cwDir2, { recursive: true });
+          fs.copyFileSync(indexHtml, resolve(cwDir2, 'index.html'));
+          fs.copyFileSync(indexHtml, resolve(distDir, 'chicken-shop-worker.html'));
+
+          console.log('[Vite Build] Successfully generated static route files for /chicken-management and /chicken-worker');
         }
       } catch (e) {
         console.warn('[Vite Build] Could not copy route files:', e);

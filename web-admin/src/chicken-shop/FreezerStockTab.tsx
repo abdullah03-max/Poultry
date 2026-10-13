@@ -92,7 +92,7 @@ export const FreezerStockTab: React.FC<FreezerStockTabProps> = ({
       .filter(s => s.sale_date === todayStr)
       .forEach(s => {
         s.items.forEach(item => {
-          if (item.is_freezer || freezerProductIds.has(item.product_id) || item.product_name.toLowerCase().includes('freezer')) {
+          if (item.is_freezer || (item.product_id && freezerProductIds.has(item.product_id)) || item.product_name.toLowerCase().includes('freezer')) {
             todaySoldKg += Number(item.weight_kg || 0);
             todaySoldRevenue += Number(item.line_total || 0);
           }
@@ -124,7 +124,7 @@ export const FreezerStockTab: React.FC<FreezerStockTabProps> = ({
 
     sales.forEach(sale => {
       sale.items.forEach(item => {
-        if (item.is_freezer || freezerProductIds.has(item.product_id) || item.product_name.toLowerCase().includes('freezer')) {
+        if (item.is_freezer || (item.product_id && freezerProductIds.has(item.product_id)) || item.product_name.toLowerCase().includes('freezer')) {
           list.push({ sale, item });
         }
       });

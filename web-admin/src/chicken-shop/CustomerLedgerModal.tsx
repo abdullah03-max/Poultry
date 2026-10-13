@@ -28,6 +28,7 @@ interface CustomerLedgerModalProps {
   customer: ChickenCustomer | null;
   onClose: () => void;
   onRecordPayment: (customer: ChickenCustomer) => void;
+  onNewSale?: (customer: ChickenCustomer) => void;
   onCustomerUpdated?: () => void;
   onDeleteCustomer?: (customer: ChickenCustomer) => void;
   refreshTrigger?: number;
@@ -37,6 +38,7 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
   customer,
   onClose,
   onRecordPayment,
+  onNewSale,
   onCustomerUpdated,
   onDeleteCustomer,
   refreshTrigger,
@@ -273,13 +275,24 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
           <div className="text-xs text-slate-500 font-medium">
             کل لین دین اندراجات: <strong className="text-slate-800">{entries.length}</strong>
           </div>
-          <button
-            onClick={() => onRecordPayment(customer)}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>نئی رقم وصولی درج کریں (Receive Payment)</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {onNewSale && (
+              <button
+                onClick={() => onNewSale(customer)}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ نیا سودا / ادھار بل</span>
+              </button>
+            )}
+            <button
+              onClick={() => onRecordPayment(customer)}
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>نئی رقم وصولی درج کریں</span>
+            </button>
+          </div>
         </div>
 
         {/* Chronological Table */}

@@ -15,6 +15,8 @@ import {
   ChickenExpense,
   FreezerProduct,
   SupplierPaymentItem,
+  ChickenCategory,
+  ChickenShopWorker,
 } from './types';
 
 export const FRESH_CHICKEN_PRODUCT_ID = 'prod-fresh-chicken';
@@ -36,9 +38,22 @@ export const DEFAULT_CHICKEN_PRODUCTS: ChickenProduct[] = [
   DEFAULT_FRESH_CHICKEN_PRODUCT,
 ];
 
+export const DEFAULT_CHICKEN_CATEGORIES: ChickenCategory[] = [
+  { id: 'cat-legs', name: 'Chicken Legs', urdu_name: 'چکن لیگز', default_rate_per_kg: 450, sort_order: 1, is_active: true },
+  { id: 'cat-chest', name: 'Chicken Chest', urdu_name: 'چکن چیسٹ', default_rate_per_kg: 550, sort_order: 2, is_active: true },
+  { id: 'cat-wings', name: 'Chicken Wings', urdu_name: 'چکن ونگز', default_rate_per_kg: 400, sort_order: 3, is_active: true },
+  { id: 'cat-tikka-boti', name: 'Tikka Boti', urdu_name: 'تکہ بوٹی', default_rate_per_kg: 600, sort_order: 4, is_active: true },
+  { id: 'cat-gosht', name: 'Chicken Gosht (Meat)', urdu_name: 'چکن گوشت', default_rate_per_kg: 400, sort_order: 5, is_active: true },
+  { id: 'cat-panjay', name: 'Chicken Panjay', urdu_name: 'چکن پنجے', default_rate_per_kg: 200, sort_order: 6, is_active: true },
+  { id: 'cat-bongs', name: 'Chicken Bongs', urdu_name: 'چکن بونگز', default_rate_per_kg: 450, sort_order: 7, is_active: true },
+  { id: 'cat-boneless', name: 'Boneless Chicken', urdu_name: 'بون لیس چکن', default_rate_per_kg: 650, sort_order: 8, is_active: true },
+];
+
 // Helper storage keys
 const STORAGE_KEYS = {
   products: 'cs_portal_products',
+  categories: 'cs_portal_categories',
+  workers: 'cs_portal_workers',
   customers: 'cs_portal_customers',
   sales: 'cs_portal_sales',
   payments: 'cs_portal_payments',
@@ -528,7 +543,7 @@ export const chickenShopApi = {
 
     // Automatically deduct stock for sold items
     for (const item of itemsWithTotals) {
-      if (item.weight_kg > 0) {
+      if (item.weight_kg > 0 && item.product_id) {
         try {
           await this.updateProductStock(
             item.product_id,
@@ -573,7 +588,7 @@ export const chickenShopApi = {
 
     // 4. Reverse stock deduction (Restore sold weight back to product inventory)
     for (const item of target.items || []) {
-      if (item.weight_kg > 0) {
+      if (item.product_id && item.weight_kg > 0) {
         try {
           await this.updateProductStock(
             item.product_id,
@@ -1374,6 +1389,234 @@ export const chickenShopApi = {
         localStorage.setItem('cs_purged_clean_slate_v5', 'true');
       }
     } catch {}
+  },
+
+  // ---------------------------------------------------------------------------
+  // CHICKEN CATEGORIES (Product Types / Cuts: Legs, Chest, Wings, Tikka, etc.)
+  // ---------------------------------------------------------------------------
+  async getCategories(): Promise<ChickenCategory[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_categories')
+          .select('*')
+          .order('sort_order', { ascending: true });
+        if (!error && data && data.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(data));
+          return data as ChickenCategory[];
+        }
+      } catch (e) {
+        console.warn('[CS API] Supabase categories read fallback:', e);
+      }
+    }
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.categories);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return DEFAULT_CHICKEN_CATEGORIES;
+  },
+
+  async createCategory(cat: {
+    name: string;
+    urdu_name: string;
+    default_rate_per_kg?: number;
+    sort_order?: number;
+    is_active?: boolean;
+  }): Promise<ChickenCategory> {
+    const newCat: ChickenCategory = {
+      id: 'cat-' + Date.now(),
+      name: cat.name.trim(),
+      urdu_name: cat.urdu_name.trim(),
+      default_rate_per_kg: Number(cat.default_rate_per_kg || 0),
+      sort_order: Number(cat.sort_order || 99),
+      is_active: cat.is_active !== false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    let categories = await this.getCategories();
+    categories.push(newCat);
+    localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categories));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_categories').upsert(newCat);
+      } catch (e) {
+        console.warn('[CS API] Supabase category insert failed:', e);
+      }
+    }
+
+    return newCat;
+  },
+
+  async updateCategory(cat: ChickenCategory): Promise<ChickenCategory> {
+    const updated = { ...cat, updated_at: new Date().toISOString() };
+    let categories = await this.getCategories();
+    const idx = categories.findIndex(c => c.id === cat.id);
+    if (idx !== -1) categories[idx] = updated;
+    else categories.push(updated);
+    localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categories));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_categories').upsert(updated);
+      } catch (e) {
+        console.warn('[CS API] Supabase category update failed:', e);
+      }
+    }
+
+    return updated;
+  },
+
+  async deleteCategory(id: string): Promise<void> {
+    let categories = await this.getCategories();
+    categories = categories.filter(c => c.id !== id);
+    localStorage.setItem(STORAGE_KEYS.categories, JSON.stringify(categories));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_categories').delete().eq('id', id);
+      } catch (e) {
+        console.warn('[CS API] Supabase category delete failed:', e);
+      }
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // CHICKEN SHOP WORKERS / USER ACCOUNTS
+  // ---------------------------------------------------------------------------
+  async getWorkers(): Promise<ChickenShopWorker[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_workers')
+          .select('*')
+          .order('name');
+        if (!error && data) {
+          localStorage.setItem(STORAGE_KEYS.workers, JSON.stringify(data));
+          return data as ChickenShopWorker[];
+        }
+      } catch (e) {
+        console.warn('[CS API] Supabase workers read fallback:', e);
+      }
+    }
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.workers);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [];
+  },
+
+  async createWorker(worker: {
+    name: string;
+    phone: string;
+    password: string;
+    pin?: string;
+    role?: 'worker' | 'manager';
+    can_daily_sales?: boolean;
+    can_khata?: boolean;
+    can_wasooli?: boolean;
+    is_active?: boolean;
+  }): Promise<ChickenShopWorker> {
+    const newWorker: ChickenShopWorker = {
+      id: 'csw-' + Date.now(),
+      name: worker.name.trim(),
+      phone: worker.phone.trim(),
+      password: worker.password.trim(),
+      pin: worker.pin?.trim() || undefined,
+      role: worker.role || 'worker',
+      can_daily_sales: worker.can_daily_sales !== false,
+      can_khata: worker.can_khata !== false,
+      can_wasooli: worker.can_wasooli !== false,
+      is_active: worker.is_active !== false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    let workers = await this.getWorkers();
+    workers.push(newWorker);
+    localStorage.setItem(STORAGE_KEYS.workers, JSON.stringify(workers));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_workers').upsert(newWorker);
+      } catch (e) {
+        console.warn('[CS API] Supabase worker insert failed:', e);
+      }
+    }
+
+    return newWorker;
+  },
+
+  async updateWorker(worker: ChickenShopWorker): Promise<ChickenShopWorker> {
+    const updated = { ...worker, updated_at: new Date().toISOString() };
+    let workers = await this.getWorkers();
+    const idx = workers.findIndex(w => w.id === worker.id);
+    if (idx !== -1) workers[idx] = updated;
+    else workers.push(updated);
+    localStorage.setItem(STORAGE_KEYS.workers, JSON.stringify(workers));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_workers').upsert(updated);
+      } catch (e) {
+        console.warn('[CS API] Supabase worker update failed:', e);
+      }
+    }
+
+    return updated;
+  },
+
+  async deleteWorker(id: string): Promise<void> {
+    let workers = await this.getWorkers();
+    workers = workers.filter(w => w.id !== id);
+    localStorage.setItem(STORAGE_KEYS.workers, JSON.stringify(workers));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_workers').delete().eq('id', id);
+      } catch (e) {
+        console.warn('[CS API] Supabase worker delete failed:', e);
+      }
+    }
+  },
+
+  async loginWorker(phone: string, pass: string): Promise<{ success: boolean; worker?: ChickenShopWorker; error?: string }> {
+    const cleanPhone = phone.trim();
+    const cleanPass = pass.trim();
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_workers')
+          .select('*')
+          .eq('phone', cleanPhone)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) {
+          if (data.password === cleanPass || data.pin === cleanPass) {
+            return { success: true, worker: data as ChickenShopWorker };
+          }
+          return { success: false, error: 'پاس ورڈ یا پن درست نہیں ہے۔ (Invalid password)' };
+        }
+      } catch (e) {
+        console.warn('[CS API] Worker login Supabase fallback:', e);
+      }
+    }
+
+    // Local fallback check
+    const workers = await this.getWorkers();
+    const found = workers.find(w => w.phone === cleanPhone && w.is_active);
+    if (found) {
+      if (found.password === cleanPass || found.pin === cleanPass) {
+        return { success: true, worker: found };
+      }
+      return { success: false, error: 'پاس ورڈ درست نہیں ہے۔ (Invalid password)' };
+    }
+
+    return { success: false, error: 'یہ فون نمبر یا ورکر اکاؤنٹ موجود نہیں ہے۔ (Worker account not found)' };
   },
 
   // Completely resets any mock / temporary dummy data from Supabase and browser localStorage
