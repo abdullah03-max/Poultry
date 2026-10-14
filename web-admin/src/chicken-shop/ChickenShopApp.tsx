@@ -86,6 +86,15 @@ interface ChickenShopAppProps {
   standalone?: boolean;
 }
 
+export interface PosItemRow {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  categoryUrduName: string;
+  weightKg: string;
+  ratePerKg: string;
+}
+
 type TabType = 'dashboard' | 'pos' | 'daily_sales' | 'freezer' | 'categories' | 'workers' | 'customers' | 'supplier_payments' | 'sales_history' | 'profit_loss';
 
 export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, standalone = false }) => {
@@ -223,10 +232,18 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const [bulkWalkinModalOpen, setBulkWalkinModalOpen] = useState<boolean>(false);
   const [bulkWalkinDate, setBulkWalkinDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // POS State (Simplified: Strictly Fresh Chicken Meat, fast counter inputs)
+  // POS State (Multi-Item Chicken Cuts, fast counter inputs with + Add Item)
   const [posCustomerId, setPosCustomerId] = useState<string>('');
-  const [posWeightKg, setPosWeightKg] = useState<string>('');
-  const [posRatePerKg, setPosRatePerKg] = useState<string>('400');
+  const [posItems, setPosItems] = useState<PosItemRow[]>([
+    {
+      id: 'pos-1',
+      categoryId: 'cat-gosht',
+      categoryName: 'Chicken Gosht (Meat)',
+      categoryUrduName: 'چکن گوشت',
+      weightKg: '',
+      ratePerKg: '400',
+    },
+  ]);
   const [posPaymentMethod, setPosPaymentMethod] = useState<'cash' | 'credit' | 'partial'>('cash');
   const [posReceivedAmount, setPosReceivedAmount] = useState<string>('');
   const [posDiscount, setPosDiscount] = useState<string>('0');
@@ -332,7 +349,12 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       // Update default fresh chicken selling rate in POS if available
       const fProd = pList.find(p => p.id === FRESH_CHICKEN_PRODUCT_ID);
       if (fProd && fProd.rate_per_kg) {
-        setPosRatePerKg(String(fProd.rate_per_kg));
+        setPosItems(prev => {
+          if (prev.length === 1 && !prev[0].weightKg) {
+            return [{ ...prev[0], ratePerKg: String(fProd.rate_per_kg) }];
+          }
+          return prev;
+        });
       }
     } catch (err) {
       console.error('Failed to load chicken shop data:', err);
@@ -605,8 +627,16 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
 
   const handleQuickFreshChickenSale = () => {
     setActiveTab('pos');
-    setPosWeightKg('');
-    setPosRatePerKg(String(freshProd.rate_per_kg || 400));
+    setPosItems([
+      {
+        id: 'pos-' + Date.now(),
+        categoryId: categories[0]?.id || 'cat-gosht',
+        categoryName: categories[0]?.name || 'Chicken Gosht (Meat)',
+        categoryUrduName: categories[0]?.urdu_name || 'چکن گوشت',
+        weightKg: '',
+        ratePerKg: String(freshProd.rate_per_kg || 400),
+      },
+    ]);
   };
 
   const handleDeleteExpense = async (id: string) => {
@@ -669,23 +699,80 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   };
 
   // ---------------------------------------------------------------------------
-  // POS Calculations (Strictly Fresh Chicken Meat Only)
+  // POS Multi-Item Calculations & Actions (Price defined during sale + Add button)
   // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (freshProd?.rate_per_kg && (!posRatePerKg || posRatePerKg === '400')) {
-      setPosRatePerKg(String(freshProd.rate_per_kg));
-    }
-  }, [freshProd?.rate_per_kg]);
+  const handlePosCategoryChange = (rowId: string, catId: string) => {
+    const found = categories.find(c => c.id === catId);
+    if (!found) return;
+    setPosItems(prev =>
+      prev.map(it => (it.id === rowId ? {
+        ...it,
+        categoryId: found.id,
+        categoryName: found.name,
+        categoryUrduName: found.urdu_name,
+      } : it))
+    );
+  };
+
+  const handlePosWeightChange = (rowId: string, val: string) => {
+    setPosItems(prev =>
+      prev.map(it => (it.id === rowId ? { ...it, weightKg: val } : it))
+    );
+  };
+
+  const handlePosRateChange = (rowId: string, val: string) => {
+    setPosItems(prev =>
+      prev.map(it => (it.id === rowId ? { ...it, ratePerKg: val } : it))
+    );
+  };
+
+  const handlePosQuickWeight = (rowId: string, addKg: number) => {
+    setPosItems(prev =>
+      prev.map(it => {
+        if (it.id === rowId) {
+          const cur = Number(it.weightKg) || 0;
+          return { ...it, weightKg: String(Number((cur + addKg).toFixed(2))) };
+        }
+        return it;
+      })
+    );
+  };
+
+  const handlePosAddItemRow = () => {
+    const nextCat = categories[posItems.length % (categories.length || 1)] || {
+      id: 'cat-gosht',
+      name: 'Chicken Gosht (Meat)',
+      urdu_name: 'چکن گوشت',
+    };
+    const lastRate = posItems[posItems.length - 1]?.ratePerKg || '400';
+    const newRow: PosItemRow = {
+      id: 'pos-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      categoryId: nextCat.id,
+      categoryName: nextCat.name,
+      categoryUrduName: nextCat.urdu_name,
+      weightKg: '',
+      ratePerKg: lastRate,
+    };
+    setPosItems(prev => [...prev, newRow]);
+  };
+
+  const handlePosRemoveItemRow = (rowId: string) => {
+    if (posItems.length <= 1) return;
+    setPosItems(prev => prev.filter(it => it.id !== rowId));
+  };
 
   const posSubtotal = useMemo(() => {
-    const w = Number(posWeightKg) || 0;
-    const r = Number(posRatePerKg) || 0;
-    return Math.round(w * r);
-  }, [posWeightKg, posRatePerKg]);
+    return posItems.reduce((acc, it) => {
+      const w = Number(it.weightKg) || 0;
+      const r = Number(it.ratePerKg) || 0;
+      return acc + Math.round(w * r);
+    }, 0);
+  }, [posItems]);
 
   const posTotalWeight = useMemo(() => {
-    return Number((Number(posWeightKg) || 0).toFixed(2));
-  }, [posWeightKg]);
+    const total = posItems.reduce((acc, it) => acc + (Number(it.weightKg) || 0), 0);
+    return Number(total.toFixed(2));
+  }, [posItems]);
 
   const posFinalTotal = useMemo(() => {
     const disc = Number(posDiscount) || 0;
@@ -713,25 +800,13 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     return Math.max(0, posFinalTotal - rec);
   }, [posFinalTotal, posReceivedAmount]);
 
-  const handleQuickAddWeightSingle = (addKg: number) => {
-    const cur = Number(posWeightKg) || 0;
-    setPosWeightKg(String(Number((cur + addKg).toFixed(2))));
-  };
-
-  // Submit POS Sale
+  // Submit POS Sale with multiple items
   const handleSaveSale = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const w = Number(posWeightKg);
-    const r = Number(posRatePerKg);
-
-    if (!w || w <= 0) {
-      alert('براہ کرم تازہ چکن کا درست وزن (KG) درج کریں');
-      return;
-    }
-
-    if (!r || r <= 0) {
-      alert('براہ کرم چکن کا فروخت ریٹ فی کلو درج کریں');
+    const validItems = posItems.filter(it => (Number(it.weightKg) || 0) > 0 && (Number(it.ratePerKg) || 0) > 0);
+    if (validItems.length === 0) {
+      alert('براہ کرم کم از کم ایک آئٹم کا وزن اور فروخت ریٹ درج کریں');
       return;
     }
 
@@ -745,18 +820,22 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
 
     try {
       setPosSaving(true);
+      const saleItems = validItems.map(it => ({
+        product_id: freshProd?.id,
+        product_name: `${it.categoryUrduName} (${it.categoryName})`,
+        category_id: it.categoryId,
+        category_name: it.categoryName,
+        urdu_name: it.categoryUrduName,
+        weight_kg: Number(it.weightKg),
+        rate_per_kg: Number(it.ratePerKg),
+        line_total: Math.round(Number(it.weightKg) * Number(it.ratePerKg)),
+      }));
+
       const newSale = await chickenShopApi.createSale({
         customer_id: posCustomerId || null,
         customer_name: customerName,
         phone: customerPhone,
-        items: [
-          {
-            product_id: freshProd.id,
-            product_name: freshProd.name,
-            weight_kg: w,
-            rate_per_kg: r,
-          },
-        ],
+        items: saleItems,
         payment_method: posCustomerId ? 'credit' : 'cash',
         received_amount: posCustomerId ? 0 : posFinalTotal,
         discount: Number(posDiscount) || 0,
@@ -768,7 +847,16 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       await loadAllData(false);
 
       // Reset POS inputs
-      setPosWeightKg('');
+      setPosItems([
+        {
+          id: 'pos-' + Date.now(),
+          categoryId: categories[0]?.id || 'cat-gosht',
+          categoryName: categories[0]?.name || 'Chicken Gosht (Meat)',
+          categoryUrduName: categories[0]?.urdu_name || 'چکن گوشت',
+          weightKg: '',
+          ratePerKg: '400',
+        },
+      ]);
       setPosCustomerId('');
       setPosPaymentMethod('cash');
       setPosReceivedAmount('');
@@ -1659,9 +1747,9 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                     )}
                   </div>
 
-                  {/* Single Fresh Chicken Meat Card (Zero Dropdown Clutter) */}
+                  {/* Chicken Items & Cuts Section (Multi-Item with + Button & Price during sale) */}
                   <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-amber-300 shadow-xs space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center text-xl shrink-0">
                           🍗
@@ -1669,122 +1757,186 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-extrabold text-slate-900 text-sm sm:text-base font-urdu">
-                              تازہ مرغی / گوشت (Fresh Chicken Meat)
+                              چکن کٹس و آئٹمز (Chicken Items & Cuts)
                             </h3>
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              کاؤنٹر پروڈکٹ
+                              ملٹی آئٹم بل
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-500 font-urdu mt-0.5">
-                            براہِ راست کاؤنٹر وزن اور ریٹ درج کریں — بل پر خودکار کٹوتی
+                            کیٹیگری منتخب کریں، وزن درج کریں اور قیمت/ریٹ براہ راست سیل کے وقت مقرر کریں
                           </p>
                         </div>
                       </div>
 
-                      {/* Stock badge */}
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                      {/* Header Actions: Current Scale Stock + Add Item button */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         <div className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-right">
-                          <span className="text-[10px] text-slate-400 block font-urdu">موجودہ اسکیل اسٹاک</span>
+                          <span className="text-[10px] text-slate-400 block font-urdu">اسکیل اسٹاک</span>
                           <span className="text-xs font-mono font-bold text-slate-800">
                             {freshProd.stock_kg || 0} KG
                           </span>
                         </div>
+                        <button
+                          type="button"
+                          onClick={handlePosAddItemRow}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold font-urdu rounded-xl shadow-xs transition"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>+ نیا آئٹم شامل کریں (Add Cut)</span>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                      {/* Weight Input (Large, Touch friendly) */}
-                      <div className="md:col-span-5 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-slate-700 font-urdu">
-                            چکن کا وزن (Weight in KG) *
-                          </label>
-                          <span className="text-[10px] text-slate-400 font-mono">1.0 = 1 KG, 0.5 = آدھا کلو</span>
-                        </div>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="0.05"
-                            step="0.01"
-                            required
-                            autoFocus
-                            value={posWeightKg}
-                            onChange={e => setPosWeightKg(e.target.value)}
-                            placeholder="0.00"
-                            className="w-full bg-slate-50 hover:bg-white focus:bg-white border-2 border-slate-200 focus:border-amber-600 text-slate-900 rounded-xl pl-3 pr-12 py-3 text-base sm:text-lg font-mono font-black focus:outline-none transition shadow-2xs"
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 font-mono">
-                            KG
-                          </span>
-                        </div>
+                    {/* Items List */}
+                    <div className="space-y-3">
+                      {posItems.map((item, index) => {
+                        const itemWeight = Number(item.weightKg) || 0;
+                        const itemRate = Number(item.ratePerKg) || 0;
+                        const itemTotal = Math.round(itemWeight * itemRate);
 
-                        {/* Quick Weight Increment Buttons */}
-                        <div className="flex items-center flex-wrap gap-1.5 pt-1">
-                          {[0.5, 1, 1.5, 2, 2.5, 5].map(kg => (
-                            <button
-                              key={kg}
-                              type="button"
-                              onClick={() => handleQuickAddWeightSingle(kg)}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 text-xs font-mono font-bold rounded-lg border border-slate-200 transition active:scale-95"
-                            >
-                              +{kg}k
-                            </button>
-                          ))}
-                          {posWeightKg && (
-                            <button
-                              type="button"
-                              onClick={() => setPosWeightKg('')}
-                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold rounded-lg border border-rose-200 transition font-urdu"
-                            >
-                              صاف کریں
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                        return (
+                          <div
+                            key={item.id}
+                            className="p-3.5 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition space-y-3"
+                          >
+                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200/60">
+                              <span className="text-xs font-bold text-amber-800 font-urdu flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-mono flex items-center justify-center font-bold">
+                                  {index + 1}
+                                </span>
+                                <span>آئٹم #{index + 1}</span>
+                              </span>
 
-                      {/* Selling Rate per KG Input */}
-                      <div className="md:col-span-4 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-slate-700 font-urdu">
-                            فروخت ریٹ فی کلو (Rate / KG) *
-                          </label>
-                          <span className="text-[10px] text-amber-700 font-mono">
-                            ڈیفالٹ: Rs.{freshProd.rate_per_kg || 400}
-                          </span>
-                        </div>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                            Rs.
-                          </span>
-                          <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            required
-                            value={posRatePerKg}
-                            onChange={e => setPosRatePerKg(e.target.value)}
-                            placeholder="400"
-                            className="w-full bg-slate-50 hover:bg-white focus:bg-white border-2 border-slate-200 focus:border-amber-600 rounded-xl pl-10 pr-3 py-3 text-base sm:text-lg font-mono font-black text-slate-900 focus:outline-none transition shadow-2xs"
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-400 font-urdu pt-1">
-                          ضرورت پڑنے پر ریٹ تبدیل کر سکتے ہیں
-                        </p>
-                      </div>
+                              {posItems.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePosRemoveItemRow(item.id)}
+                                  className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200 transition font-urdu flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>حذف کریں</span>
+                                </button>
+                              )}
+                            </div>
 
-                      {/* Line Total preview box */}
-                      <div className="md:col-span-3 p-3.5 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl text-center md:text-right">
-                        <span className="text-[11px] font-bold text-amber-900 block font-urdu">
-                          کل رقم (Total Amount)
-                        </span>
-                        <div className="text-xl sm:text-2xl font-mono font-black text-amber-700 mt-0.5">
-                          Rs. {posSubtotal.toLocaleString()}
-                        </div>
-                        <span className="text-[10px] text-amber-800 font-urdu mt-0.5 block">
-                          {Number(posWeightKg) || 0} KG × Rs.{Number(posRatePerKg) || 0}
-                        </span>
-                      </div>
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                              {/* 1. Category Dropdown */}
+                              <div className="md:col-span-4 space-y-1">
+                                <label className="text-[11px] font-bold text-slate-700 block font-urdu">
+                                  چکن کیٹیگری (Category) *
+                                </label>
+                                <select
+                                  value={item.categoryId}
+                                  onChange={e => handlePosCategoryChange(item.id, e.target.value)}
+                                  className="w-full bg-white border-2 border-slate-200 focus:border-amber-600 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 font-urdu focus:outline-none transition shadow-2xs"
+                                >
+                                  {categories.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.urdu_name} ({c.name})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* 2. Weight Input + Quick buttons */}
+                              <div className="md:col-span-3 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[11px] font-bold text-slate-700 font-urdu">
+                                    وزن (Weight in KG) *
+                                  </label>
+                                  <span className="text-[10px] text-slate-400 font-mono">0.5 = آدھا کلو</span>
+                                </div>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="0.05"
+                                    step="0.01"
+                                    required
+                                    value={item.weightKg}
+                                    onChange={e => handlePosWeightChange(item.id, e.target.value)}
+                                    placeholder="0.00"
+                                    className="w-full bg-white border-2 border-slate-200 focus:border-amber-600 text-slate-900 rounded-xl pl-3 pr-9 py-2 text-sm sm:text-base font-mono font-black focus:outline-none transition shadow-2xs"
+                                  />
+                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 font-mono">
+                                    KG
+                                  </span>
+                                </div>
+                                <div className="flex items-center flex-wrap gap-1 pt-0.5">
+                                  {[0.5, 1, 2, 5].map(kg => (
+                                    <button
+                                      key={kg}
+                                      type="button"
+                                      onClick={() => handlePosQuickWeight(item.id, kg)}
+                                      className="px-2 py-0.5 bg-slate-200/80 hover:bg-amber-100 text-slate-700 hover:text-amber-900 text-[10px] font-mono font-bold rounded-md border border-slate-300 transition"
+                                    >
+                                      +{kg}k
+                                    </button>
+                                  ))}
+                                  {item.weightKg && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePosWeightChange(item.id, '')}
+                                      className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold rounded border border-rose-200 transition font-urdu"
+                                    >
+                                      صاف
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 3. Rate per KG (Price defined at sale) */}
+                              <div className="md:col-span-3 space-y-1">
+                                <label className="text-[11px] font-bold text-slate-700 block font-urdu">
+                                  فروخت ریٹ (Rate / KG) *
+                                </label>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                                    Rs.
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    required
+                                    value={item.ratePerKg}
+                                    onChange={e => handlePosRateChange(item.id, e.target.value)}
+                                    placeholder="400"
+                                    className="w-full bg-white border-2 border-slate-200 focus:border-amber-600 rounded-xl pl-8 pr-2.5 py-2 text-sm sm:text-base font-mono font-black text-slate-900 focus:outline-none transition shadow-2xs"
+                                  />
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-urdu block">
+                                  سیل کے وقت ریٹ درج کریں
+                                </span>
+                              </div>
+
+                              {/* 4. Row Line Total */}
+                              <div className="md:col-span-2 p-2.5 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl text-center md:text-right">
+                                <span className="text-[10px] font-bold text-amber-900 block font-urdu">
+                                  کل رقم
+                                </span>
+                                <div className="text-base sm:text-lg font-mono font-black text-amber-700">
+                                  Rs. {itemTotal.toLocaleString()}
+                                </div>
+                                <span className="text-[9px] text-amber-800 font-urdu block">
+                                  {itemWeight}k × Rs.{itemRate}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* Prominent Bottom Add Item Row Button */}
+                    <button
+                      type="button"
+                      onClick={handlePosAddItemRow}
+                      className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 border-2 border-dashed border-amber-300 hover:border-amber-500 text-amber-900 rounded-xl font-bold font-urdu text-xs flex items-center justify-center gap-2 transition active:scale-[0.99]"
+                    >
+                      <Plus className="w-4 h-4 text-amber-700" />
+                      <span>+ نیا آئٹم / کٹ شامل کریں (Add Another Item / Chicken Cut)</span>
+                    </button>
                   </div>
 
                   {/* Summary & Payment Controls */}

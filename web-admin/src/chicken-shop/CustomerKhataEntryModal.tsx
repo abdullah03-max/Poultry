@@ -357,7 +357,7 @@ export const CustomerKhataEntryModal: React.FC<CustomerKhataEntryModalProps> = (
                         >
                           {categories.map(c => (
                             <option key={c.id} value={c.id}>
-                              {c.urdu_name} ({c.name}) — Rs.{c.default_rate_per_kg}/KG
+                              {c.urdu_name} ({c.name})
                             </option>
                           ))}
                         </select>

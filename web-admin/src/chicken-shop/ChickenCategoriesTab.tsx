@@ -26,7 +26,6 @@ export const ChickenCategoriesTab: React.FC<ChickenCategoriesTabProps> = ({
   const [editingCategory, setEditingCategory] = useState<ChickenCategory | null>(null);
   const [name, setName] = useState<string>('');
   const [urduName, setUrduName] = useState<string>('');
-  const [defaultRate, setDefaultRate] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<string>('1');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
@@ -35,7 +34,6 @@ export const ChickenCategoriesTab: React.FC<ChickenCategoriesTabProps> = ({
     setEditingCategory(null);
     setName('');
     setUrduName('');
-    setDefaultRate('');
     setSortOrder(String(categories.length + 1));
     setModalOpen(true);
   };
@@ -44,7 +42,6 @@ export const ChickenCategoriesTab: React.FC<ChickenCategoriesTabProps> = ({
     setEditingCategory(cat);
     setName(cat.name);
     setUrduName(cat.urdu_name);
-    setDefaultRate(cat.default_rate_per_kg ? String(cat.default_rate_per_kg) : '');
     setSortOrder(String(cat.sort_order || 1));
     setModalOpen(true);
   };
@@ -67,14 +64,14 @@ export const ChickenCategoriesTab: React.FC<ChickenCategoriesTabProps> = ({
           ...editingCategory,
           name: name.trim(),
           urdu_name: urduName.trim(),
-          default_rate_per_kg: Number(defaultRate) || 0,
+          default_rate_per_kg: 0,
           sort_order: Number(sortOrder) || 1,
         });
       } else {
         await chickenShopApi.createCategory({
           name: name.trim(),
           urdu_name: urduName.trim(),
-          default_rate_per_kg: Number(defaultRate) || 0,
+          default_rate_per_kg: 0,
           sort_order: Number(sortOrder) || 1,
         });
       }
@@ -128,7 +125,7 @@ export const ChickenCategoriesTab: React.FC<ChickenCategoriesTabProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 font-urdu mt-0.5">
-              چکن کٹس کی اقسام (لیگز، چیسٹ، ونگز، تکہ بوٹی وغیرہ) اور ڈیفالٹ ریٹس — یہ پراڈکٹ ٹائپس ہیں، اسٹاک انوینٹری سے الگ ہیں
+              چکن کٹس و اقسام (لیگز، چیسٹ، ونگز، تکہ بوٹی وغیرہ) — ریٹ اور قیمت سیل کے وقت درج کی جاتی ہے
             </p>
           </div>
         </div>
@@ -180,20 +177,13 @@ export const ChickenCategoriesTab: React.FC<ChickenCategoriesTabProps> = ({
                 </span>
               </div>
 
-              <h4 className="font-extrabold text-slate-900 text-sm font-urdu">
+              <h4 className="font-extrabold text-slate-900 text-base font-urdu">
                 {cat.urdu_name}
               </h4>
-              <p className="text-xs text-slate-500 font-medium">{cat.name}</p>
-
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 font-urdu">ڈیفالٹ فروخت ریٹ:</span>
-                <span className="text-sm font-mono font-black text-amber-700">
-                  Rs. {cat.default_rate_per_kg || 0} / KG
-                </span>
-              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">{cat.name}</p>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1.5">
+            <div className="mt-4 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1.5">
               <button
                 type="button"
                 onClick={() => handleOpenEdit(cat)}
@@ -271,35 +261,18 @@ export const ChickenCategoriesTab: React.FC<ChickenCategoriesTabProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 font-urdu mb-1">
-                    ڈیفالٹ فروخت ریٹ (Rs/KG)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="450"
-                    value={defaultRate}
-                    onChange={e => setDefaultRate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 font-urdu mb-1">
-                    ترتیب نمبر (Sort Order)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={sortOrder}
-                    onChange={e => setSortOrder(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white transition"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-urdu mb-1">
+                  ترتیب نمبر (Sort Order)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={sortOrder}
+                  onChange={e => setSortOrder(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                />
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
