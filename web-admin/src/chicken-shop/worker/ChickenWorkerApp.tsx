@@ -12,7 +12,7 @@ import {
   ChickenSale,
   ChickenPayment,
 } from '../types';
-import { chickenShopApi, DEFAULT_CHICKEN_CATEGORIES } from '../api';
+import { chickenShopApi, DEFAULT_CHICKEN_CATEGORIES, FRESH_CHICKEN_PRODUCT_ID } from '../api';
 import { CustomerKhataEntryModal } from '../CustomerKhataEntryModal';
 import { CustomerLedgerModal } from '../CustomerLedgerModal';
 import { SaleReceiptModal } from '../SaleReceiptModal';
@@ -40,6 +40,7 @@ import {
   Clock,
   Printer,
   Share2,
+  Download,
 } from 'lucide-react';
 
 interface BillItemRow {
@@ -77,6 +78,7 @@ export const ChickenWorkerApp: React.FC = () => {
   const [categories, setCategories] = useState<ChickenCategory[]>([]);
   const [sales, setSales] = useState<ChickenSale[]>([]);
   const [payments, setPayments] = useState<ChickenPayment[]>([]);
+  const [freshStockKg, setFreshStockKg] = useState<number>(0);
   const [loadingData, setLoadingData] = useState<boolean>(true);
 
   // Modals
@@ -135,16 +137,23 @@ export const ChickenWorkerApp: React.FC = () => {
   const loadData = async () => {
     try {
       setLoadingData(true);
-      const [cList, catList, sList, pList] = await Promise.all([
+      const [cList, catList, sList, pList, prodList] = await Promise.all([
         chickenShopApi.getCustomers(),
         chickenShopApi.getCategories(),
         chickenShopApi.getSales(),
         chickenShopApi.getPayments(),
+        chickenShopApi.getProducts(),
       ]);
       setCustomers(cList);
       setCategories(catList.length > 0 ? catList : DEFAULT_CHICKEN_CATEGORIES);
       setSales(sList);
       setPayments(pList);
+      const fProd = prodList.find(
+        p => p.id === FRESH_CHICKEN_PRODUCT_ID || p.category === 'Fresh Live Chicken' || (p.urdu_name && p.urdu_name.includes('تازہ'))
+      );
+      if (fProd) {
+        setFreshStockKg(Number(fProd.stock_kg) || 0);
+      }
     } catch (err) {
       console.warn('[CS Worker] Failed to load data:', err);
     } finally {
@@ -273,6 +282,11 @@ export const ChickenWorkerApp: React.FC = () => {
     const invalid = calculatedPosItems.filter(it => it.numWeight <= 0 || it.numRate <= 0);
     if (invalid.length > 0) {
       alert('براہ کرم تمام آئٹمز کا درست وزن اور ریٹ درج کریں');
+      return;
+    }
+
+    if (freshStockKg > 0 && posTotalWeightKg > freshStockKg) {
+      alert(`⚠️ غلطی: فروخت کا کل وزن (${posTotalWeightKg} KG) موجودہ دستیاب اسٹاک (${freshStockKg} KG) سے زیادہ ہے!\n\nآپ دستیاب اسٹاک سے زیادہ چکن فروخت نہیں کر سکتے۔ براہ کرم وزن درست فرمائیں۔\n(Cannot sell ${posTotalWeightKg} KG. Available stock is only ${freshStockKg} KG)`);
       return;
     }
 
@@ -438,6 +452,30 @@ export const ChickenWorkerApp: React.FC = () => {
 
           <div className="text-center text-[11px] text-slate-500 font-urdu">
             صرف چکن شاپ عملہ کے لیے • نیا اکاؤنٹ ایڈمن پینل سے بنوائیں
+          </div>
+
+          <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 font-urdu text-[11px]">کیا آپ دکان کے مالک / ایڈمن ہیں؟</span>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.hash = '#chicken-management';
+                }}
+                className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl font-bold font-urdu transition active:scale-95 text-xs flex items-center gap-1.5"
+              >
+                <span>👑 ایڈمن پینل کھولیں</span>
+              </button>
+            </div>
+
+            <a
+              href="/ShanChickenShop.apk"
+              download="ShanChickenShop.apk"
+              className="w-full py-2.5 px-3 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-amber-500/50 rounded-xl text-amber-400 text-xs font-bold font-urdu transition flex items-center justify-center gap-2 shadow-xs"
+            >
+              <Download className="w-4 h-4 text-amber-400" />
+              <span>📱 موبائل ایپ (ShanChickenShop.apk) ڈاؤن لوڈ کریں</span>
+            </a>
           </div>
         </div>
       </div>
@@ -736,13 +774,32 @@ export const ChickenWorkerApp: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Stock Limit Warning Banner */}
+                {posTotalWeightKg > freshStockKg && (
+                  <div className="p-3 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-2.5 text-rose-800 text-xs font-urdu shadow-2xs">
+                    <span className="text-lg">⚠️</span>
+                    <div>
+                      <strong className="block font-bold">غلطی: چکن کا وزن موجودہ دستیاب اسٹاک سے زیادہ ہے!</strong>
+                      <span>
+                        آپ نے <strong>{posTotalWeightKg} KG</strong> درج کیا ہے جبکہ دستیاب اسٹاک صرف <strong>{freshStockKg} KG</strong> ہے۔ آپ اسٹاک سے زیادہ وزن فروخت نہیں کر سکتے۔
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={posSaving || posGrandTotal <= 0}
-                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-95 text-white font-bold text-sm font-urdu rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  disabled={posSaving || posGrandTotal <= 0 || posTotalWeightKg > freshStockKg || freshStockKg <= 0}
+                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-95 text-white font-bold text-sm font-urdu rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{posSaving ? 'بل محفوظ ہو رہا ہے...' : 'بل محفوظ کریں اور رسید پرنٹ کریں'}</span>
+                  <span>
+                    {posTotalWeightKg > freshStockKg
+                      ? `اسٹاک ناکافی ہے (دستیاب: ${freshStockKg} KG)`
+                      : posSaving
+                      ? 'بل محفوظ ہو رہا ہے...'
+                      : 'بل محفوظ کریں اور رسید پرنٹ کریں'}
+                  </span>
                 </button>
               </form>
             </div>
@@ -990,6 +1047,7 @@ export const ChickenWorkerApp: React.FC = () => {
         customer={khataEntryCustomer}
         allCustomers={customers}
         categories={categories}
+        availableStock={freshStockKg}
         onClose={() => setKhataEntryModalOpen(false)}
         onSuccess={newSale => {
           loadData();

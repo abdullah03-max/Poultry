@@ -3,7 +3,7 @@
 // Enables Desktop Installation (PWA Install Icon), Offline Access, and Cache
 // =============================================================================
 
-const CACHE_NAME = 'shan-poultry-pwa-v1';
+const CACHE_NAME = 'shan-poultry-pwa-v2';
 
 const STATIC_ASSETS = [
   '/',
@@ -51,6 +51,19 @@ self.addEventListener('fetch', (event) => {
 
   // Bypass chrome-extension requests or non-GET requests
   if (event.request.method !== 'GET' || url.protocol.startsWith('chrome-extension')) {
+    return;
+  }
+
+  // Always bypass localhost / Vite dev server / dynamic chunks to prevent React version conflicts
+  if (
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.includes('/src/') ||
+    url.search.includes('v=')
+  ) {
     return;
   }
 

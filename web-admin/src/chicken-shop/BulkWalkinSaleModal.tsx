@@ -145,6 +145,13 @@ export const BulkWalkinSaleModal: React.FC<BulkWalkinSaleModalProps> = ({
   };
 
   // Calculations
+  const freshProd = useMemo(() => {
+    return products.find(
+      p => p.id === FRESH_CHICKEN_PRODUCT_ID || p.category === 'Fresh Live Chicken' || (p.urdu_name && p.urdu_name.includes('تازہ'))
+    );
+  }, [products]);
+  const availableFreshStock = freshProd ? (Number(freshProd.stock_kg) || 0) : 0;
+
   const activeItemsToSell = rows.filter(r => Number(r.weightKg) > 0);
 
   const totalWeightKg = Number(
@@ -165,6 +172,12 @@ export const BulkWalkinSaleModal: React.FC<BulkWalkinSaleModalProps> = ({
 
     if (activeItemsToSell.length === 0) {
       setErrorMsg('براہ کرم کم از کم ایک پروڈکٹ کا فروخت شدہ وزن درج کریں۔');
+      return;
+    }
+
+    const currentFreshWeight = Number(freshRow?.weightKg) || 0;
+    if (currentFreshWeight > availableFreshStock) {
+      setErrorMsg(`⚠️ غلطی: واک ان تازہ چکن کا وزن (${currentFreshWeight} KG) موجودہ دستیاب اسٹاک (${availableFreshStock} KG) سے زیادہ ہے! آپ دستیاب اسٹاک سے زیادہ وزن فروخت نہیں کر سکتے۔`);
       return;
     }
 
@@ -644,7 +657,11 @@ export const BulkWalkinSaleModal: React.FC<BulkWalkinSaleModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={saving || totalWeightKg <= 0}
+              disabled={
+                saving ||
+                totalWeightKg <= 0 ||
+                freshWeight > availableFreshStock
+              }
               className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-urdu font-black text-xs transition shadow-md shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
             >
               <CheckCircle2 className="w-4 h-4" />

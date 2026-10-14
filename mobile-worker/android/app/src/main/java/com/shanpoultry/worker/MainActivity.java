@@ -273,7 +273,7 @@ public class MainActivity extends AppCompatActivity {
                     if (photoFile != null) {
                         Uri photoURI = FileProvider.getUriForFile(
                                 MainActivity.this,
-                                "com.shanpoultry.worker.fileprovider",
+                                getPackageName() + ".fileprovider",
                                 photoFile
                         );
                         takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
@@ -307,7 +307,12 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
         // Load the local Daylight worker app via WebViewAssetLoader
-        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
+        String targetUrl = "https://appassets.androidplatform.net/assets/www/index.html";
+        String pkg = getPackageName();
+        if (pkg != null && pkg.contains("chickenshop")) {
+            targetUrl += "#chicken-worker";
+        }
+        webView.loadUrl(targetUrl);
     }
 
     private File createImageFile() throws IOException {

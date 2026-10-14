@@ -7,13 +7,34 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.shanpoultry.worker"
         minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    flavorDimensions "default"
+    productFlavors {
+        chickenShop {
+            dimension "default"
+            applicationId "com.shanpoultry.chickenshop"
+            versionCode 1
+            versionName "1.0.0"
+            manifestPlaceholders = [
+                appName: "Shan Chicken Shop"
+            ]
+        }
+        wasteWorker {
+            dimension "default"
+            applicationId "com.shanpoultry.worker"
+            versionCode 2
+            versionName "1.0.1"
+            manifestPlaceholders = [
+                appName: "Shan Poultry Worker"
+            ]
+        }
     }
 
     signingConfigs {

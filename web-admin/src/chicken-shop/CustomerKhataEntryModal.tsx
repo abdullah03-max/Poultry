@@ -29,6 +29,7 @@ interface CustomerKhataEntryModalProps {
   customer: ChickenCustomer | null;
   allCustomers?: ChickenCustomer[];
   categories: ChickenCategory[];
+  availableStock?: number;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (newSale: ChickenSale) => void;
@@ -38,6 +39,7 @@ export const CustomerKhataEntryModal: React.FC<CustomerKhataEntryModalProps> = (
   customer,
   allCustomers = [],
   categories,
+  availableStock,
   isOpen,
   onClose,
   onSuccess,
@@ -173,6 +175,11 @@ export const CustomerKhataEntryModal: React.FC<CustomerKhataEntryModalProps> = (
       return;
     }
 
+    if (availableStock !== undefined && totalWeightKg > availableStock) {
+      alert(`⚠️ غلطی: بل کا کل وزن (${totalWeightKg} KG) موجودہ دستیاب اسٹاک (${availableStock} KG) سے زیادہ ہے!\n\nآپ دستیاب اسٹاک سے زیادہ وزن ادھار کھاتے میں درج نہیں کر سکتے۔ براہ کرم وزن درست فرمائیں۔\n(Cannot add ${totalWeightKg} KG. Available stock is only ${availableStock} KG)`);
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -294,21 +301,32 @@ export const CustomerKhataEntryModal: React.FC<CustomerKhataEntryModalProps> = (
 
           {/* Multiple Items Bill Section (Requirement 4) */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="w-4 h-4 text-amber-600" />
                 <h4 className="font-extrabold text-sm text-slate-900 font-urdu">
                   چکن کیٹیگریز و وزن اندراج (Bill Items)
                 </h4>
               </div>
-              <button
-                type="button"
-                onClick={handleAddItemRow}
-                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold font-urdu rounded-xl shadow-xs transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ مزید آئٹم شامل کریں (Add Item)</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {availableStock !== undefined && (
+                  <span className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border ${
+                    totalWeightKg > availableStock
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    دستیاب اسٹاک: {availableStock} KG
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddItemRow}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold font-urdu rounded-xl shadow-xs transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ مزید آئٹم شامل کریں (Add Item)</span>
+                </button>
+              </div>
             </div>
 
             {/* Items Table / Cards */}
@@ -482,6 +500,19 @@ export const CustomerKhataEntryModal: React.FC<CustomerKhataEntryModalProps> = (
             />
           </div>
 
+          {/* Stock Limit Warning */}
+          {availableStock !== undefined && totalWeightKg > availableStock && (
+            <div className="p-3 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-2.5 text-rose-800 text-xs font-urdu shadow-xs">
+              <span className="text-lg">⚠️</span>
+              <div>
+                <strong className="block font-bold">غلطی: بل کا وزن موجودہ دستیاب اسٹاک سے زیادہ ہے!</strong>
+                <span>
+                  بل کا کل وزن <strong>{totalWeightKg} KG</strong> ہے جبکہ کاؤنٹر اسکیل پر صرف <strong>{availableStock} KG</strong> دستیاب ہے۔ آپ اسٹاک سے زیادہ چکن ادھار کھاتے میں درج نہیں کر سکتے۔
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
@@ -493,11 +524,21 @@ export const CustomerKhataEntryModal: React.FC<CustomerKhataEntryModalProps> = (
             </button>
             <button
               type="submit"
-              disabled={saving || grandTotalAmount <= 0}
-              className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-95 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-md font-urdu disabled:opacity-50 cursor-pointer"
+              disabled={
+                saving ||
+                grandTotalAmount <= 0 ||
+                (availableStock !== undefined && (totalWeightKg > availableStock || availableStock <= 0))
+              }
+              className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-95 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-md font-urdu disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>{saving ? 'کھاتے میں محفوظ ہو رہا ہے...' : 'کھاتے میں محفوظ کریں (Save Khata Bill)'}</span>
+              <span>
+                {availableStock !== undefined && totalWeightKg > availableStock
+                  ? `اسٹاک ناکافی ہے (دستیاب: ${availableStock} KG)`
+                  : saving
+                  ? 'کھاتے میں محفوظ ہو رہا ہے...'
+                  : 'کھاتے میں محفوظ کریں (Save Khata Bill)'}
+              </span>
             </button>
           </div>
         </form>

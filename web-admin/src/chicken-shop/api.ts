@@ -785,6 +785,7 @@ export const chickenShopApi = {
         credit: s.received_amount, // Any cash paid upfront at sale
         running_balance: 0, // Calculated below
         reference_id: s.invoice_no,
+        rawSale: s,
       });
     });
 
@@ -800,6 +801,7 @@ export const chickenShopApi = {
         credit: p.amount,
         running_balance: 0,
         reference_id: p.voucher_no,
+        rawPayment: p,
       });
     });
 

@@ -810,6 +810,12 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       return;
     }
 
+    const availableStock = Number(freshProd?.stock_kg) || 0;
+    if (posTotalWeight > availableStock) {
+      alert(`⚠️ غلطی: فروخت کا کل وزن (${posTotalWeight} KG) موجودہ دستیاب اسٹاک (${availableStock} KG) سے زیادہ ہے!\n\nآپ دستیاب اسٹاک سے زیادہ وزن فروخت نہیں کر سکتے۔ براہ کرم وزن درست فرمائیں۔\n(Cannot sell ${posTotalWeight} KG. Available stock is only ${availableStock} KG)`);
+      return;
+    }
+
     if (posPaymentMethod === 'credit' && !posCustomerId) {
       alert('ادھار کھاتہ سیل کے لیے براہ کرم گاہک منتخب کریں یا ادائیگی کا طریقہ نقد (Cash) رکھیں');
       return;
@@ -1231,15 +1237,26 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               <span>+ وصولی</span>
             </button>
             <a
-              href="/chicken-worker"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-black rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0 border border-amber-500"
-              title="چکن شاپ ورکر ایپ علیحدہ ٹیب میں کھولیں"
+              href="/ShanChickenShop.apk"
+              download="ShanChickenShop.apk"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0 border border-slate-700"
+              title="چکن شاپ موبائل ایپ (APK) ڈاؤن لوڈ کریں"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <span>📱 موبائل ایپ (APK)</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                window.location.hash = '#chicken-worker';
+                if (onBackToWaste) onBackToWaste();
+              }}
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-black rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0 border border-amber-500 cursor-pointer"
+              title="چکن شاپ ورکر پورٹل کھولیں"
             >
               <UserCheck className="w-3.5 h-3.5" />
-              <span>👷 ورکر ایپ ↗</span>
-            </a>
+              <span>👷 ورکر پورٹل</span>
+            </button>
           </div>
         </header>
 
@@ -2047,19 +2064,36 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                     </div>
                   </div>
 
+                  {/* Stock Limit Warning */}
+                  {posTotalWeight > (Number(freshProd?.stock_kg) || 0) && (
+                    <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-urdu shadow-xs">
+                      <span className="text-xl">⚠️</span>
+                      <div>
+                        <strong className="block font-bold">غلطی: چکن کا وزن موجودہ دستیاب اسٹاک سے زیادہ ہے!</strong>
+                        <span>
+                          آپ نے <strong>{posTotalWeight} KG</strong> درج کیا ہے جبکہ کاؤنٹر اسکیل پر صرف <strong>{freshProd?.stock_kg || 0} KG</strong> تازہ چکن دستیاب ہے۔ آپ اسٹاک سے زیادہ وزن فروخت نہیں کر سکتے۔
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Submit Button */}
                   <div className="pt-2">
                     <button
                       type="submit"
-                      disabled={posSaving}
-                      className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-black text-sm rounded-2xl shadow-sm transition active:scale-95 flex items-center justify-center gap-2 font-urdu disabled:opacity-60"
+                      disabled={posSaving || posTotalWeight > (Number(freshProd?.stock_kg) || 0) || (Number(freshProd?.stock_kg) || 0) <= 0}
+                      className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-black text-sm rounded-2xl shadow-sm transition active:scale-95 flex items-center justify-center gap-2 font-urdu disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {posSaving ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
                         <Printer className="w-5 h-5" />
                       )}
-                      <span>بل محفوظ کریں اور رسید پرنٹ کریں (Save & Print Invoice)</span>
+                      <span>
+                        {posTotalWeight > (Number(freshProd?.stock_kg) || 0)
+                          ? `اسٹاک ناکافی ہے (دستیاب: ${freshProd?.stock_kg || 0} KG)`
+                          : 'بل محفوظ کریں اور رسید پرنٹ کریں (Save & Print Invoice)'}
+                      </span>
                     </button>
                   </div>
                 </form>
@@ -2419,6 +2453,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         customer={khataEntryCustomer}
         allCustomers={customers}
         categories={categories}
+        availableStock={Number(freshProd?.stock_kg) || 0}
         onClose={() => setKhataEntryModalOpen(false)}
         onSuccess={newSale => {
           loadAllData(false);

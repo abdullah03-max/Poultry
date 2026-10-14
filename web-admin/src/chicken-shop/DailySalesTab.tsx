@@ -28,6 +28,7 @@ import {
   ArrowDownLeft,
   RefreshCw,
   FileText,
+  Eye,
 } from 'lucide-react';
 
 interface DailySalesTabProps {
@@ -604,6 +605,13 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
                         </td>
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => onOpenReceipt(sale)}
+                              className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition shadow-2xs"
+                              title="مکمل تفصیلات دیکھیں (View Complete Details)"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-amber-700" />
+                            </button>
                             <button
                               onClick={() => onOpenReceipt(sale)}
                               className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"

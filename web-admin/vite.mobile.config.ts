@@ -15,10 +15,13 @@ export default defineConfig({
         if (fs.existsSync(mobileHtml)) {
           fs.copyFileSync(mobileHtml, indexHtml);
         }
-        const iconSrc = path.resolve(__dirname, 'public/app_icon.png');
-        const iconDest = path.join(outDir, 'app_icon.png');
-        if (fs.existsSync(iconSrc)) {
-          fs.copyFileSync(iconSrc, iconDest);
+        const filesToCopy = ['app_icon.png', 'chicken_shop_icon.png', 'manifest.json', 'sw.js', 'favicon.png'];
+        for (const f of filesToCopy) {
+          const s = path.resolve(__dirname, 'public', f);
+          const d = path.join(outDir, f);
+          if (fs.existsSync(s)) {
+            fs.copyFileSync(s, d);
+          }
         }
       },
     },

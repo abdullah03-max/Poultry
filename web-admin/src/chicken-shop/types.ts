@@ -145,6 +145,8 @@ export interface ChickenShopLedgerEntry {
   credit: number; // Amount customer paid (-)
   running_balance: number;
   reference_id?: string;
+  rawSale?: ChickenSale;
+  rawPayment?: ChickenPayment;
 }
 
 export interface SupplierPaymentItem {
