@@ -66,48 +66,21 @@ export const FactoriesPage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [fList, txList, bSettings, colResult] = await Promise.all([
+      const todayStr = new Date().toISOString().split('T')[0];
+      const [fList, txList, bSettings, todayStats] = await Promise.all([
         api.getFactories(),
         api.getFactoryTransactions(),
         api.getSettings().catch(() => null),
-        api.getCollections({ limit: 1000 }).catch(() => ({ collections: [] as Collection[], totalCount: 0 })),
+        api.getCollectionStats({ startDate: todayStr, endDate: todayStr }).catch(() => null),
       ]);
       setFactories(fList);
       setTransactions(txList);
       if (bSettings) setSettings(bSettings);
 
-      // Detect today's collected Charbi and Kachara weights
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayCols = (colResult?.collections || []).filter(c => c.collection_date === todayStr);
-
-      let cWeight = 0;
-      let kWeight = 0;
-      todayCols.forEach(c => {
-        if (c.charbi_net && c.charbi_net > 0) {
-          cWeight += Number(c.charbi_net);
-        } else if (c.items && c.items.length > 0) {
-          c.items.forEach(it => {
-            if (it.category?.code === 'charbi' || it.category_code === 'charbi') {
-              cWeight += Number(it.weight || 0);
-            }
-          });
-        }
-
-        if (c.kachara_net && c.kachara_net > 0) {
-          kWeight += Number(c.kachara_net);
-        } else if (c.items && c.items.length > 0) {
-          c.items.forEach(it => {
-            if (it.category?.code === 'kachara' || it.category_code === 'kachara') {
-              kWeight += Number(it.weight || 0);
-            }
-          });
-        } else if (!c.charbi_net && c.total_net_weight > 0) {
-          kWeight += Number(c.total_net_weight);
-        }
-      });
-
-      setTodayCharbiWeight(Number(cWeight.toFixed(2)));
-      setTodayKacharaWeight(Number(kWeight.toFixed(2)));
+      if (todayStats) {
+        setTodayCharbiWeight(Number((todayStats.totalCharbiWeight || 0).toFixed(2)));
+        setTodayKacharaWeight(Number((todayStats.totalKacharaWeight || 0).toFixed(2)));
+      }
     } catch (err) {
       console.error('Failed to load factory data:', err);
     } finally {
@@ -124,6 +97,10 @@ export const FactoriesPage: React.FC = () => {
   const totalBilledAmount = transactions.reduce((acc, t) => acc + (t.total_amount || 0), 0);
   const totalAdvanceTaken = transactions.reduce((acc, t) => acc + (t.advance_amount || 0), 0);
   const totalBalanceDue = Math.max(0, totalBilledAmount - totalAdvanceTaken);
+  const totalAdvanceRemaining = transactions.reduce(
+    (acc, t) => acc + Math.max(0, (t.advance_amount || 0) - (t.total_amount || 0)),
+    0
+  );
 
   // Save Factory
   const handleSaveFactory = async (e: React.FormEvent) => {
@@ -282,9 +259,9 @@ export const FactoriesPage: React.FC = () => {
   // Open Settlement Modal
   const handleOpenSettlement = (tx: FactoryTransaction) => {
     setSettlingTransaction(tx);
-    setAddCharbiWeight('');
+    setAddCharbiWeight(todayCharbiWeight > 0 ? todayCharbiWeight : '');
     setAddCharbiRate(tx.charbi_rate || 75);
-    setAddKacharaWeight('');
+    setAddKacharaWeight(todayKacharaWeight > 0 ? todayKacharaWeight : '');
     setAddKacharaRate(tx.kachara_rate || 60);
     setAddNewAdvance('');
     setEnableNewAdvance(false);
@@ -481,7 +458,7 @@ Shan Contact: ${shanPhone}`;
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-card">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">کل سپلائی وزن</span>
@@ -507,6 +484,15 @@ Shan Contact: ${shanPhone}`;
           </div>
           <p className="text-xl font-black text-emerald-700 font-mono">{formatCurrency(totalAdvanceTaken)}</p>
           <p className="text-[10px] text-slate-400 mt-1">فیکٹریوں سے وصول شدہ ایڈوانس رقم</p>
+        </div>
+
+        <div className="bg-white border border-emerald-200/90 rounded-2xl p-4 shadow-card bg-gradient-to-br from-white to-emerald-50/40">
+          <div className="flex items-center justify-between text-emerald-700 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">کل بقایا ایڈوانس</span>
+            <span className="text-base">💰</span>
+          </div>
+          <p className="text-xl font-black text-emerald-700 font-mono">{formatCurrency(totalAdvanceRemaining)}</p>
+          <p className="text-[10px] text-emerald-600 mt-1 font-medium">فیکٹریوں کے پاس باقی ایڈوانس بیلنس</p>
         </div>
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-card">
@@ -1264,9 +1250,25 @@ Shan Contact: ${shanPhone}`;
 
             {/* Additional Supply Form */}
             <div className="p-3.5 bg-purple-50/60 border border-purple-200 rounded-2xl space-y-3">
-              <span className="font-bold text-xs text-purple-950 block font-urdu">
-                ➕ اس ایڈوانس کے تحت مزید سپلائی شامل کریں (Add Extra Supply):
-              </span>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="font-bold text-xs text-purple-950 font-urdu">
+                  ➕ اس ایڈوانس کے تحت مزید سپلائی شامل کریں (Add Extra Supply):
+                </span>
+                {(todayCharbiWeight > 0 || todayKacharaWeight > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddCharbiWeight(todayCharbiWeight > 0 ? todayCharbiWeight : '');
+                      setAddKacharaWeight(todayKacharaWeight > 0 ? todayKacharaWeight : '');
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 rounded-lg text-[11px] font-bold transition font-urdu"
+                    title="آج کا کلیکشن وزن دوبارہ درج کریں"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-purple-600" />
+                    <span>آج کی کلیکشن کا وزن خودکار درج ہے: {todayCharbiWeight} KG چربی + {todayKacharaWeight} KG کچرا</span>
+                  </button>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

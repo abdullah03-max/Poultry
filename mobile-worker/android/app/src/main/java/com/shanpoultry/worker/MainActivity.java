@@ -311,6 +311,8 @@ public class MainActivity extends AppCompatActivity {
         String pkg = getPackageName();
         if (pkg != null && pkg.contains("chickenshop")) {
             targetUrl += "#chicken-worker";
+        } else {
+            targetUrl += "#waste";
         }
         webView.loadUrl(targetUrl);
     }

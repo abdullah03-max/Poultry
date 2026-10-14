@@ -868,13 +868,18 @@ export const MobileApp: React.FC = () => {
 
     setIsDrawing(true);
     const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const scaleX = canvas.width / (rect.width || 1);
+    const scaleY = canvas.height / (rect.height || 1);
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
 
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3.5;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.strokeStyle = '#0F172A';
   };
 
@@ -886,8 +891,12 @@ export const MobileApp: React.FC = () => {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const scaleX = canvas.width / (rect.width || 1);
+    const scaleY = canvas.height / (rect.height || 1);
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
 
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -1920,27 +1929,28 @@ export const MobileApp: React.FC = () => {
             </div>
 
             {/* STEP 4: CUSTOMER SIGNATURE PAD */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="bg-white border-2 border-blue-200/90 rounded-2xl p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                  <span>Step 4: گاہک کے ڈیجیٹل دستخط *</span>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <span className="p-1 rounded-lg bg-blue-50 text-blue-600">✍️</span>
+                  <span className="font-urdu text-sm">Step 4: گاہک / دکاندار کے دستخط *</span>
                 </label>
                 {signatureBase64 && (
                   <button
                     type="button"
                     onClick={clearSignature}
-                    className="text-xs font-bold text-red-600 flex items-center gap-1"
+                    className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl border border-red-200 flex items-center gap-1.5 transition active:scale-95"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" /> دوبارہ کریں (Clear)
+                    <RotateCcw className="w-3.5 h-3.5" /> دوبارہ صاف کریں (Clear)
                   </button>
                 )}
               </div>
 
-              <div className="border border-slate-200 rounded-xl bg-slate-50 overflow-hidden relative">
+              <div className="border-2 border-slate-300 rounded-2xl bg-white overflow-hidden relative shadow-inner">
                 <canvas
                   ref={canvasRef}
-                  width={340}
-                  height={130}
+                  width={600}
+                  height={320}
                   onMouseDown={startDrawing}
                   onMouseMove={draw}
                   onMouseUp={endDrawing}
@@ -1948,11 +1958,22 @@ export const MobileApp: React.FC = () => {
                   onTouchStart={startDrawing}
                   onTouchMove={draw}
                   onTouchEnd={endDrawing}
-                  className="w-full touch-none bg-white cursor-crosshair"
+                  className="w-full h-64 sm:h-72 touch-none bg-white cursor-crosshair block"
                 />
+                {/* Visual signature guideline */}
+                <div className="absolute bottom-5 left-5 right-5 border-b border-dashed border-slate-300 pointer-events-none flex justify-between items-center text-[11px] text-slate-400 font-urdu pb-1">
+                  <span>دستخط کی جگہ (Sign Here) ✍️</span>
+                  <span className="font-mono text-[10px]">Verified By Customer</span>
+                </div>
                 {!signatureBase64 && (
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-xs font-medium text-slate-300">
-                    یہاں انگلی سے دستخط کروائیں (Sign with finger)...
+                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-400 gap-1 select-none">
+                    <span className="text-3xl opacity-40">✍️</span>
+                    <span className="text-sm font-bold text-slate-500 font-urdu">
+                      یہاں انگلی سے آسانی سے بڑا دستخط کروائیں
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      (Touch & sign clearly with finger)
+                    </span>
                   </div>
                 )}
               </div>
