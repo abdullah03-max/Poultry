@@ -26,12 +26,16 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
   const [stats, setStats] = useState<{
     totalSlips: number;
     totalNetWeight: number;
+    totalCharbiWeight: number;
+    totalKacharaWeight: number;
     totalAmount: number;
     avgWeightPerSlip: number;
     uniqueCustomersCount: number;
   }>({
     totalSlips: 0,
     totalNetWeight: 0,
+    totalCharbiWeight: 0,
+    totalKacharaWeight: 0,
     totalAmount: 0,
     avgWeightPerSlip: 0,
     uniqueCustomersCount: 0,
@@ -121,27 +125,36 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
       'Worker',
       'Gross (KG)',
       'Tare (KG)',
+      'Charbi (KG)',
+      'Kachra (KG)',
       'Net Weight (KG)',
       'Rate (PKR)',
       'Total Amount (PKR)',
       'Status',
     ];
 
-    const rows = collections.map(c => [
-      c.receipt_no,
-      c.collection_date,
-      c.collection_time,
-      c.customer?.customer_code || '',
-      c.customer?.name || '',
-      c.customer?.area || '',
-      c.worker?.full_name || '',
-      c.gross_weight,
-      c.tare_weight,
-      c.total_net_weight,
-      c.rate_per_kg,
-      c.total_amount,
-      c.status,
-    ]);
+    const rows = collections.map(c => {
+      const k = Number(c.kachara_net || 0);
+      const ch = Number(c.charbi_net || 0);
+      const displayK = (k === 0 && ch === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
+      return [
+        c.receipt_no,
+        c.collection_date,
+        c.collection_time,
+        c.customer?.customer_code || '',
+        c.customer?.name || '',
+        c.customer?.area || '',
+        c.worker?.full_name || '',
+        c.gross_weight,
+        c.tare_weight,
+        ch,
+        displayK,
+        c.total_net_weight,
+        c.rate_per_kg,
+        c.total_amount,
+        c.status,
+      ];
+    });
 
     exportToCSV(`SHAN_POULTRY_COLLECTIONS_${new Date().toISOString().split('T')[0]}`, headers, rows);
   };
@@ -151,20 +164,54 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
   return (
     <div className="space-y-6 text-slate-800">
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 no-print">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3.5 no-print">
         <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">کل ویسٹ وزن</span>
+            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">کل خالص وزن</span>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
               <Scale className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
-            <p className="text-xl font-black text-slate-900 font-mono tracking-tight">
+            <p className="text-xl font-black text-blue-700 font-mono tracking-tight">
               {stats.totalNetWeight.toLocaleString()} <span className="text-xs text-slate-500 font-sans">KG</span>
             </p>
             <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
               {(stats.totalNetWeight / 1000).toFixed(2)} ٹن کل ویسٹ
+            </p>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-amber-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between bg-gradient-to-br from-white to-amber-50/30">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider">کل چربی وزن</span>
+            <div className="p-2 rounded-xl bg-amber-100/70 text-amber-700">
+              <span className="text-sm">🥩</span>
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xl font-black text-amber-700 font-mono tracking-tight">
+              {(stats.totalCharbiWeight || 0).toLocaleString()} <span className="text-xs text-amber-800 font-sans">KG</span>
+            </p>
+            <p className="text-[10px] text-amber-700 font-medium truncate mt-0.5">
+              چربی مال مجموعہ
+            </p>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-300/80 shadow-2xs hover:shadow-sm transition flex flex-col justify-between bg-gradient-to-br from-white to-slate-50/50">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-slate-700 tracking-wider">کل کچرا وزن</span>
+            <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+              <span className="text-sm">🗑️</span>
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xl font-black text-slate-800 font-mono tracking-tight">
+              {(stats.totalKacharaWeight || 0).toLocaleString()} <span className="text-xs text-slate-500 font-sans">KG</span>
+            </p>
+            <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+              کچرا و آلائش مجموعہ
             </p>
           </div>
         </div>
@@ -357,6 +404,8 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
                   <th className="py-3.5 px-4">Collector</th>
                   <th className="py-3.5 px-4 text-right">Gross (KG)</th>
                   <th className="py-3.5 px-4 text-right">Tare (KG)</th>
+                  <th className="py-3.5 px-4 text-right text-amber-700 font-bold">Charbi (KG)</th>
+                  <th className="py-3.5 px-4 text-right text-slate-800 font-bold">Kachra (KG)</th>
                   <th className="py-3.5 px-4 text-right text-brand-800 font-extrabold">Net (KG)</th>
                   <th className="py-3.5 px-4 text-right">Rate</th>
                   <th className="py-3.5 px-4 text-right text-amber-800 font-extrabold">Amount</th>
@@ -380,6 +429,21 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
                     <td className="py-3 px-4 text-slate-600">{c.worker?.full_name || 'System / Admin'}</td>
                     <td className="py-3 px-4 text-right font-mono text-slate-600">{c.gross_weight}</td>
                     <td className="py-3 px-4 text-right font-mono text-rose-600">-{c.tare_weight}</td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-amber-700">
+                      {c.charbi_net && Number(c.charbi_net) > 0 ? (
+                        Number(c.charbi_net)
+                      ) : (
+                        <span className="text-slate-300 font-normal">0</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-800">
+                      {(() => {
+                        const k = Number(c.kachara_net || 0);
+                        const ch = Number(c.charbi_net || 0);
+                        const displayK = (k === 0 && ch === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
+                        return displayK > 0 ? displayK : <span className="text-slate-300 font-normal">0</span>;
+                      })()}
+                    </td>
                     <td className="py-3 px-4 text-right font-mono font-extrabold text-slate-900 text-sm">
                       {formatWeight(c.total_net_weight, '')}
                     </td>
@@ -429,7 +493,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
 
                 {collections.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="py-12 text-center text-slate-400">
+                    <td colSpan={14} className="py-12 text-center text-slate-400">
                       No collections found matching current filter parameters.
                     </td>
                   </tr>

@@ -63,10 +63,19 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
     }
   };
 
-  const totalGross = collections.reduce((acc, c) => acc + c.gross_weight, 0);
-  const totalTare = collections.reduce((acc, c) => acc + c.tare_weight, 0);
-  const totalNet = collections.reduce((acc, c) => acc + c.total_net_weight, 0);
-  const totalAmount = collections.reduce((acc, c) => acc + c.total_amount, 0);
+  const totalGross = collections.reduce((acc, c) => acc + (Number(c.gross_weight) || 0), 0);
+  const totalTare = collections.reduce((acc, c) => acc + (Number(c.tare_weight) || 0), 0);
+  const totalCharbi = collections.reduce((acc, c) => acc + (Number(c.charbi_net) || 0), 0);
+  const totalKachara = collections.reduce((acc, c) => {
+    const k = Number(c.kachara_net || 0);
+    const charbi = Number(c.charbi_net || 0);
+    if (k === 0 && charbi === 0 && Number(c.total_net_weight || 0) > 0) {
+      return acc + Number(c.total_net_weight);
+    }
+    return acc + k;
+  }, 0);
+  const totalNet = collections.reduce((acc, c) => acc + (Number(c.total_net_weight) || 0), 0);
+  const totalAmount = collections.reduce((acc, c) => acc + (Number(c.total_amount) || 0), 0);
 
   // Category subtotals for the day
   const categoryDaySums: Record<string, number> = {};
@@ -148,50 +157,78 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
       </div>
 
       {/* Summary KPI Badges */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-card flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Net Weight</p>
-              <p className="text-xs font-urdu font-semibold text-slate-800 mt-0.5">آج کا خالص وزن</p>
+              <p className="text-xs font-urdu font-semibold text-slate-800 mt-0.5">کل خالص وزن</p>
             </div>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
               <Scale className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-blue-700 font-mono mt-2">{formatWeight(totalNet)}</p>
-          <p className="text-[10px] text-slate-400 mt-1 font-mono">Gross: {formatWeight(totalGross)} | Tare: -{formatWeight(totalTare)}</p>
+          <p className="text-lg sm:text-xl font-black text-blue-700 font-mono mt-2">{formatWeight(totalNet)}</p>
+          <p className="text-[10px] text-slate-400 mt-1 font-mono">Gross: {totalGross.toFixed(1)} | Tare: -{totalTare.toFixed(1)}</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
+        <div className="p-3.5 rounded-2xl bg-white border border-amber-200/90 shadow-card flex flex-col justify-between bg-gradient-to-br from-white to-amber-50/30">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Total Day Billing</p>
-              <p className="text-xs font-urdu font-semibold text-amber-900 mt-0.5">کل مالیت رقم</p>
+              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">Total Charbi</p>
+              <p className="text-xs font-urdu font-semibold text-amber-950 mt-0.5">کل چربی وزن</p>
             </div>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+            <div className="p-2 rounded-xl bg-amber-100/70 text-amber-700">
+              <span className="text-sm">🥩</span>
+            </div>
+          </div>
+          <p className="text-lg sm:text-xl font-black text-amber-700 font-mono mt-2">{totalCharbi.toFixed(1)} <span className="text-xs text-amber-800 font-sans">KG</span></p>
+          <p className="text-[10px] text-amber-600 mt-1 font-urdu">چربی مال مجموعہ</p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-300/80 shadow-card flex flex-col justify-between bg-gradient-to-br from-white to-slate-50/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Total Kachra</p>
+              <p className="text-xs font-urdu font-semibold text-slate-900 mt-0.5">کل کچرا وزن</p>
+            </div>
+            <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+              <span className="text-sm">🗑️</span>
+            </div>
+          </div>
+          <p className="text-lg sm:text-xl font-black text-slate-800 font-mono mt-2">{totalKachara.toFixed(1)} <span className="text-xs text-slate-500 font-sans">KG</span></p>
+          <p className="text-[10px] text-slate-500 mt-1 font-urdu">کچرا و آلائش مجموعہ</p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-card flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Day Billing</p>
+              <p className="text-xs font-urdu font-semibold text-emerald-900 mt-0.5">کل مالیت رقم</p>
+            </div>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-amber-700 font-mono mt-2">{formatCurrency(totalAmount)}</p>
-          <p className="text-[10px] text-amber-600 mt-1">آج کی کل بننے والی رقم</p>
+          <p className="text-lg sm:text-xl font-black text-emerald-700 font-mono mt-2">{formatCurrency(totalAmount)}</p>
+          <p className="text-[10px] text-emerald-600 mt-1">آج کی کل رقم</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-card flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Slips Completed</p>
-              <p className="text-xs font-urdu font-semibold text-emerald-900 mt-0.5">کل موصول پرچیاں</p>
+              <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Slips Completed</p>
+              <p className="text-xs font-urdu font-semibold text-indigo-900 mt-0.5">کل پرچیاں</p>
             </div>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
               <FileSpreadsheet className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-emerald-700 font-mono mt-2">{collections.length}</p>
-          <p className="text-[10px] text-emerald-600 mt-1">مکمل فیلڈ کلیکشن پرچیاں</p>
+          <p className="text-lg sm:text-xl font-black text-indigo-700 font-mono mt-2">{collections.length}</p>
+          <p className="text-[10px] text-indigo-600 mt-1">فیلڈ پرچیاں</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-card">
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-card flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Average / Slip</p>
@@ -201,10 +238,10 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
               <Scale className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-purple-700 font-mono mt-2">
+          <p className="text-lg sm:text-xl font-black text-purple-700 font-mono mt-2">
             {formatWeight(collections.length > 0 ? totalNet / collections.length : 0)}
           </p>
-          <p className="text-[10px] text-purple-600 mt-1">فی پرچی اوسط مال</p>
+          <p className="text-[10px] text-purple-600 mt-1">فی پرچی اوسط</p>
         </div>
       </div>
 
@@ -224,41 +261,58 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs print-table min-w-[750px]">
+            <table className="w-full text-left border-collapse text-xs print-table min-w-[850px]">
               <thead>
                 <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Receipt No</th>
-                  <th className="py-3 px-4">Time</th>
-                  <th className="py-3 px-4">Customer Name</th>
-                  <th className="py-3 px-4">Area</th>
-                  <th className="py-3 px-4">Collector</th>
-                  <th className="py-3 px-4 text-right">Gross (KG)</th>
-                  <th className="py-3 px-4 text-right">Tare (KG)</th>
-                  <th className="py-3 px-4 text-right text-blue-700 font-bold">Net (KG)</th>
-                  <th className="py-3 px-4 text-right">Rate</th>
-                  <th className="py-3 px-4 text-right text-amber-700 font-bold">Amount (PKR)</th>
-                  <th className="py-3 px-4 text-center no-print">Action</th>
+                  <th className="py-3 px-3">#</th>
+                  <th className="py-3 px-3">Receipt No</th>
+                  <th className="py-3 px-3">Time</th>
+                  <th className="py-3 px-3">Customer Name</th>
+                  <th className="py-3 px-3">Area</th>
+                  <th className="py-3 px-3">Collector</th>
+                  <th className="py-3 px-3 text-right">Gross (KG)</th>
+                  <th className="py-3 px-3 text-right">Tare (KG)</th>
+                  <th className="py-3 px-3 text-right text-amber-700 font-bold">Charbi (KG)</th>
+                  <th className="py-3 px-3 text-right text-slate-800 font-bold">Kachra (KG)</th>
+                  <th className="py-3 px-3 text-right text-blue-700 font-bold">Net (KG)</th>
+                  <th className="py-3 px-3 text-right">Rate</th>
+                  <th className="py-3 px-3 text-right text-amber-700 font-bold">Amount (PKR)</th>
+                  <th className="py-3 px-3 text-center no-print">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {collections.map((c, idx) => (
                   <tr key={c.id} className="hover:bg-slate-50/70 transition">
-                    <td className="py-3 px-4 text-slate-400">{idx + 1}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-blue-600">{c.receipt_no}</td>
-                    <td className="py-3 px-4 text-slate-600 font-mono">{formatTime(c.collection_time)}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">
+                    <td className="py-3 px-3 text-slate-400">{idx + 1}</td>
+                    <td className="py-3 px-3 font-mono font-bold text-blue-600">{c.receipt_no}</td>
+                    <td className="py-3 px-3 text-slate-600 font-mono">{formatTime(c.collection_time)}</td>
+                    <td className="py-3 px-3 font-semibold text-slate-900">
                       <div>{c.customer?.name}</div>
                       <div className="text-[10px] text-slate-400 font-normal">{c.customer?.customer_code}</div>
                     </td>
-                    <td className="py-3 px-4 text-slate-600">{c.customer?.area}</td>
-                    <td className="py-3 px-4 text-slate-700 font-medium">{c.worker?.full_name || 'Admin'}</td>
-                    <td className="py-3 px-4 text-right font-mono text-slate-600">{c.gross_weight}</td>
-                    <td className="py-3 px-4 text-right font-mono text-rose-600">-{c.tare_weight}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-blue-700">{c.total_net_weight}</td>
-                    <td className="py-3 px-4 text-right font-mono text-slate-500">{c.rate_per_kg}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-amber-700">{formatCurrency(c.total_amount, '')}</td>
-                    <td className="py-3 px-4 text-center no-print">
+                    <td className="py-3 px-3 text-slate-600">{c.customer?.area}</td>
+                    <td className="py-3 px-3 text-slate-700 font-medium">{c.worker?.full_name || 'Admin'}</td>
+                    <td className="py-3 px-3 text-right font-mono text-slate-600">{c.gross_weight}</td>
+                    <td className="py-3 px-3 text-right font-mono text-rose-600">-{c.tare_weight}</td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-amber-700">
+                      {c.charbi_net && Number(c.charbi_net) > 0 ? (
+                        Number(c.charbi_net)
+                      ) : (
+                        <span className="text-slate-300 font-normal">0</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
+                      {(() => {
+                        const k = Number(c.kachara_net || 0);
+                        const charbi = Number(c.charbi_net || 0);
+                        const displayK = (k === 0 && charbi === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
+                        return displayK > 0 ? displayK : <span className="text-slate-300 font-normal">0</span>;
+                      })()}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-blue-700">{c.total_net_weight}</td>
+                    <td className="py-3 px-3 text-right font-mono text-slate-500">{c.rate_per_kg}</td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(c.total_amount, '')}</td>
+                    <td className="py-3 px-3 text-center no-print">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => setSelectedSlip(c)}
@@ -291,7 +345,7 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
 
                 {collections.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="py-12 text-center text-slate-400">
+                    <td colSpan={14} className="py-12 text-center text-slate-400">
                       No collection slips found for {formatDate(selectedDate)}.
                     </td>
                   </tr>
@@ -301,13 +355,15 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
               {collections.length > 0 && (
                 <tfoot>
                   <tr className="bg-slate-100/90 font-extrabold text-slate-900 border-t-2 border-slate-200">
-                    <td colSpan={6} className="py-3 px-4 uppercase text-slate-700">Daily Grand Total:</td>
-                    <td className="py-3 px-4 text-right font-mono text-slate-700">{totalGross.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-right font-mono text-rose-600">-{totalTare.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-right font-mono text-blue-700 text-sm font-black">{totalNet.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-right">—</td>
-                    <td className="py-3 px-4 text-right font-mono text-amber-700 text-sm font-black">{totalAmount.toLocaleString()}</td>
-                    <td className="py-3 px-4 no-print"></td>
+                    <td colSpan={6} className="py-3 px-3 uppercase text-slate-700 font-urdu">کل میزان (Daily Total):</td>
+                    <td className="py-3 px-3 text-right font-mono text-slate-700">{totalGross.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-rose-600">-{totalTare.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-amber-700 font-black">{totalCharbi.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-slate-900 font-black">{totalKachara.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-blue-700 text-sm font-black">{totalNet.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-right">—</td>
+                    <td className="py-3 px-3 text-right font-mono text-amber-700 text-sm font-black">{totalAmount.toLocaleString()}</td>
+                    <td className="py-3 px-3 no-print"></td>
                   </tr>
                 </tfoot>
               )}

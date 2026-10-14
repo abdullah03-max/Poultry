@@ -1898,13 +1898,15 @@ export const api = {
   }): Promise<{
     totalSlips: number;
     totalNetWeight: number;
+    totalCharbiWeight: number;
+    totalKacharaWeight: number;
     totalAmount: number;
     avgWeightPerSlip: number;
     uniqueCustomersCount: number;
   }> {
     if (isSupabaseConfigured()) {
       try {
-        let query = supabase.from('collections').select('id, total_net_weight, total_amount, customer_id, receipt_no');
+        let query = supabase.from('collections').select('id, total_net_weight, total_amount, customer_id, receipt_no, charbi_net, kachara_net');
         if (params?.startDate) query = query.gte('collection_date', params.startDate);
         if (params?.endDate) query = query.lte('collection_date', params.endDate);
         if (params?.customerId) query = query.eq('customer_id', params.customerId);
@@ -1915,11 +1917,22 @@ export const api = {
         if (!error && data) {
           const totalSlips = data.length;
           const totalNetWeight = data.reduce((s, r) => s + (Number(r.total_net_weight) || 0), 0);
+          const totalCharbiWeight = data.reduce((s, r) => s + (Number(r.charbi_net) || 0), 0);
+          const totalKacharaWeight = data.reduce((s, r) => {
+            const k = Number(r.kachara_net || 0);
+            const c = Number(r.charbi_net || 0);
+            if (k === 0 && c === 0 && Number(r.total_net_weight || 0) > 0) {
+              return s + Number(r.total_net_weight);
+            }
+            return s + k;
+          }, 0);
           const totalAmount = data.reduce((s, r) => s + (Number(r.total_amount) || 0), 0);
           const uniqueCustomers = new Set(data.map(r => r.customer_id).filter(Boolean));
           return {
             totalSlips,
             totalNetWeight: Number(totalNetWeight.toFixed(2)),
+            totalCharbiWeight: Number(totalCharbiWeight.toFixed(2)),
+            totalKacharaWeight: Number(totalKacharaWeight.toFixed(2)),
             totalAmount: Math.round(totalAmount),
             avgWeightPerSlip: totalSlips > 0 ? Number((totalNetWeight / totalSlips).toFixed(2)) : 0,
             uniqueCustomersCount: uniqueCustomers.size,
@@ -1947,11 +1960,22 @@ export const api = {
     }
     const totalSlips = filtered.length;
     const totalNetWeight = filtered.reduce((s, r) => s + (Number(r.total_net_weight) || 0), 0);
+    const totalCharbiWeight = filtered.reduce((s, r) => s + (Number(r.charbi_net) || 0), 0);
+    const totalKacharaWeight = filtered.reduce((s, r) => {
+      const k = Number(r.kachara_net || 0);
+      const c = Number(r.charbi_net || 0);
+      if (k === 0 && c === 0 && Number(r.total_net_weight || 0) > 0) {
+        return s + Number(r.total_net_weight);
+      }
+      return s + k;
+    }, 0);
     const totalAmount = filtered.reduce((s, r) => s + (Number(r.total_amount) || 0), 0);
     const uniqueCustomers = new Set(filtered.map(r => r.customer_id).filter(Boolean));
     return {
       totalSlips,
       totalNetWeight: Number(totalNetWeight.toFixed(2)),
+      totalCharbiWeight: Number(totalCharbiWeight.toFixed(2)),
+      totalKacharaWeight: Number(totalKacharaWeight.toFixed(2)),
       totalAmount: Math.round(totalAmount),
       avgWeightPerSlip: totalSlips > 0 ? Number((totalNetWeight / totalSlips).toFixed(2)) : 0,
       uniqueCustomersCount: uniqueCustomers.size,
