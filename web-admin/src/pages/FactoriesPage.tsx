@@ -41,6 +41,8 @@ import { Modal } from '../components/common/Modal';
 import {
   shareFactorySlipImage,
   shareFactoryStatementImage,
+  openDirectSlipWhatsApp,
+  openDirectStatementWhatsApp,
   copyBlobToClipboard,
 } from '../utils/receiptImageGenerator';
 
@@ -369,9 +371,36 @@ export const FactoriesPage: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // WHATSAPP STATEMENT & SLIP IMAGE SHARING (SEND RECEIPT AS IMAGE)
+  // DIRECT WHATSAPP SHARING (NO CTRL+V / NO COPY-PASTE - DIRECTLY OPENS CHAT)
   // ---------------------------------------------------------------------------
-  const handleSendStatementImage = async (factory: Factory, txs: FactoryTransaction[]) => {
+  const handleSendDirectStatementWhatsApp = (factory: Factory, txs: FactoryTransaction[]) => {
+    openDirectStatementWhatsApp({ factory, transactions: txs });
+  };
+
+  const handleSendDirectSlipWhatsApp = (tx: FactoryTransaction, factory: Factory) => {
+    // Compute previous deliveries before this slip
+    const facTxs = transactions
+      .filter(t => t.factory_id === factory.id)
+      .sort((a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime());
+
+    let prevBilled = 0;
+    for (const t of facTxs) {
+      if (t.id === tx.id) break;
+      prevBilled += (t.total_amount || 0);
+    }
+
+    openDirectSlipWhatsApp({
+      slip: tx,
+      factory,
+      previousBilled: prevBilled,
+      totalAdvance: Number(factory.advance_amount || 0),
+    });
+  };
+
+  // ---------------------------------------------------------------------------
+  // HIGH-RESOLUTION RECEIPT & STATEMENT PNG IMAGE PREVIEW & DOWNLOAD
+  // ---------------------------------------------------------------------------
+  const handlePreviewStatementImage = async (factory: Factory, txs: FactoryTransaction[]) => {
     try {
       setGeneratingImage(true);
       const res = await shareFactoryStatementImage({ factory, transactions: txs });
@@ -390,7 +419,7 @@ export const FactoriesPage: React.FC = () => {
     }
   };
 
-  const handleSendSingleSlipImage = async (tx: FactoryTransaction, factory: Factory) => {
+  const handlePreviewSlipImage = async (tx: FactoryTransaction, factory: Factory) => {
     try {
       setGeneratingImage(true);
       // Compute previous deliveries before this slip
@@ -800,11 +829,20 @@ export const FactoriesPage: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => handleSendStatementImage(f, facTxs)}
+                      onClick={() => handleSendDirectStatementWhatsApp(f, facTxs)}
                       className="p-2 text-emerald-600 hover:bg-emerald-50 border border-emerald-200 rounded-xl transition"
-                      title="واٹس ایپ پر اسٹیٹمنٹ امیج بھیجیں"
+                      title="براہ راست فیکٹری واٹس ایپ پر مکمل کھاتہ اسٹیٹمنٹ بھیجیں (بغیر پیسٹ کیے)"
                     >
                       <Share2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewStatementImage(f, facTxs)}
+                      className="p-2 text-purple-600 hover:bg-purple-50 border border-purple-200 rounded-xl transition"
+                      title="اسٹیٹمنٹ کا تصویری کارڈ دیکھیں / ڈاؤنلوڈ کریں"
+                    >
+                      <ImageIcon className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -875,12 +913,22 @@ export const FactoriesPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              if (f) handleSendSingleSlipImage(tx, f);
+                              if (f) handleSendDirectSlipWhatsApp(tx, f);
                             }}
                             className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                            title="واٹس ایپ پر رسید امیج بھیجیں"
+                            title="براہ راست فیکٹری واٹس ایپ پر رسید بھیجیں (بغیر پیسٹ کیے)"
                           >
                             <Share2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (f) handlePreviewSlipImage(tx, f);
+                            }}
+                            className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                            title="رسید کا تصویری کارڈ دیکھیں / ڈاؤنلوڈ کریں"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
@@ -1044,13 +1092,23 @@ export const FactoriesPage: React.FC = () => {
 
                 <button
                   type="button"
-                  disabled={generatingImage}
-                  onClick={() => handleSendStatementImage(activeStatementFactory, activeStatementTxs)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition disabled:opacity-50"
-                  title="واٹس ایپ پر مکمل کھاتہ اسٹیٹمنٹ امیج بھیجیں"
+                  onClick={() => handleSendDirectStatementWhatsApp(activeStatementFactory, activeStatementTxs)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition"
+                  title="براہ راست فیکٹری واٹس ایپ پر مکمل کھاتہ اسٹیٹمنٹ بھیجیں (بغیر پیسٹ کیے)"
                 >
-                  {generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-                  <span>واٹس ایپ پر اسٹیٹمنٹ امیج شیئر کریں</span>
+                  <Share2 className="w-4 h-4" />
+                  <span>واٹس ایپ پر اسٹیٹمنٹ بھیجیں</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={generatingImage}
+                  onClick={() => handlePreviewStatementImage(activeStatementFactory, activeStatementTxs)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold rounded-xl text-xs transition disabled:opacity-50"
+                  title="اسٹیٹمنٹ کا تصویری کارڈ دیکھیں یا ڈاؤنلوڈ کریں"
+                >
+                  {generatingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                  <span>تصویری کارڈ (PNG)</span>
                 </button>
               </div>
             </div>
@@ -1108,11 +1166,19 @@ export const FactoriesPage: React.FC = () => {
                           <div className="flex items-center justify-center gap-1">
                             <button
                               type="button"
-                              onClick={() => handleSendSingleSlipImage(tx, activeStatementFactory)}
+                              onClick={() => handleSendDirectSlipWhatsApp(tx, activeStatementFactory)}
                               className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                              title="واٹس ایپ پر رسید امیج بھیجیں"
+                              title="براہ راست فیکٹری واٹس ایپ پر رسید بھیجیں (بغیر پیسٹ کیے)"
                             >
                               <Share2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePreviewSlipImage(tx, activeStatementFactory)}
+                              className="p-1 text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                              title="رسید تصویری کارڈ دیکھیں / ڈاؤنلوڈ کریں"
+                            >
+                              <ImageIcon className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
@@ -1752,7 +1818,7 @@ export const FactoriesPage: React.FC = () => {
                     : 'رسید کی تصویر تیار ہے!'}
                 </span>
                 <span className="text-[11px] text-purple-800 font-urdu block mt-0.5">
-                  واٹس ایپ چیٹ میں جا کر صرف <strong className="font-mono bg-purple-200/80 px-1.5 py-0.5 rounded text-purple-950 font-bold">Ctrl + V</strong> دبائیں، تصویر چلی جائے گی۔ یا نیچے ڈاؤنلوڈ سے فائل بھیجیں۔
+                  تصویر محفوظ کرنے کے لیے "ڈاؤنلوڈ (PNG)" پر کلک کریں، یا "واٹس ایپ چیٹ کھولیں" پر کلک کر کے براہ راست رسید بھیجیں۔
                 </span>
               </div>
             </div>

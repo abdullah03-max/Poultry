@@ -1558,42 +1558,177 @@ export interface ShareImageResult {
 }
 
 /**
+ * Clean phone number to WhatsApp international standard (e.g. 923038277121)
+ */
+export function cleanWhatsAppPhone(rawPhone: string): string {
+  if (!rawPhone) return '';
+  let phone = rawPhone.replace(/[^0-9]/g, '');
+  if (phone.startsWith('0092')) {
+    phone = phone.substring(2);
+  } else if (phone.startsWith('03')) {
+    phone = '92' + phone.substring(1);
+  } else if (phone.startsWith('3') && phone.length === 10) {
+    phone = '92' + phone;
+  }
+  return phone;
+}
+
+/**
+ * Builds the complete, itemized text receipt for a single factory supply slip
+ * Contains: Charbi weight/rate/total, Kachra weight/rate/total, net total weight, bill amount, advance, remaining advance balance
+ */
+export function buildSlipReceiptText(params: FactorySlipImageParams): string {
+  const cWeight = Number(params.slip.charbi_weight || 0);
+  const kWeight = Number(params.slip.kachara_weight || 0);
+  const totWeight = Number(params.slip.total_weight || (cWeight + kWeight));
+  const totAmt = Number(params.slip.total_amount || 0);
+  const facAdv = params.totalAdvance !== undefined ? params.totalAdvance : Number(params.factory.advance_amount || 0);
+  const prevBill = params.previousBilled || 0;
+  const remAdvance = facAdv - (prevBill + totAmt);
+
+  const lines = [
+    '🍗 *شان پولٹری پروٹین (SHAN POULTRY PROTEIN)* 🍗',
+    '📋 *سپلائی ڈلیوری رسید (DELIVERY RECEIPT)*',
+    '─────────────────────────────',
+    `🔢 *انوائس نمبر:* ${params.slip.invoice_no}`,
+    `📅 *تاریخ:* ${formatDate(params.slip.transaction_date)}`,
+    `🏢 *خریدار فیکٹری:* ${params.factory.name}`,
+    params.factory.factory_code ? `🏷️ *فیکٹری کوڈ:* ${params.factory.factory_code}` : '',
+    params.factory.area ? `📍 *علاقہ / پتہ:* ${params.factory.area}${params.factory.address ? `, ${params.factory.address}` : ''}` : '',
+    params.factory.contact_person ? `👤 *رابطہ کار:* ${params.factory.contact_person}` : '',
+    params.slip.vehicle_no ? `🚛 *گاڑی نمبر:* ${params.slip.vehicle_no}` : '',
+    params.slip.driver_name ? `🧑‍✈️ *ڈرائیور:* ${params.slip.driver_name}` : '',
+    '─────────────────────────────',
+    '📦 *مال سپلائی تفصیل (WEIGHT & RATE)*:',
+    `• *چربی (Charbi):*`,
+    `   وزن: *${cWeight} KG*`,
+    `   ریٹ: *Rs. ${params.slip.charbi_rate}* فی کلو`,
+    `   رقم: *Rs. ${(params.slip.charbi_total || 0).toLocaleString()}*`,
+    ``,
+    `• *کچرا (Kachra):*`,
+    `   وزن: *${kWeight} KG*`,
+    `   ریٹ: *Rs. ${params.slip.kachara_rate}* فی کلو`,
+    `   رقم: *Rs. ${(params.slip.kachara_total || 0).toLocaleString()}*`,
+    '─────────────────────────────',
+    `⚖️ *کل سپلائی وزن (Net Weight):* *${totWeight} KG*`,
+    `💵 *کل پرچی بل رقم (Total Bill):* *Rs. ${totAmt.toLocaleString()}*`,
+    '─────────────────────────────',
+    `💰 *فیکٹری ایڈوانس رقم:* Rs. ${facAdv.toLocaleString()}`,
+    prevBill > 0 ? `📉 *سابقہ سپلائی بلز:* Rs. ${prevBill.toLocaleString()}` : '',
+    `🧾 *موجودہ پرچی بل:* Rs. ${totAmt.toLocaleString()}`,
+    remAdvance >= 0
+      ? `✅ *صافی بقایا ایڈوانس (Remaining Advance):* *Rs. ${remAdvance.toLocaleString()}*`
+      : `⚠️ *فیکٹری کے ذمے بقایا واجب الادا (Balance Due):* *Rs. ${Math.abs(remAdvance).toLocaleString()}*`,
+    '─────────────────────────────',
+    '📞 *شان پولٹری پروٹین مینجمنٹ*'
+  ].filter(Boolean);
+
+  return lines.join('\n');
+}
+
+/**
+ * Builds the complete account ledger statement text for a factory
+ * Contains: All slips breakdown, Charbi total weight, Kachra total weight, overall weight, total billed, advance received, remaining advance
+ */
+export function buildStatementReceiptText(params: FactoryStatementImageParams): string {
+  const fAdv = Number(params.factory.advance_amount || 0);
+  const totBilled = params.transactions.reduce((acc, t) => acc + (t.total_amount || 0), 0);
+  const totWeight = params.transactions.reduce((acc, t) => acc + (t.total_weight || 0), 0);
+  const totCharbi = params.transactions.reduce((acc, t) => acc + (t.charbi_weight || 0), 0);
+  const totKachara = params.transactions.reduce((acc, t) => acc + (t.kachara_weight || 0), 0);
+  const remAdvance = fAdv - totBilled;
+
+  const lines = [
+    '🍗 *شان پولٹری پروٹین (SHAN POULTRY PROTEIN)* 🍗',
+    '📊 *فیکٹری کھاتہ مکمل لیجر اسٹیٹمنٹ (STATEMENT)*',
+    '─────────────────────────────',
+    `🏢 *خریدار فیکٹری:* ${params.factory.name}`,
+    `🏷️ *فیکٹری کوڈ:* ${params.factory.factory_code}`,
+    params.factory.area ? `📍 *علاقہ / پتہ:* ${params.factory.area}${params.factory.address ? `, ${params.factory.address}` : ''}` : '',
+    params.factory.contact_person ? `👤 *رابطہ کار:* ${params.factory.contact_person}` : '',
+    params.factory.phone ? `📱 *فون:* ${params.factory.phone}` : '',
+    `📅 *تاریخ جاری:* ${new Date().toLocaleDateString('en-GB')}`,
+    '─────────────────────────────',
+    '📈 *کھاتہ سمری (ACCOUNT SUMMARY)*:',
+    `📋 *کل سپلائی پرچیاں:* ${params.transactions.length}`,
+    `⚖️ *کل چربی وزن:* ${totCharbi.toFixed(1)} KG`,
+    `⚖️ *کل کچرا وزن:* ${totKachara.toFixed(1)} KG`,
+    `⚖️ *کل مجموعی سپلائی وزن:* *${totWeight.toFixed(1)} KG*`,
+    `💵 *کل سپلائی بل رقم:* *Rs. ${totBilled.toLocaleString()}*`,
+    `💰 *وصول شدہ فیکٹری ایڈوانس:* *Rs. ${fAdv.toLocaleString()}*`,
+    remAdvance >= 0
+      ? `✅ *صافی بقایا ایڈوانس (Remaining Advance):* *Rs. ${remAdvance.toLocaleString()}*`
+      : `⚠️ *فیکٹری کے ذمے بقایا واجب الادا (Balance Due):* *Rs. ${Math.abs(remAdvance).toLocaleString()}*`,
+    '─────────────────────────────'
+  ];
+
+  if (params.transactions.length > 0) {
+    lines.push('📑 *سپلائی پرچیوں کی تفصیل (DELIVERY SLIPS):*');
+    const displayTxs = params.transactions.slice(0, 20);
+    displayTxs.forEach((tx, idx) => {
+      lines.push(
+        `${idx + 1}. *#${tx.invoice_no}* (${formatDate(tx.transaction_date)}):\n` +
+        `   چربی: ${tx.charbi_weight || 0}kg @${tx.charbi_rate || 0} | کچرا: ${tx.kachara_weight || 0}kg @${tx.kachara_rate || 0}\n` +
+        `   وزن: *${tx.total_weight || 0} KG* | بل: *Rs. ${(tx.total_amount || 0).toLocaleString()}*` +
+        (tx.vehicle_no ? ` | گاڑی: ${tx.vehicle_no}` : '')
+      );
+    });
+
+    if (params.transactions.length > 20) {
+      lines.push(`... اور ${params.transactions.length - 20} مزید پرچیاں شامل ہیں۔`);
+    }
+    lines.push('─────────────────────────────');
+  }
+
+  lines.push('📞 *شان پولٹری پروٹین مینجمنٹ*');
+
+  return lines.join('\n');
+}
+
+/**
+ * Direct WhatsApp opener for a single slip - opens WhatsApp Web/Desktop directly to that factory number with complete receipt
+ * Zero manual copy/paste required!
+ */
+export function openDirectSlipWhatsApp(params: FactorySlipImageParams): void {
+  const text = buildSlipReceiptText(params);
+  const rawPhone = params.factory.whatsapp_no || params.factory.phone || '';
+  const phone = cleanWhatsAppPhone(rawPhone);
+  const encoded = encodeURIComponent(text);
+  const waUrl = phone.length >= 10
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
+    : `https://api.whatsapp.com/send?text=${encoded}`;
+  window.open(waUrl, '_blank');
+}
+
+/**
+ * Direct WhatsApp opener for full statement - opens WhatsApp Web/Desktop directly to that factory number with complete statement
+ * Zero manual copy/paste required!
+ */
+export function openDirectStatementWhatsApp(params: FactoryStatementImageParams): void {
+  const text = buildStatementReceiptText(params);
+  const rawPhone = params.factory.whatsapp_no || params.factory.phone || '';
+  const phone = cleanWhatsAppPhone(rawPhone);
+  const encoded = encodeURIComponent(text);
+  const waUrl = phone.length >= 10
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
+    : `https://api.whatsapp.com/send?text=${encoded}`;
+  window.open(waUrl, '_blank');
+}
+
+/**
  * Shares a factory delivery slip as an actual PNG image
  */
 export async function shareFactorySlipImage(params: FactorySlipImageParams): Promise<ShareImageResult> {
   const blob = await generateFactorySlipImageBlob(params);
   const filename = `Slip_${params.slip.invoice_no}.png`;
   const url = URL.createObjectURL(blob);
+  const phone = cleanWhatsAppPhone(params.factory.whatsapp_no || params.factory.phone || '');
+  const caption = buildSlipReceiptText(params);
 
-  let phone = (params.factory.whatsapp_no || params.factory.phone || '').replace(/[^0-9]/g, '');
-  if (phone.startsWith('03')) phone = '92' + phone.substring(1);
-  else if (phone.startsWith('3') && phone.length === 10) phone = '92' + phone;
-
-  const cWeight = Number(params.slip.charbi_weight || 0);
-  const kWeight = Number(params.slip.kachara_weight || 0);
-  const totWeight = Number(params.slip.total_weight || cWeight + kWeight);
-  const totAmt = Number(params.slip.total_amount || 0);
-  const facAdv = params.totalAdvance !== undefined ? params.totalAdvance : Number(params.factory.advance_amount || 0);
-  const prevBill = params.previousBilled || 0;
-  const remAdvance = facAdv - (prevBill + totAmt);
-
-  const caption = `*🐔 SHAN POULTRY PROTEIN - رسید 🐔*
-*انوائس #:* ${params.slip.invoice_no}
-*تاریخ:* ${formatDate(params.slip.transaction_date)}
-*فیکٹری:* ${params.factory.name} (${params.factory.area})
-*چربی وزن:* ${cWeight} KG @ Rs. ${params.slip.charbi_rate} = Rs. ${(params.slip.charbi_total || 0).toLocaleString()}
-*کچرا وزن:* ${kWeight} KG @ Rs. ${params.slip.kachara_rate} = Rs. ${(params.slip.kachara_total || 0).toLocaleString()}
-*کل سپلائی وزن:* ${totWeight} KG
-*کل رقم بل:* Rs. ${totAmt.toLocaleString()}
-*فیکٹری ایڈوانس:* Rs. ${facAdv.toLocaleString()}
-${remAdvance >= 0 ? `*صافی بقایا ایڈوانس ریمائنڈر:* Rs. ${remAdvance.toLocaleString()}` : `*فیکٹری کے ذمے بقایا واجب الادا:* Rs. ${Math.abs(remAdvance).toLocaleString()}`}
-
-(رسید کی تصویر کاپی ہو چکی ہے، چیٹ میں Ctrl+V دبائیں)`;
-
-  // 1. Copy image to clipboard so user can simply press Ctrl+V in WhatsApp Web
+  // Copy image to clipboard so user can paste if they want visual PNG in chat
   const copied = await copyBlobToClipboard(blob);
 
-  // 2. Android APK Native Bridge
+  // Android APK Native Bridge (if running inside APK WebView)
   if (
     typeof (window as any).AndroidBridge !== 'undefined' &&
     typeof (window as any).AndroidBridge.shareReceiptImage === 'function'
@@ -1612,27 +1747,6 @@ ${remAdvance >= 0 ? `*صافی بقایا ایڈوانس ریمائنڈر:* Rs. 
     }
   }
 
-
-
-  // 4. Desktop auto-download
-  try {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch (e) {
-    console.warn('Auto download error:', e);
-  }
-
-  // 5. Open WhatsApp Web chat
-  const encoded = encodeURIComponent(caption);
-  const waUrl = phone.length >= 10
-    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
-    : `https://api.whatsapp.com/send?text=${encoded}`;
-  window.open(waUrl, '_blank');
-
   return { blob, url, copied, filename, phone, caption };
 }
 
@@ -1643,31 +1757,13 @@ export async function shareFactoryStatementImage(params: FactoryStatementImagePa
   const blob = await generateFactoryStatementImageBlob(params);
   const filename = `Statement_${params.factory.factory_code}_${new Date().toISOString().split('T')[0]}.png`;
   const url = URL.createObjectURL(blob);
+  const phone = cleanWhatsAppPhone(params.factory.whatsapp_no || params.factory.phone || '');
+  const caption = buildStatementReceiptText(params);
 
-  let phone = (params.factory.whatsapp_no || params.factory.phone || '').replace(/[^0-9]/g, '');
-  if (phone.startsWith('03')) phone = '92' + phone.substring(1);
-  else if (phone.startsWith('3') && phone.length === 10) phone = '92' + phone;
-
-  const fAdv = Number(params.factory.advance_amount || 0);
-  const totBilled = params.transactions.reduce((acc, t) => acc + (t.total_amount || 0), 0);
-  const totWeight = params.transactions.reduce((acc, t) => acc + (t.total_weight || 0), 0);
-  const remAdvance = fAdv - totBilled;
-
-  const caption = `*🐔 SHAN POULTRY PROTEIN - کھاتہ اسٹیٹمنٹ 🐔*
-*خریدار فیکٹری:* ${params.factory.name} (${params.factory.area})
-*کوڈ:* ${params.factory.factory_code}
-*کل سپلائی پرچیاں:* ${params.transactions.length}
-*کل سپلائی وزن:* ${totWeight.toFixed(2)} KG
-*کل سپلائی بل رقم:* Rs. ${totBilled.toLocaleString()}
-*فیکٹری ایڈوانس رقم:* Rs. ${fAdv.toLocaleString()}
-${remAdvance >= 0 ? `*صافی بقایا ایڈوانس ریمائنڈر:* Rs. ${remAdvance.toLocaleString()}` : `*فیکٹری کے ذمے بقایا واجب الادا:* Rs. ${Math.abs(remAdvance).toLocaleString()}`}
-
-(اسٹیٹمنٹ کی مکمل تصویر کاپی ہو چکی ہے، چیٹ میں Ctrl+V دبائیں)`;
-
-  // 1. Copy image to clipboard
+  // Copy image to clipboard
   const copied = await copyBlobToClipboard(blob);
 
-  // 2. Android APK Native Bridge
+  // Android APK Native Bridge (if running inside APK WebView)
   if (
     typeof (window as any).AndroidBridge !== 'undefined' &&
     typeof (window as any).AndroidBridge.shareReceiptImage === 'function'
@@ -1686,27 +1782,7 @@ ${remAdvance >= 0 ? `*صافی بقایا ایڈوانس ریمائنڈر:* Rs. 
     }
   }
 
-
-
-  // 4. Desktop auto-download
-  try {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch (e) {
-    console.warn('Auto download error:', e);
-  }
-
-  // 5. Open WhatsApp Web chat
-  const encoded = encodeURIComponent(caption);
-  const waUrl = phone.length >= 10
-    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
-    : `https://api.whatsapp.com/send?text=${encoded}`;
-  window.open(waUrl, '_blank');
-
   return { blob, url, copied, filename, phone, caption };
 }
+
 
