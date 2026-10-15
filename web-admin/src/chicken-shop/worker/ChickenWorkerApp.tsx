@@ -507,7 +507,7 @@ export const ChickenWorkerApp: React.FC = () => {
   // 2. MAIN LOGGED-IN WORKER APP (3 Tabs Only)
   // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans overflow-x-hidden overflow-y-auto pb-24 [overscroll-behavior-y:contain]">
+    <div className="w-full min-h-screen bg-slate-100 flex flex-col font-sans pb-32">
       {/* Top App Header */}
       <header className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
@@ -526,21 +526,10 @@ export const ChickenWorkerApp: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 rounded-xl text-slate-300 font-mono text-xs">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 rounded-xl text-slate-300 font-mono text-xs">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
               <span>{currentTime} PKT</span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                window.location.hash = '#chicken-management';
-              }}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-xl text-xs font-bold font-urdu transition border border-amber-500/30 cursor-pointer"
-              title="ایڈمن پورٹل پر سوئچ کریں"
-            >
-              <span>👑 ایڈمن</span>
-            </button>
 
             <button
               type="button"
@@ -549,51 +538,9 @@ export const ChickenWorkerApp: React.FC = () => {
               title="لاگ آؤٹ"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">لاگ آؤٹ</span>
+              <span>لاگ آؤٹ</span>
             </button>
           </div>
-        </div>
-
-        {/* 3 Core Responsibilities Tabs Header */}
-        <div className="max-w-5xl mx-auto px-4 flex border-t border-slate-800/80">
-          <button
-            type="button"
-            onClick={() => setActiveTab('sales')}
-            className={`flex-1 py-3 text-xs sm:text-sm font-bold font-urdu flex items-center justify-center gap-1.5 border-b-2 transition ${
-              activeTab === 'sales'
-                ? 'border-amber-500 text-amber-400 bg-amber-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>1. روزانہ سیلز (Daily Sales)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('khata')}
-            className={`flex-1 py-3 text-xs sm:text-sm font-bold font-urdu flex items-center justify-center gap-1.5 border-b-2 transition ${
-              activeTab === 'khata'
-                ? 'border-purple-500 text-purple-400 bg-purple-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>2. گاہک کھاتہ (Customer Khata)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('wasooli')}
-            className={`flex-1 py-3 text-xs sm:text-sm font-bold font-urdu flex items-center justify-center gap-1.5 border-b-2 transition ${
-              activeTab === 'wasooli'
-                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Banknote className="w-4 h-4" />
-            <span>3. رقم وصولی (Wasooli)</span>
-          </button>
         </div>
       </header>
 
@@ -1120,45 +1067,45 @@ export const ChickenWorkerApp: React.FC = () => {
         />
       )}
 
-      {/* Mobile Sticky Bottom Navigation Bar */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 flex items-center justify-around py-2 px-2 shadow-2xl safe-area-bottom">
+      {/* Primary Sticky Bottom Navigation Bar (No Top Tabs Needed) */}
+      <nav className="fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/90 z-50 flex items-center justify-around py-2 px-2.5 shadow-2xl safe-area-bottom">
         <button
           type="button"
           onClick={() => setActiveTab('sales')}
-          className={`flex-1 flex flex-col items-center gap-1 py-1 rounded-xl transition ${
+          className={`flex-1 flex flex-col items-center gap-1 py-1.5 px-2 rounded-2xl transition-all cursor-pointer ${
             activeTab === 'sales'
-              ? 'text-amber-400 font-bold bg-amber-500/10'
+              ? 'text-amber-400 font-bold bg-amber-500/15 border border-amber-500/30'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <ShoppingCart className="w-5 h-5" />
-          <span className="text-[11px] font-urdu font-black">1. کاؤنٹر سیل</span>
+          <span className="text-xs font-urdu font-black">1. کاؤنٹر سیل</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('khata')}
-          className={`flex-1 flex flex-col items-center gap-1 py-1 rounded-xl transition ${
+          className={`flex-1 flex flex-col items-center gap-1 py-1.5 px-2 rounded-2xl transition-all cursor-pointer ${
             activeTab === 'khata'
-              ? 'text-purple-400 font-bold bg-purple-500/10'
+              ? 'text-purple-400 font-bold bg-purple-500/15 border border-purple-500/30'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <BookOpen className="w-5 h-5" />
-          <span className="text-[11px] font-urdu font-black">2. گاہک کھاتہ</span>
+          <span className="text-xs font-urdu font-black">2. گاہک کھاتہ</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('wasooli')}
-          className={`flex-1 flex flex-col items-center gap-1 py-1 rounded-xl transition ${
+          className={`flex-1 flex flex-col items-center gap-1 py-1.5 px-2 rounded-2xl transition-all cursor-pointer ${
             activeTab === 'wasooli'
-              ? 'text-emerald-400 font-bold bg-emerald-500/10'
+              ? 'text-emerald-400 font-bold bg-emerald-500/15 border border-emerald-500/30'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Banknote className="w-5 h-5" />
-          <span className="text-[11px] font-urdu font-black">3. رقم وصولی</span>
+          <span className="text-xs font-urdu font-black">3. رقم وصولی</span>
         </button>
       </nav>
     </div>
