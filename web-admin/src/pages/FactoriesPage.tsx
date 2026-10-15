@@ -1804,7 +1804,7 @@ export const FactoriesPage: React.FC = () => {
         onClose={() => setImagePreviewModalOpen(false)}
         title={previewImageTitle || 'رسید تصویر'}
         subtitle="یہ تصویر فیکٹری کو بھیجی جائے گی (وزن، ریٹ، بل اور ایڈوانس کی مکمل تفصیلات کے ساتھ)"
-        maxWidth="lg"
+        maxWidth="6xl"
       >
         <div className="space-y-4 text-xs">
           {/* Notification banner */}
@@ -1832,11 +1832,11 @@ export const FactoriesPage: React.FC = () => {
 
           {/* Rendered Image Display */}
           {previewImageUrl && (
-            <div className="max-h-[62vh] overflow-y-auto border-2 border-slate-200 rounded-2xl p-2.5 bg-slate-100/90 flex justify-center shadow-inner">
+            <div className="max-h-[70vh] overflow-auto border-2 border-slate-200 rounded-2xl p-2 sm:p-4 bg-slate-100/90 flex justify-center shadow-inner">
               <img
                 src={previewImageUrl}
                 alt="Receipt Preview"
-                className="max-w-full h-auto rounded-xl shadow-md border border-slate-300"
+                className="w-full max-w-full h-auto rounded-xl shadow-md border border-slate-300 object-contain"
               />
             </div>
           )}

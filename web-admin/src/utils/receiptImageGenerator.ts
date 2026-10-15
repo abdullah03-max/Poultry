@@ -764,8 +764,8 @@ export interface FactorySlipImageParams {
 export async function generateFactorySlipImageBlob(params: FactorySlipImageParams): Promise<Blob> {
   const { slip, factory } = params;
 
-  const width = 750;
-  const height = 1200;
+  const width = 900;
+  const height = 1340;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -780,13 +780,13 @@ export async function generateFactorySlipImageBlob(params: FactorySlipImageParam
   ctx.fillRect(0, 0, width, height);
 
   // 2. Card Container
-  const margin = 24;
+  const margin = 28;
   const cardW = width - margin * 2;
   const cardH = height - margin * 2;
   const cardRadius = 24;
 
   ctx.save();
-  ctx.shadowColor = 'rgba(15, 23, 42, 0.14)';
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.12)';
   ctx.shadowBlur = 24;
   ctx.shadowOffsetY = 12;
   ctx.fillStyle = '#FFFFFF';
@@ -800,420 +800,17 @@ export async function generateFactorySlipImageBlob(params: FactorySlipImageParam
   roundRect(ctx, margin, margin, cardW, cardH, cardRadius);
   ctx.stroke();
 
-  // 3. Purple Accent Top Bar (Industrial B2B Brand)
+  // 3. Purple Accent Top Bar
   ctx.save();
-  roundRect(ctx, margin, margin, cardW, 12, { tl: cardRadius, tr: cardRadius, bl: 0, br: 0 });
+  roundRect(ctx, margin, margin, cardW, 14, { tl: cardRadius, tr: cardRadius, bl: 0, br: 0 });
   ctx.fillStyle = '#7C3AED'; // purple-600
   ctx.fill();
   ctx.restore();
 
-  // 4. Header: Logo, Company Name & Urdu Subtitle
-  let curY = 54;
+  // 4. Header: Logo, Company Name & Subtitle
+  let curY = 56;
   if (logoImg) {
-    const logoSize = 62;
-    const logoX = width / 2 - logoSize / 2;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(width / 2, curY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(logoImg, logoX, curY, logoSize, logoSize);
-    ctx.restore();
-
-    ctx.beginPath();
-    ctx.arc(width / 2, curY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
-    ctx.strokeStyle = '#CBD5E1';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    curY += logoSize + 14;
-  } else {
-    curY += 24;
-  }
-
-  const receiptTitle =
-    (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
-    '🐔 SHAN POULTRY PROTEIN - رسید 🐔';
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 23px system-ui, -apple-system, sans-serif';
-  ctx.fillText(receiptTitle, width / 2, curY);
-  curY += 25;
-
-  ctx.fillStyle = '#7C3AED';
-  ctx.font = 'bold 18px "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", system-ui, sans-serif';
-  ctx.fillText('شان پولٹری پروٹین — فیکٹری سپلائی رسید', width / 2, curY);
-  curY += 20;
-
-  ctx.fillStyle = '#64748B';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('Official Factory Weigh-in & Delivery Slip', width / 2, curY);
-  curY += 26;
-
-  // 5. Slip Number & Date Badge
-  const badgeW = 460;
-  const badgeH = 34;
-  const badgeX = width / 2 - badgeW / 2;
-  ctx.save();
-  ctx.fillStyle = '#F5F3FF';
-  roundRect(ctx, badgeX, curY, badgeW, badgeH, 12);
-  ctx.fill();
-  ctx.strokeStyle = '#DDD6FE';
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, badgeX, curY, badgeW, badgeH, 12);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#5B21B6';
-  ctx.font = 'bold 13px system-ui, sans-serif';
-  ctx.fillText(`انوائس #: ${slip.invoice_no}  •  تاریخ: ${formatDate(slip.transaction_date)}`, width / 2, curY + 22);
-  curY += badgeH + 20;
-
-  // 6. Factory & Vehicle Information Card
-  const infoX = margin + 20;
-  const infoW = cardW - 40;
-  const infoH = 104;
-
-  ctx.save();
-  ctx.fillStyle = '#F8FAFC';
-  roundRect(ctx, infoX, curY, infoW, infoH, 16);
-  ctx.fill();
-  ctx.strokeStyle = '#E2E8F0';
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, infoX, curY, infoW, infoH, 16);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.textAlign = 'left';
-  // Factory Name
-  ctx.font = 'bold 17px system-ui, sans-serif';
-  ctx.fillStyle = '#0F172A';
-  ctx.fillText(`خریدار فیکٹری: ${factory.name}`, infoX + 18, curY + 28);
-
-  ctx.font = 'bold 12px monospace';
-  ctx.fillStyle = '#7C3AED';
-  ctx.fillText(`[${factory.factory_code}]`, infoX + infoW - 90, curY + 28);
-
-  // Line 2: Contact, Phone & Area
-  ctx.font = '13px system-ui, sans-serif';
-  ctx.fillStyle = '#475569';
-  ctx.fillText(
-    `رابطہ کار: ${factory.contact_person || '—'}  |  فون: ${factory.phone}  |  شہر: ${factory.area}`,
-    infoX + 18,
-    curY + 58
-  );
-
-  // Line 3: Vehicle & Driver
-  ctx.font = '13px system-ui, sans-serif';
-  ctx.fillStyle = '#64748B';
-  ctx.fillText(
-    `گاڑی نمبر: ${slip.vehicle_no || '—'}  |  ڈرائیور: ${slip.driver_name || '—'}  |  پتہ: ${factory.address || '—'}`,
-    infoX + 18,
-    curY + 86
-  );
-  curY += infoH + 18;
-
-  // 7. Charbi & Kachara Breakdown (Two Columns)
-  const colW = (infoW - 16) / 2;
-  const colH = 175;
-
-  const cWeight = Number(slip.charbi_weight || 0);
-  const cRate = Number(slip.charbi_rate || factory.rate_charbi || 0);
-  const cTotal = Number(slip.charbi_total || Math.round(cWeight * cRate));
-
-  const kWeight = Number(slip.kachara_weight || 0);
-  const kRate = Number(slip.kachara_rate || factory.rate_kachara || 0);
-  const kTotal = Number(slip.kachara_total || Math.round(kWeight * kRate));
-
-  // Left Column: Charbi (Emerald)
-  const leftX = infoX;
-  ctx.save();
-  ctx.fillStyle = '#ECFDF5';
-  roundRect(ctx, leftX, curY, colW, colH, 16);
-  ctx.fill();
-  ctx.strokeStyle = '#A7F3D0';
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, leftX, curY, colW, colH, 16);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.fillStyle = '#065F46';
-  ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.fillText('🟢 چربی سپلائی وزن و ریٹ', leftX + 16, curY + 30);
-
-  ctx.fillStyle = '#047857';
-  ctx.font = 'bold 28px monospace';
-  ctx.fillText(`${cWeight.toFixed(2)} KG`, leftX + 16, curY + 74);
-
-  ctx.fillStyle = '#065F46';
-  ctx.font = 'bold 14px system-ui, sans-serif';
-  ctx.fillText(`خریداری ریٹ: Rs. ${cRate} / KG`, leftX + 16, curY + 110);
-
-  ctx.fillStyle = '#064E3B';
-  ctx.font = 'bold 17px monospace';
-  ctx.fillText(`چربی رقم: Rs. ${cTotal.toLocaleString()}`, leftX + 16, curY + 146);
-
-  // Right Column: Kachara (Amber)
-  const rightX = leftX + colW + 16;
-  ctx.save();
-  ctx.fillStyle = '#FFFBEB';
-  roundRect(ctx, rightX, curY, colW, colH, 16);
-  ctx.fill();
-  ctx.strokeStyle = '#FDE68A';
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, rightX, curY, colW, colH, 16);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.fillStyle = '#92400E';
-  ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.fillText('🟠 کچرا سپلائی وزن و ریٹ', rightX + 16, curY + 30);
-
-  ctx.fillStyle = '#B45309';
-  ctx.font = 'bold 28px monospace';
-  ctx.fillText(`${kWeight.toFixed(2)} KG`, rightX + 16, curY + 74);
-
-  ctx.fillStyle = '#92400E';
-  ctx.font = 'bold 14px system-ui, sans-serif';
-  ctx.fillText(`خریداری ریٹ: Rs. ${kRate} / KG`, rightX + 16, curY + 110);
-
-  ctx.fillStyle = '#78350F';
-  ctx.font = 'bold 17px monospace';
-  ctx.fillText(`کچرا رقم: Rs. ${kTotal.toLocaleString()}`, rightX + 16, curY + 146);
-
-  curY += colH + 16;
-
-  // 8. Slip Grand Totals Card (Blue)
-  const totW = Number(slip.total_weight || (cWeight + kWeight));
-  const totAmt = Number(slip.total_amount || (cTotal + kTotal));
-
-  const totalH = 68;
-  ctx.save();
-  ctx.fillStyle = '#EFF6FF';
-  roundRect(ctx, infoX, curY, infoW, totalH, 16);
-  ctx.fill();
-  ctx.strokeStyle = '#BFDBFE';
-  ctx.lineWidth = 2;
-  roundRect(ctx, infoX, curY, infoW, totalH, 16);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.fillStyle = '#1E40AF';
-  ctx.font = 'bold 16px system-ui, sans-serif';
-  ctx.fillText(`⚖️ کل سپلائی وزن: ${totW.toFixed(2)} KG`, infoX + 18, curY + 41);
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#1D4ED8';
-  ctx.font = 'bold 22px monospace';
-  ctx.fillText(`اس پرچی کا بل: Rs. ${totAmt.toLocaleString()}`, infoX + infoW - 18, curY + 42);
-  ctx.textAlign = 'left';
-
-  curY += totalH + 16;
-
-  // 9. Factory Advance Khata & Net Remaining Balance Box
-  const facAdv = params.totalAdvance !== undefined ? params.totalAdvance : Number(factory.advance_amount || 0);
-  const prevBill = params.previousBilled || 0;
-  const cumulativeDelivered = prevBill + totAmt;
-  const remAdvance = facAdv - cumulativeDelivered;
-  const hasCredit = remAdvance >= 0;
-
-  const advH = 175;
-  ctx.save();
-  ctx.fillStyle = hasCredit ? '#F0FDF4' : '#FEF2F2';
-  roundRect(ctx, infoX, curY, infoW, advH, 18);
-  ctx.fill();
-  ctx.strokeStyle = hasCredit ? '#86EFAC' : '#FCA5A5';
-  ctx.lineWidth = 2;
-  roundRect(ctx, infoX, curY, infoW, advH, 18);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.fillStyle = hasCredit ? '#065F46' : '#991B1B';
-  ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.fillText('📊 فیکٹری ایڈوانس و کھاتہ پوزیشن (Factory Advance Ledger):', infoX + 18, curY + 30);
-
-  // 3 Columns inside advance box
-  const subColW = (infoW - 36) / 3;
-
-  // Sub 1: Advance Pool
-  ctx.fillStyle = '#64748B';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('وصول شدہ ایڈوانس:', infoX + 18, curY + 62);
-  ctx.fillStyle = '#5B21B6';
-  ctx.font = 'bold 18px monospace';
-  ctx.fillText(`Rs. ${facAdv.toLocaleString()}`, infoX + 18, curY + 86);
-
-  // Sub 2: Total Delivered (including this slip)
-  ctx.fillStyle = '#64748B';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('کل سپلائی شدہ مالیت:', infoX + 18 + subColW, curY + 62);
-  ctx.fillStyle = '#1D4ED8';
-  ctx.font = 'bold 18px monospace';
-  ctx.fillText(`Rs. ${cumulativeDelivered.toLocaleString()}`, infoX + 18 + subColW, curY + 86);
-
-  // Sub 3: Net Remaining Advance
-  ctx.fillStyle = '#64748B';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText(hasCredit ? 'صافی بقایا ایڈوانس:' : 'فیکٹری کے ذمے بقایا:', infoX + 18 + subColW * 2, curY + 62);
-  ctx.fillStyle = hasCredit ? '#047857' : '#B91C1C';
-  ctx.font = 'bold 20px monospace';
-  ctx.fillText(
-    hasCredit ? `+Rs. ${remAdvance.toLocaleString()}` : `-Rs. ${Math.abs(remAdvance).toLocaleString()}`,
-    infoX + 18 + subColW * 2,
-    curY + 86
-  );
-
-  // Advance Status Banner at bottom of card
-  const statusBannerY = curY + 116;
-  ctx.save();
-  ctx.fillStyle = hasCredit ? '#DCFCE7' : '#FEE2E2';
-  roundRect(ctx, infoX + 12, statusBannerY, infoW - 24, 42, 10);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = hasCredit ? '#15803D' : '#B91C1C';
-  ctx.font = 'bold 14px system-ui, sans-serif';
-  ctx.fillText(
-    hasCredit
-      ? `✓ اس سپلائی کے بعد فیکٹری کا Rs. ${remAdvance.toLocaleString()} ایڈوانس ابھی باقی ہے (Credit Remaining)`
-      : `⚠️ فیکٹری کا ایڈوانس ختم ہو چکا ہے! فیکٹری پر Rs. ${Math.abs(remAdvance).toLocaleString()} واجب الادا ہے`,
-    width / 2,
-    statusBannerY + 26
-  );
-  ctx.textAlign = 'left';
-
-  curY += advH + 16;
-
-  // 10. Notes & Remarks
-  if (slip.notes) {
-    ctx.fillStyle = '#475569';
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(`نوٹ: ${slip.notes}`, infoX + 4, curY + 14);
-    curY += 24;
-  }
-
-  // 11. Signatures
-  curY += 14;
-  drawDashedLine(ctx, margin + 40, curY, width - margin - 40, curY);
-  curY += 24;
-
-  const sigW = 200;
-  // Left: Driver / Transporter
-  drawDashedLine(ctx, margin + 50, curY + 36, margin + 50 + sigW, curY + 36);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#64748B';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('ترسیل کنندہ / ڈرائیور دستخط', margin + 50 + sigW / 2, curY + 54);
-
-  // Right: Factory Receiver
-  drawDashedLine(ctx, width - margin - 50 - sigW, curY + 36, width - margin - 50, curY + 36);
-  ctx.fillText('فیکٹری وصول کنندہ مہر و دستخط', width - margin - 50 - sigW / 2, curY + 54);
-
-  curY += 76;
-
-  // 12. Footer
-  drawDashedLine(ctx, margin + 20, curY, width - margin - 20, curY);
-  curY += 20;
-
-  const shanContact =
-    (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
-    '0300-0000000';
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#475569';
-  ctx.font = 'bold 13px system-ui, sans-serif';
-  ctx.fillText(`Shan Poultry Contact: ${shanContact} • تصدیق شدہ کمپیوٹرائزڈ سپلائی رسید`, width / 2, curY);
-  curY += 18;
-
-  ctx.fillStyle = '#94A3B8';
-  ctx.font = '11px system-ui, sans-serif';
-  ctx.fillText('Shan Poultry Protein ERP • Burewala, Vehari, Lahore, Punjab', width / 2, curY);
-
-  return new Promise((resolve, reject) => {
-    try {
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob);
-        else {
-          const dataUrl = canvas.toDataURL('image/png');
-          resolve(dataURLToBlob(dataUrl));
-        }
-      }, 'image/png');
-    } catch (e) {
-      try {
-        const dataUrl = canvas.toDataURL('image/png');
-        resolve(dataURLToBlob(dataUrl));
-      } catch (err) {
-        reject(new Error('Canvas export failed: ' + e));
-      }
-    }
-  });
-}
-
-// =============================================================================
-// FACTORY FULL STATEMENT IMAGE GENERATOR
-// =============================================================================
-
-export interface FactoryStatementImageParams {
-  factory: Factory;
-  transactions: FactoryTransaction[];
-}
-
-/**
- * Generates an ultra-crisp, high-resolution PNG statement image for a factory's full ledger
- */
-export async function generateFactoryStatementImageBlob(params: FactoryStatementImageParams): Promise<Blob> {
-  const { factory, transactions } = params;
-
-  const width = 880;
-  const numRows = Math.min(transactions.length, 25);
-  const height = Math.max(900, 680 + Math.max(numRows, 1) * 44);
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context not available');
-
-  const logoImg = await loadImage(appIconSrc);
-
-  // Background
-  ctx.fillStyle = '#F8FAFC';
-  ctx.fillRect(0, 0, width, height);
-
-  // Card Container
-  const margin = 24;
-  const cardW = width - margin * 2;
-  const cardH = height - margin * 2;
-  const cardRadius = 24;
-
-  ctx.save();
-  ctx.shadowColor = 'rgba(15, 23, 42, 0.14)';
-  ctx.shadowBlur = 24;
-  ctx.shadowOffsetY = 12;
-  ctx.fillStyle = '#FFFFFF';
-  roundRect(ctx, margin, margin, cardW, cardH, cardRadius);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.strokeStyle = '#E2E8F0';
-  ctx.lineWidth = 2;
-  roundRect(ctx, margin, margin, cardW, cardH, cardRadius);
-  ctx.stroke();
-
-  // Purple Top Bar
-  ctx.save();
-  roundRect(ctx, margin, margin, cardW, 12, { tl: cardRadius, tr: cardRadius, bl: 0, br: 0 });
-  ctx.fillStyle = '#6D28D9';
-  ctx.fill();
-  ctx.restore();
-
-  // Header
-  let curY = 54;
-  if (logoImg) {
-    const logoSize = 60;
+    const logoSize = 68;
     const logoX = width / 2 - logoSize / 2;
     ctx.save();
     ctx.beginPath();
@@ -1239,54 +836,457 @@ export async function generateFactoryStatementImageBlob(params: FactoryStatement
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
+  ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
   ctx.fillText(receiptTitle, width / 2, curY);
-  curY += 26;
+  curY += 28;
 
-  ctx.fillStyle = '#6D28D9';
-  ctx.font = 'bold 19px "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", system-ui, sans-serif';
-  ctx.fillText('فیکٹری کھاتہ مکمل اسٹیٹمنٹ و سپلائی لیجر', width / 2, curY);
-  curY += 20;
+  ctx.fillStyle = '#7C3AED';
+  ctx.font = 'bold 21px "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('شان پولٹری پروٹین — فیکٹری مال سپلائی رسید', width / 2, curY);
+  curY += 22;
 
   ctx.fillStyle = '#64748B';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('Official Factory Account Statement & Delivery Ledger', width / 2, curY);
-  curY += 24;
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText('Official Factory Weigh-in & Delivery Slip', width / 2, curY);
+  curY += 28;
 
-  // Factory Info Card
+  // 5. Slip Number & Date Badge
+  const badgeW = 540;
+  const badgeH = 38;
+  const badgeX = width / 2 - badgeW / 2;
+  ctx.save();
+  ctx.fillStyle = '#F5F3FF';
+  roundRect(ctx, badgeX, curY, badgeW, badgeH, 14);
+  ctx.fill();
+  ctx.strokeStyle = '#DDD6FE';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, badgeX, curY, badgeW, badgeH, 14);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#5B21B6';
+  ctx.font = 'bold 15px system-ui, monospace';
+  ctx.fillText(`انوائس #: ${slip.invoice_no}   •   تاریخ: ${formatDate(slip.transaction_date)}`, width / 2, curY + 25);
+  curY += badgeH + 20;
+
+  // 6. Factory & Vehicle Information Card
   const infoX = margin + 20;
   const infoW = cardW - 40;
-  const infoH = 80;
+  const infoH = 108;
 
   ctx.save();
   ctx.fillStyle = '#F8FAFC';
-  roundRect(ctx, infoX, curY, infoW, infoH, 14);
+  roundRect(ctx, infoX, curY, infoW, infoH, 16);
   ctx.fill();
   ctx.strokeStyle = '#E2E8F0';
   ctx.lineWidth = 1.5;
-  roundRect(ctx, infoX, curY, infoW, infoH, 14);
+  roundRect(ctx, infoX, curY, infoW, infoH, 16);
   ctx.stroke();
   ctx.restore();
 
   ctx.textAlign = 'left';
-  ctx.font = 'bold 17px system-ui, sans-serif';
+  // Factory Name
+  ctx.font = 'bold 20px system-ui, sans-serif';
   ctx.fillStyle = '#0F172A';
-  ctx.fillText(`خریدار فیکٹری: ${factory.name}`, infoX + 16, curY + 28);
+  ctx.fillText(`خریدار فیکٹری: ${factory.name}`, infoX + 20, curY + 30);
 
-  ctx.font = 'bold 12px monospace';
-  ctx.fillStyle = '#6D28D9';
-  ctx.fillText(`[${factory.factory_code}]`, infoX + infoW - 100, curY + 28);
+  ctx.font = 'bold 14px monospace';
+  ctx.fillStyle = '#7C3AED';
+  ctx.fillText(`[${factory.factory_code}]`, infoX + infoW - 110, curY + 30);
 
-  ctx.font = '13px system-ui, sans-serif';
-  ctx.fillStyle = '#475569';
+  // Line 2: Contact, Phone & Area
+  ctx.font = '14px system-ui, sans-serif';
+  ctx.fillStyle = '#334155';
   ctx.fillText(
-    `رابطہ کار: ${factory.contact_person || '—'}  |  فون: ${factory.phone}  |  شہر: ${factory.area}  |  تاریخ اسٹیٹمنٹ: ${formatDate(new Date().toISOString())}`,
-    infoX + 16,
-    curY + 56
+    `رابطہ کار: ${factory.contact_person || '—'}   |   فون: ${factory.phone}   |   شہر: ${factory.area}`,
+    infoX + 20,
+    curY + 62
   );
-  curY += infoH + 16;
 
-  // 3 Summary Badges
+  // Line 3: Vehicle & Driver
+  ctx.font = '14px system-ui, sans-serif';
+  ctx.fillStyle = '#64748B';
+  ctx.fillText(
+    `گاڑی نمبر: ${slip.vehicle_no || '—'}   |   ڈرائیور: ${slip.driver_name || '—'}${factory.address ? `   |   پتہ: ${factory.address}` : ''}`,
+    infoX + 20,
+    curY + 92
+  );
+  curY += infoH + 20;
+
+  // 7. Charbi & Kachara Breakdown (Two Wide Columns)
+  const colW = (infoW - 20) / 2;
+  const colH = 195;
+
+  const cWeight = Number(slip.charbi_weight || 0);
+  const cRate = Number(slip.charbi_rate || factory.rate_charbi || 0);
+  const cTotal = Number(slip.charbi_total || Math.round(cWeight * cRate));
+
+  const kWeight = Number(slip.kachara_weight || 0);
+  const kRate = Number(slip.kachara_rate || factory.rate_kachara || 0);
+  const kTotal = Number(slip.kachara_total || Math.round(kWeight * kRate));
+
+  // Left Column: Charbi (Emerald)
+  const leftX = infoX;
+  ctx.save();
+  ctx.fillStyle = '#ECFDF5';
+  roundRect(ctx, leftX, curY, colW, colH, 18);
+  ctx.fill();
+  ctx.strokeStyle = '#A7F3D0';
+  ctx.lineWidth = 2;
+  roundRect(ctx, leftX, curY, colW, colH, 18);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = '#065F46';
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.fillText('🟢 چربی سپلائی وزن و ریٹ (Charbi)', leftX + 18, curY + 34);
+
+  ctx.fillStyle = '#047857';
+  ctx.font = 'bold 32px monospace';
+  ctx.fillText(`${cWeight.toFixed(2)} KG`, leftX + 18, curY + 80);
+
+  ctx.fillStyle = '#065F46';
+  ctx.font = 'bold 15px system-ui, sans-serif';
+  ctx.fillText(`خریداری ریٹ: Rs. ${cRate} فی کلو`, leftX + 18, curY + 120);
+
+  ctx.fillStyle = '#064E3B';
+  ctx.font = 'bold 19px monospace';
+  ctx.fillText(`کل چربی رقم: Rs. ${cTotal.toLocaleString()}`, leftX + 18, curY + 160);
+
+  // Right Column: Kachara (Amber)
+  const rightX = leftX + colW + 20;
+  ctx.save();
+  ctx.fillStyle = '#FFFBEB';
+  roundRect(ctx, rightX, curY, colW, colH, 18);
+  ctx.fill();
+  ctx.strokeStyle = '#FDE68A';
+  ctx.lineWidth = 2;
+  roundRect(ctx, rightX, curY, colW, colH, 18);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = '#92400E';
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.fillText('🟠 کچرا سپلائی وزن و ریٹ (Kachra)', rightX + 18, curY + 34);
+
+  ctx.fillStyle = '#B45309';
+  ctx.font = 'bold 32px monospace';
+  ctx.fillText(`${kWeight.toFixed(2)} KG`, rightX + 18, curY + 80);
+
+  ctx.fillStyle = '#92400E';
+  ctx.font = 'bold 15px system-ui, sans-serif';
+  ctx.fillText(`خریداری ریٹ: Rs. ${kRate} فی کلو`, rightX + 18, curY + 120);
+
+  ctx.fillStyle = '#78350F';
+  ctx.font = 'bold 19px monospace';
+  ctx.fillText(`کل کچرا رقم: Rs. ${kTotal.toLocaleString()}`, rightX + 18, curY + 160);
+
+  curY += colH + 20;
+
+  // 8. Slip Grand Totals Card (Blue)
+  const totW = Number(slip.total_weight || (cWeight + kWeight));
+  const totAmt = Number(slip.total_amount || (cTotal + kTotal));
+
+  const totalH = 74;
+  ctx.save();
+  ctx.fillStyle = '#EFF6FF';
+  roundRect(ctx, infoX, curY, infoW, totalH, 18);
+  ctx.fill();
+  ctx.strokeStyle = '#BFDBFE';
+  ctx.lineWidth = 2;
+  roundRect(ctx, infoX, curY, infoW, totalH, 18);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = '#1E40AF';
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  ctx.fillText(`⚖️ کل مجموعی سپلائی وزن: ${totW.toFixed(2)} KG`, infoX + 20, curY + 45);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#1D4ED8';
+  ctx.font = 'bold 24px monospace';
+  ctx.fillText(`کل پرچی بل: Rs. ${totAmt.toLocaleString()}`, infoX + infoW - 20, curY + 46);
+  ctx.textAlign = 'left';
+
+  curY += totalH + 20;
+
+  // 9. Factory Advance Khata & Net Remaining Balance Box
+  const facAdv = params.totalAdvance !== undefined ? params.totalAdvance : Number(factory.advance_amount || 0);
+  const prevBill = params.previousBilled || 0;
+  const cumulativeDelivered = prevBill + totAmt;
+  const remAdvance = facAdv - cumulativeDelivered;
+  const hasCredit = remAdvance >= 0;
+
+  const advH = 190;
+  ctx.save();
+  ctx.fillStyle = hasCredit ? '#F0FDF4' : '#FEF2F2';
+  roundRect(ctx, infoX, curY, infoW, advH, 20);
+  ctx.fill();
+  ctx.strokeStyle = hasCredit ? '#86EFAC' : '#FCA5A5';
+  ctx.lineWidth = 2;
+  roundRect(ctx, infoX, curY, infoW, advH, 20);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = hasCredit ? '#065F46' : '#991B1B';
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.fillText('📊 فیکٹری ایڈوانس و کھاتہ پوزیشن (Factory Advance Ledger):', infoX + 20, curY + 34);
+
+  // 3 Columns inside advance box
+  const subColW = (infoW - 40) / 3;
+
+  // Sub 1: Advance Pool
+  ctx.fillStyle = '#64748B';
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText('وصول شدہ فیکٹری ایڈوانس:', infoX + 20, curY + 68);
+  ctx.fillStyle = '#5B21B6';
+  ctx.font = 'bold 22px monospace';
+  ctx.fillText(`Rs. ${facAdv.toLocaleString()}`, infoX + 20, curY + 98);
+
+  // Sub 2: Total Delivered (including this slip)
+  ctx.fillStyle = '#64748B';
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText('کل سپلائی شدہ مالیت بل:', infoX + 20 + subColW, curY + 68);
+  ctx.fillStyle = '#1D4ED8';
+  ctx.font = 'bold 22px monospace';
+  ctx.fillText(`Rs. ${cumulativeDelivered.toLocaleString()}`, infoX + 20 + subColW, curY + 98);
+
+  // Sub 3: Net Remaining Advance
+  ctx.fillStyle = '#64748B';
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText(hasCredit ? 'صافی بقایا ایڈوانس:' : 'فیکٹری کے ذمے بقایا:', infoX + 20 + subColW * 2, curY + 68);
+  ctx.fillStyle = hasCredit ? '#047857' : '#B91C1C';
+  ctx.font = 'bold 24px monospace';
+  ctx.fillText(
+    hasCredit ? `+Rs. ${remAdvance.toLocaleString()}` : `-Rs. ${Math.abs(remAdvance).toLocaleString()}`,
+    infoX + 20 + subColW * 2,
+    curY + 98
+  );
+
+  // Advance Status Banner at bottom of card
+  const statusBannerY = curY + 124;
+  ctx.save();
+  ctx.fillStyle = hasCredit ? '#DCFCE7' : '#FEE2E2';
+  roundRect(ctx, infoX + 16, statusBannerY, infoW - 32, 46, 12);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = hasCredit ? '#15803D' : '#B91C1C';
+  ctx.font = 'bold 15px system-ui, sans-serif';
+  ctx.fillText(
+    hasCredit
+      ? `✓ اس سپلائی کے بعد فیکٹری کا Rs. ${remAdvance.toLocaleString()} ایڈوانس ابھی باقی ہے (Credit Remaining)`
+      : `⚠️ فیکٹری کا ایڈوانس ختم ہو چکا ہے! فیکٹری کے ذمے Rs. ${Math.abs(remAdvance).toLocaleString()} بقایا واجب الادا ہے`,
+    width / 2,
+    statusBannerY + 29
+  );
+  ctx.textAlign = 'left';
+
+  curY += advH + 20;
+
+  // 10. Notes & Remarks
+  if (slip.notes) {
+    ctx.fillStyle = '#475569';
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillText(`نوٹ: ${slip.notes}`, infoX + 6, curY + 16);
+    curY += 26;
+  }
+
+  // 11. Signatures
+  curY += 16;
+  drawDashedLine(ctx, margin + 40, curY, width - margin - 40, curY);
+  curY += 26;
+
+  const sigW = 240;
+  // Left: Driver / Transporter
+  drawDashedLine(ctx, margin + 50, curY + 38, margin + 50 + sigW, curY + 38);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748B';
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText('ترسیل کنندہ / ڈرائیور دستخط', margin + 50 + sigW / 2, curY + 58);
+
+  // Right: Factory Receiver
+  drawDashedLine(ctx, width - margin - 50 - sigW, curY + 38, width - margin - 50, curY + 38);
+  ctx.fillText('فیکٹری وصول کنندہ مہر و دستخط', width - margin - 50 - sigW / 2, curY + 58);
+
+  curY += 80;
+
+  // 12. Footer
+  drawDashedLine(ctx, margin + 20, curY, width - margin - 20, curY);
+  curY += 22;
+
+  const shanContact =
+    (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
+    '0300-0000000';
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 14px system-ui, sans-serif';
+  ctx.fillText(`Shan Poultry Contact: ${shanContact}   •   تصدیق شدہ کمپیوٹرائزڈ سپلائی رسید`, width / 2, curY);
+  curY += 20;
+
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.fillText('Shan Poultry Protein ERP • Burewala, Vehari, Lahore, Punjab', width / 2, curY);
+
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else {
+          const dataUrl = canvas.toDataURL('image/png');
+          resolve(dataURLToBlob(dataUrl));
+        }
+      }, 'image/png');
+    } catch (e) {
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        resolve(dataURLToBlob(dataUrl));
+      } catch (err) {
+        reject(new Error('Canvas export failed: ' + e));
+      }
+    }
+  });
+}
+
+// =============================================================================
+// FACTORY FULL STATEMENT IMAGE GENERATOR (WIDE & ULTRA CRISP)
+// =============================================================================
+
+export interface FactoryStatementImageParams {
+  factory: Factory;
+  transactions: FactoryTransaction[];
+}
+
+/**
+ * Generates an ultra-crisp, wide, high-resolution PNG statement image for a factory's full ledger
+ */
+export async function generateFactoryStatementImageBlob(params: FactoryStatementImageParams): Promise<Blob> {
+  const { factory, transactions } = params;
+
+  const width = 1200;
+  const numRows = Math.min(transactions.length, 25);
+  const height = Math.max(980, 820 + Math.max(numRows, 1) * 48);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context not available');
+
+  const logoImg = await loadImage(appIconSrc);
+
+  // Background
+  ctx.fillStyle = '#F8FAFC';
+  ctx.fillRect(0, 0, width, height);
+
+  // Card Container
+  const margin = 28;
+  const cardW = width - margin * 2;
+  const cardH = height - margin * 2;
+  const cardRadius = 24;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.14)';
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetY = 14;
+  ctx.fillStyle = '#FFFFFF';
+  roundRect(ctx, margin, margin, cardW, cardH, cardRadius);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = '#E2E8F0';
+  ctx.lineWidth = 2;
+  roundRect(ctx, margin, margin, cardW, cardH, cardRadius);
+  ctx.stroke();
+
+  // Purple Top Bar
+  ctx.save();
+  roundRect(ctx, margin, margin, cardW, 14, { tl: cardRadius, tr: cardRadius, bl: 0, br: 0 });
+  ctx.fillStyle = '#6D28D9';
+  ctx.fill();
+  ctx.restore();
+
+  // Header: Logo & Branding
+  let curY = 56;
+  if (logoImg) {
+    const logoSize = 68;
+    const logoX = width / 2 - logoSize / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(width / 2, curY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(logoImg, logoX, curY, logoSize, logoSize);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(width / 2, curY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = '#CBD5E1';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    curY += logoSize + 14;
+  } else {
+    curY += 24;
+  }
+
+  const receiptTitle =
+    (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
+    '🐔 SHAN POULTRY PROTEIN 🐔';
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
+  ctx.fillText(receiptTitle, width / 2, curY);
+  curY += 28;
+
+  ctx.fillStyle = '#6D28D9';
+  ctx.font = 'bold 22px "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('فیکٹری کھاتہ مکمل لیجر اسٹیٹمنٹ و سپلائی ریکارڈ', width / 2, curY);
+  curY += 22;
+
+  ctx.fillStyle = '#64748B';
+  ctx.font = '14px system-ui, sans-serif';
+  ctx.fillText('Official Factory Account Statement & Full Supply Ledger', width / 2, curY);
+  curY += 26;
+
+  // Factory Info Card
+  const infoX = margin + 20;
+  const infoW = cardW - 40;
+  const infoH = 92;
+
+  ctx.save();
+  ctx.fillStyle = '#F8FAFC';
+  roundRect(ctx, infoX, curY, infoW, infoH, 16);
+  ctx.fill();
+  ctx.strokeStyle = '#E2E8F0';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, infoX, curY, infoW, infoH, 16);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 21px system-ui, sans-serif';
+  ctx.fillStyle = '#0F172A';
+  ctx.fillText(`🏢 خریدار فیکٹری: ${factory.name}`, infoX + 20, curY + 34);
+
+  ctx.font = 'bold 15px monospace';
+  ctx.fillStyle = '#6D28D9';
+  ctx.fillText(`[ ${factory.factory_code} ]`, infoX + infoW - 130, curY + 34);
+
+  ctx.font = '14px system-ui, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText(
+    `👤 رابطہ کار: ${factory.contact_person || '—'}   |   📱 فون: ${factory.phone}   |   📍 شہر / پتہ: ${factory.area}${factory.address ? `, ${factory.address}` : ''}   |   📅 تاریخ اسٹیٹمنٹ: ${formatDate(new Date().toISOString())}`,
+    infoX + 20,
+    curY + 68
+  );
+  curY += infoH + 20;
+
+  // 3 Wide Summary KPI Badges
   const fAdv = Number(factory.advance_amount || 0);
   const totBilled = transactions.reduce((acc, t) => acc + (t.total_amount || 0), 0);
   const totWeight = transactions.reduce((acc, t) => acc + (t.total_weight || 0), 0);
@@ -1296,96 +1296,96 @@ export async function generateFactoryStatementImageBlob(params: FactoryStatement
   const hasCredit = remAdvance >= 0;
 
   const badgeBoxW = (infoW - 24) / 3;
-  const badgeBoxH = 75;
+  const badgeBoxH = 88;
 
   // Badge 1: Advance
   ctx.save();
   ctx.fillStyle = '#F5F3FF';
-  roundRect(ctx, infoX, curY, badgeBoxW, badgeBoxH, 14);
+  roundRect(ctx, infoX, curY, badgeBoxW, badgeBoxH, 16);
   ctx.fill();
   ctx.strokeStyle = '#DDD6FE';
   ctx.lineWidth = 1.5;
-  roundRect(ctx, infoX, curY, badgeBoxW, badgeBoxH, 14);
+  roundRect(ctx, infoX, curY, badgeBoxW, badgeBoxH, 16);
   ctx.stroke();
   ctx.restore();
 
-  ctx.fillStyle = '#6D28D9';
-  ctx.font = 'bold 12px system-ui, sans-serif';
-  ctx.fillText('فیکٹری ایڈوانس رقم', infoX + 14, curY + 24);
-  ctx.font = 'bold 20px monospace';
-  ctx.fillText(`Rs. ${fAdv.toLocaleString()}`, infoX + 14, curY + 54);
+  ctx.fillStyle = '#5B21B6';
+  ctx.font = 'bold 14px system-ui, sans-serif';
+  ctx.fillText('💰 فیکٹری ایڈوانس رقم (Advance)', infoX + 18, curY + 28);
+  ctx.font = 'bold 26px monospace';
+  ctx.fillText(`Rs. ${fAdv.toLocaleString()}`, infoX + 18, curY + 64);
 
   // Badge 2: Total Delivered
   const b2X = infoX + badgeBoxW + 12;
   ctx.save();
   ctx.fillStyle = '#EFF6FF';
-  roundRect(ctx, b2X, curY, badgeBoxW, badgeBoxH, 14);
+  roundRect(ctx, b2X, curY, badgeBoxW, badgeBoxH, 16);
   ctx.fill();
   ctx.strokeStyle = '#BFDBFE';
   ctx.lineWidth = 1.5;
-  roundRect(ctx, b2X, curY, badgeBoxW, badgeBoxH, 14);
+  roundRect(ctx, b2X, curY, badgeBoxW, badgeBoxH, 16);
   ctx.stroke();
   ctx.restore();
 
   ctx.fillStyle = '#1D4ED8';
-  ctx.font = 'bold 12px system-ui, sans-serif';
-  ctx.fillText(`کل سپلائی بل (${transactions.length} پرچیاں)`, b2X + 14, curY + 24);
-  ctx.font = 'bold 20px monospace';
-  ctx.fillText(`Rs. ${totBilled.toLocaleString()}`, b2X + 14, curY + 54);
+  ctx.font = 'bold 14px system-ui, sans-serif';
+  ctx.fillText(`📋 کل سپلائی بل رقم (${transactions.length} پرچیاں)`, b2X + 18, curY + 28);
+  ctx.font = 'bold 26px monospace';
+  ctx.fillText(`Rs. ${totBilled.toLocaleString()}`, b2X + 18, curY + 64);
 
   // Badge 3: Net Remaining Advance
   const b3X = b2X + badgeBoxW + 12;
   ctx.save();
   ctx.fillStyle = hasCredit ? '#F0FDF4' : '#FEF2F2';
-  roundRect(ctx, b3X, curY, badgeBoxW, badgeBoxH, 14);
+  roundRect(ctx, b3X, curY, badgeBoxW, badgeBoxH, 16);
   ctx.fill();
   ctx.strokeStyle = hasCredit ? '#86EFAC' : '#FCA5A5';
   ctx.lineWidth = 1.5;
-  roundRect(ctx, b3X, curY, badgeBoxW, badgeBoxH, 14);
+  roundRect(ctx, b3X, curY, badgeBoxW, badgeBoxH, 16);
   ctx.stroke();
   ctx.restore();
 
   ctx.fillStyle = hasCredit ? '#047857' : '#B91C1C';
-  ctx.font = 'bold 12px system-ui, sans-serif';
-  ctx.fillText(hasCredit ? 'صافی بقایا ایڈوانس (کریڈٹ)' : 'بقایا واجب الادا', b3X + 14, curY + 24);
-  ctx.font = 'bold 20px monospace';
+  ctx.font = 'bold 14px system-ui, sans-serif';
+  ctx.fillText(hasCredit ? '✅ صافی بقایا ایڈوانس (کریڈٹ)' : '⚠️ فیکٹری کے ذمے بقایا واجب الادا', b3X + 18, curY + 28);
+  ctx.font = 'bold 26px monospace';
   ctx.fillText(
     hasCredit ? `+Rs. ${remAdvance.toLocaleString()}` : `-Rs. ${Math.abs(remAdvance).toLocaleString()}`,
-    b3X + 14,
-    curY + 54
+    b3X + 18,
+    curY + 64
   );
 
-  curY += badgeBoxH + 18;
+  curY += badgeBoxH + 20;
 
   // Slips Table
-  const thH = 34;
+  const thH = 42;
   ctx.save();
-  ctx.fillStyle = '#F1F5F9';
-  roundRect(ctx, infoX, curY, infoW, thH, { tl: 10, tr: 10, bl: 0, br: 0 });
+  ctx.fillStyle = '#1E293B';
+  roundRect(ctx, infoX, curY, infoW, thH, { tl: 14, tr: 14, bl: 0, br: 0 });
   ctx.fill();
   ctx.restore();
 
-  ctx.fillStyle = '#334155';
-  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 13px system-ui, sans-serif';
 
   const colPositions = [
-    { label: '#', x: infoX + 10, align: 'left' },
-    { label: 'تاریخ', x: infoX + 38, align: 'left' },
-    { label: 'انوائس #', x: infoX + 120, align: 'left' },
-    { label: 'گاڑی / ڈرائیور', x: infoX + 225, align: 'left' },
-    { label: 'چربی (KG @ Rate = Rs)', x: infoX + 375, align: 'left' },
-    { label: 'کچرا (KG @ Rate = Rs)', x: infoX + 540, align: 'left' },
-    { label: 'کل وزن', x: infoX + 700, align: 'right' },
-    { label: 'بل رقم (PKR)', x: infoX + infoW - 12, align: 'right' },
+    { label: '#', x: infoX + 16, align: 'left' },
+    { label: 'تاریخ (Date)', x: infoX + 54, align: 'left' },
+    { label: 'انوائس #', x: infoX + 175, align: 'left' },
+    { label: 'گاڑی / ڈرائیور', x: infoX + 320, align: 'left' },
+    { label: 'چربی (وزن @ ریٹ = رقم)', x: infoX + 490, align: 'left' },
+    { label: 'کچرا (وزن @ ریٹ = رقم)', x: infoX + 735, align: 'left' },
+    { label: 'کل وزن (KG)', x: infoX + 960, align: 'right' },
+    { label: 'ٹوٹل بل (PKR)', x: infoX + infoW - 16, align: 'right' },
   ];
 
   colPositions.forEach(cp => {
     ctx.textAlign = cp.align as CanvasTextAlign;
-    ctx.fillText(cp.label, cp.x, curY + 21);
+    ctx.fillText(cp.label, cp.x, curY + 26);
   });
   curY += thH;
 
-  const rowH = 38;
+  const rowH = 48;
   transactions.slice(0, 25).forEach((tx, idx) => {
     ctx.fillStyle = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
     ctx.fillRect(infoX, curY, infoW, rowH);
@@ -1397,114 +1397,189 @@ export async function generateFactoryStatementImageBlob(params: FactoryStatement
     ctx.lineTo(infoX + infoW, curY + rowH);
     ctx.stroke();
 
-    ctx.fillStyle = '#0F172A';
-    ctx.font = '12px monospace';
-
     // Index
     ctx.textAlign = 'left';
-    ctx.fillText(`${idx + 1}`, infoX + 10, curY + 24);
+    ctx.fillStyle = '#64748B';
+    ctx.font = 'bold 13px system-ui';
+    ctx.fillText(`${idx + 1}`, infoX + 16, curY + 29);
 
     // Date
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.fillText(formatDate(tx.transaction_date), infoX + 38, curY + 24);
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillStyle = '#334155';
+    ctx.fillText(formatDate(tx.transaction_date), infoX + 54, curY + 29);
 
     // Invoice
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 14px monospace';
     ctx.fillStyle = '#6D28D9';
-    ctx.fillText(tx.invoice_no, infoX + 120, curY + 24);
+    ctx.fillText(tx.invoice_no, infoX + 175, curY + 29);
 
-    // Vehicle
-    ctx.font = '11px system-ui, sans-serif';
+    // Vehicle & Driver
+    ctx.font = '13px system-ui, sans-serif';
     ctx.fillStyle = '#475569';
-    ctx.fillText(tx.vehicle_no || '—', infoX + 225, curY + 24);
+    const vehDriver = `${tx.vehicle_no || '—'}${tx.driver_name ? ` (${tx.driver_name})` : ''}`;
+    ctx.fillText(vehDriver, infoX + 320, curY + 29);
 
     // Charbi
     ctx.fillStyle = '#065F46';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText(`${tx.charbi_weight}k @${tx.charbi_rate}=${(tx.charbi_total || 0).toLocaleString()}`, infoX + 375, curY + 24);
+    ctx.font = 'bold 13px monospace';
+    const cStr = `${Number(tx.charbi_weight || 0).toFixed(1)}k @${tx.charbi_rate} = Rs.${(tx.charbi_total || 0).toLocaleString()}`;
+    ctx.fillText(cStr, infoX + 490, curY + 29);
 
     // Kachara
     ctx.fillStyle = '#92400E';
-    ctx.fillText(`${tx.kachara_weight}k @${tx.kachara_rate}=${(tx.kachara_total || 0).toLocaleString()}`, infoX + 540, curY + 24);
+    ctx.font = 'bold 13px monospace';
+    const kStr = `${Number(tx.kachara_weight || 0).toFixed(1)}k @${tx.kachara_rate} = Rs.${(tx.kachara_total || 0).toLocaleString()}`;
+    ctx.fillText(kStr, infoX + 735, curY + 29);
 
     // Net Weight
     ctx.textAlign = 'right';
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText(`${tx.total_weight} KG`, infoX + 700, curY + 24);
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText(`${Number(tx.total_weight || 0).toFixed(1)} KG`, infoX + 960, curY + 29);
 
     // Total Amount
     ctx.fillStyle = '#1D4ED8';
-    ctx.fillText(`Rs. ${(tx.total_amount || 0).toLocaleString()}`, infoX + infoW - 12, curY + 24);
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText(`Rs. ${(tx.total_amount || 0).toLocaleString()}`, infoX + infoW - 16, curY + 29);
 
     curY += rowH;
   });
 
   if (transactions.length === 0) {
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(infoX, curY, infoW, 40);
+    ctx.fillRect(infoX, curY, infoW, 48);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#94A3B8';
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText('کوئی سپلائی پرچی موجود نہیں', width / 2, curY + 25);
-    curY += 40;
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText('اس فیکٹری کے لیے کوئی سپلائی پرچی موجود نہیں ہے', width / 2, curY + 29);
+    curY += 48;
   }
 
-  // Summary Card at Bottom
-  curY += 14;
-  const sumH = 70;
+  // 4 Summary Metrics Badges below table
+  curY += 16;
+  const pillBoxW = (infoW - 36) / 4;
+  const pillBoxH = 58;
+
+  // Box 1: Charbi Totals
   ctx.save();
-  ctx.fillStyle = '#F8FAFC';
-  roundRect(ctx, infoX, curY, infoW, sumH, 14);
+  ctx.fillStyle = '#ECFDF5';
+  roundRect(ctx, infoX, curY, pillBoxW, pillBoxH, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#A7F3D0';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, infoX, curY, pillBoxW, pillBoxH, 12);
+  ctx.stroke();
+  ctx.restore();
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#065F46';
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.fillText('چربی کل سپلائی وزن:', infoX + 14, curY + 22);
+  ctx.font = 'bold 17px monospace';
+  ctx.fillText(`${totCharbi.toFixed(2)} KG`, infoX + 14, curY + 45);
+
+  // Box 2: Kachra Totals
+  const p2X = infoX + pillBoxW + 12;
+  ctx.save();
+  ctx.fillStyle = '#FFFBEB';
+  roundRect(ctx, p2X, curY, pillBoxW, pillBoxH, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#FDE68A';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, p2X, curY, pillBoxW, pillBoxH, 12);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#92400E';
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.fillText('کچرا کل سپلائی وزن:', p2X + 14, curY + 22);
+  ctx.font = 'bold 17px monospace';
+  ctx.fillText(`${totKachara.toFixed(2)} KG`, p2X + 14, curY + 45);
+
+  // Box 3: Total Weight
+  const p3X = p2X + pillBoxW + 12;
+  ctx.save();
+  ctx.fillStyle = '#F1F5F9';
+  roundRect(ctx, p3X, curY, pillBoxW, pillBoxH, 12);
   ctx.fill();
   ctx.strokeStyle = '#CBD5E1';
   ctx.lineWidth = 1.5;
-  roundRect(ctx, infoX, curY, infoW, sumH, 14);
+  roundRect(ctx, p3X, curY, pillBoxW, pillBoxH, 12);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.fillText('مجموعی سپلائی وزن:', p3X + 14, curY + 22);
+  ctx.font = 'bold 17px monospace';
+  ctx.fillText(`${totWeight.toFixed(2)} KG`, p3X + 14, curY + 45);
+
+  // Box 4: Total Billed Amount
+  const p4X = p3X + pillBoxW + 12;
+  ctx.save();
+  ctx.fillStyle = '#EFF6FF';
+  roundRect(ctx, p4X, curY, pillBoxW, pillBoxH, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#BFDBFE';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, p4X, curY, pillBoxW, pillBoxH, 12);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#1D4ED8';
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.fillText('کل سپلائی بل رقم:', p4X + 14, curY + 22);
+  ctx.font = 'bold 17px monospace';
+  ctx.fillText(`Rs. ${totBilled.toLocaleString()}`, p4X + 14, curY + 45);
+
+  curY += pillBoxH + 16;
+
+  // Final Balance Settlement Bar
+  const setBarH = 68;
+  ctx.save();
+  ctx.fillStyle = hasCredit ? '#F0FDF4' : '#FEF2F2';
+  roundRect(ctx, infoX, curY, infoW, setBarH, 14);
+  ctx.fill();
+  ctx.strokeStyle = hasCredit ? '#86EFAC' : '#FCA5A5';
+  ctx.lineWidth = 2;
+  roundRect(ctx, infoX, curY, infoW, setBarH, 14);
   ctx.stroke();
   ctx.restore();
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#334155';
-  ctx.font = 'bold 13px system-ui, sans-serif';
+  ctx.font = 'bold 15px system-ui, sans-serif';
   ctx.fillText(
-    `کل سپلائی خلاصہ: چربی: ${totCharbi.toFixed(2)} KG  |  کچرا: ${totKachara.toFixed(2)} KG  |  کل وزن: ${totWeight.toFixed(2)} KG`,
-    infoX + 16,
-    curY + 28
+    `فیکٹری ایڈوانس رقم: Rs. ${fAdv.toLocaleString()}   —   منہا کل سپلائی بل: Rs. ${totBilled.toLocaleString()}`,
+    infoX + 20,
+    curY + 40
   );
 
-  ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 14px system-ui, sans-serif';
-  ctx.fillText(
-    `کل سپلائی بل: Rs. ${totBilled.toLocaleString()}  |  ایڈوانس: Rs. ${fAdv.toLocaleString()}  |  ${hasCredit ? 'صافی بقایا ایڈوانس:' : 'بقایا واجب الادا:'} `,
-    infoX + 16,
-    curY + 52
-  );
-
+  ctx.textAlign = 'right';
   ctx.fillStyle = hasCredit ? '#047857' : '#B91C1C';
-  ctx.font = 'bold 16px monospace';
+  ctx.font = 'bold 22px monospace';
   ctx.fillText(
-    hasCredit ? `+Rs. ${remAdvance.toLocaleString()}` : `-Rs. ${Math.abs(remAdvance).toLocaleString()}`,
-    infoX + infoW - 180,
-    curY + 52
+    hasCredit
+      ? `صافی بقایا ایڈوانس: +Rs. ${remAdvance.toLocaleString()}`
+      : `فیکٹری پر واجب الادا: -Rs. ${Math.abs(remAdvance).toLocaleString()}`,
+    infoX + infoW - 20,
+    curY + 41
   );
+  ctx.textAlign = 'left';
 
-  curY += sumH + 18;
+  curY += setBarH + 20;
 
   // Signatures
   drawDashedLine(ctx, margin + 40, curY, width - margin - 40, curY);
-  curY += 24;
+  curY += 26;
 
-  const sigW = 220;
-  drawDashedLine(ctx, margin + 50, curY + 36, margin + 50 + sigW, curY + 36);
+  const sigW = 280;
+  drawDashedLine(ctx, margin + 50, curY + 38, margin + 50 + sigW, curY + 38);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#64748B';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('شان پولٹری پروٹین مہر و دستخط', margin + 50 + sigW / 2, curY + 54);
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText('شان پولٹری پروٹین (مہر و مجاز دستخط)', margin + 50 + sigW / 2, curY + 58);
 
-  drawDashedLine(ctx, width - margin - 50 - sigW, curY + 36, width - margin - 50, curY + 36);
-  ctx.fillText('فیکٹری مجاز نمائندہ مہر و دستخط', width - margin - 50 - sigW / 2, curY + 54);
+  drawDashedLine(ctx, width - margin - 50 - sigW, curY + 38, width - margin - 50, curY + 38);
+  ctx.fillText('فیکٹری مجاز نمائندہ (مہر و دستخط)', width - margin - 50 - sigW / 2, curY + 58);
 
-  curY += 76;
+  curY += 80;
 
   // Footer
   drawDashedLine(ctx, margin + 20, curY, width - margin - 20, curY);
@@ -1517,11 +1592,11 @@ export async function generateFactoryStatementImageBlob(params: FactoryStatement
   ctx.textAlign = 'center';
   ctx.fillStyle = '#475569';
   ctx.font = 'bold 13px system-ui, sans-serif';
-  ctx.fillText(`Shan Poultry Contact: ${shanContact} • آفیشل فیکٹری کھاتہ لیجر اسٹیٹمنٹ`, width / 2, curY);
+  ctx.fillText(`Shan Poultry Contact: ${shanContact}   •   آفیشل فیکٹری کھاتہ لیجر اسٹیٹمنٹ`, width / 2, curY);
   curY += 18;
 
   ctx.fillStyle = '#94A3B8';
-  ctx.font = '11px system-ui, sans-serif';
+  ctx.font = '12px system-ui, sans-serif';
   ctx.fillText('Shan Poultry Protein ERP • Burewala, Vehari, Lahore, Punjab', width / 2, curY);
 
   return new Promise((resolve, reject) => {
