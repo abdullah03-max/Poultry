@@ -583,23 +583,8 @@ export async function shareReceiptImage(
     }
   }
 
-  // PRIORITY 2: Modern Mobile Browser Web Share API with Files
-  const file = new File([blob], filename, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: `Shan Poultry Slip ${slip.receipt_no}`,
-        text: caption,
-      });
-      return { success: true, method: 'web_share' };
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        return { success: true, method: 'web_share' };
-      }
-      console.warn('navigator.share failed, using fallback:', err);
-    }
-  }
+  // Copy image to clipboard for easy pasting in WhatsApp
+  await copyBlobToClipboard(blob);
 
   // PRIORITY 3: Fallback for Desktop Browsers (Download image + Open WhatsApp Web)
   try {
@@ -1627,20 +1612,7 @@ ${remAdvance >= 0 ? `*صافی بقایا ایڈوانس ریمائنڈر:* Rs. 
     }
   }
 
-  // 3. Mobile Browser Web Share API with File
-  const file = new File([blob], filename, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: `Shan Poultry Slip ${params.slip.invoice_no}`,
-        text: caption,
-      });
-      return { blob, url, copied, filename, phone, caption };
-    } catch (e: any) {
-      if (e.name !== 'AbortError') console.warn('Web Share API error:', e);
-    }
-  }
+
 
   // 4. Desktop auto-download
   try {
@@ -1714,20 +1686,7 @@ ${remAdvance >= 0 ? `*صافی بقایا ایڈوانس ریمائنڈر:* Rs. 
     }
   }
 
-  // 3. Mobile Web Share API with File
-  const file = new File([blob], filename, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: `Shan Poultry Statement ${params.factory.factory_code}`,
-        text: caption,
-      });
-      return { blob, url, copied, filename, phone, caption };
-    } catch (e: any) {
-      if (e.name !== 'AbortError') console.warn('Web Share API error:', e);
-    }
-  }
+
 
   // 4. Desktop auto-download
   try {
