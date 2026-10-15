@@ -52,6 +52,14 @@ export const BulkWalkinSaleModal: React.FC<BulkWalkinSaleModalProps> = ({
   const [saving, setSaving] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Available fresh stock calculation (declared before any early returns to obey rules of hooks)
+  const freshProd = useMemo(() => {
+    return products.find(
+      p => p.id === FRESH_CHICKEN_PRODUCT_ID || p.category === 'Fresh Live Chicken' || (p.urdu_name && p.urdu_name.includes('تازہ'))
+    );
+  }, [products]);
+  const availableFreshStock = freshProd ? (Number(freshProd.stock_kg) || 0) : 0;
+
   // Initialize rows with active products
   useEffect(() => {
     if (isOpen) {
@@ -145,13 +153,6 @@ export const BulkWalkinSaleModal: React.FC<BulkWalkinSaleModalProps> = ({
   };
 
   // Calculations
-  const freshProd = useMemo(() => {
-    return products.find(
-      p => p.id === FRESH_CHICKEN_PRODUCT_ID || p.category === 'Fresh Live Chicken' || (p.urdu_name && p.urdu_name.includes('تازہ'))
-    );
-  }, [products]);
-  const availableFreshStock = freshProd ? (Number(freshProd.stock_kg) || 0) : 0;
-
   const activeItemsToSell = rows.filter(r => Number(r.weightKg) > 0);
 
   const totalWeightKg = Number(

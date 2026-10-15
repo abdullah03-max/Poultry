@@ -79,7 +79,60 @@ import {
   LayoutDashboard,
   Snowflake,
   UserCheck,
+  Bell,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+
+export interface ShopLiveNotification {
+  id: string;
+  type: 'sale' | 'payment' | 'arrival' | 'customer';
+  title: string;
+  message: string;
+  details?: string;
+  timestamp: string;
+  read: boolean;
+}
+
+function playShopChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    const now = ctx.currentTime;
+    
+    // Note 1: E5 (659.25 Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(659.25, now);
+    gain1.gain.setValueAtTime(0, now);
+    gain1.gain.linearRampToValueAtTime(0.25, now + 0.04);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+
+    // Note 2: A5 (880.00 Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880.00, now + 0.12);
+    gain2.gain.setValueAtTime(0, now + 0.12);
+    gain2.gain.linearRampToValueAtTime(0.3, now + 0.16);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.65);
+  } catch (e) {
+    console.warn('[Audio] Chime playback note:', e);
+  }
+}
 
 interface ChickenShopAppProps {
   onBackToWaste?: () => void;
@@ -259,6 +312,23 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   // Clock
   const [currentTime, setCurrentTime] = useState<string>('');
 
+  // Live Notifications State (Sound Chime & Realtime Alerts)
+  const [notifications, setNotifications] = useState<ShopLiveNotification[]>([]);
+  const [latestToast, setLatestToast] = useState<ShopLiveNotification | null>(null);
+  const [showNotifDropdown, setShowNotifDropdown] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const soundEnabledRef = React.useRef<boolean>(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
+
+  useEffect(() => {
+    if (latestToast) {
+      const timer = setTimeout(() => {
+        setLatestToast(null);
+      }, 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [latestToast]);
+
   useEffect(() => {
     if (standalone) {
       document.title = 'شان چکن شاپ - ایڈمن پورٹل (Chicken Shop Management)';
@@ -369,7 +439,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
     loadAllData(false);
   }, []);
 
-  // Supabase Real-time Subscription: updates state across devices automatically
+  // Supabase Real-time Subscription: updates state across devices automatically & notifies admin in real time
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
 
@@ -381,14 +451,95 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       }, 300);
     };
 
+    const handleSaleEvent = (payload: any) => {
+      triggerReload();
+      if (payload.eventType === 'INSERT' && payload.new) {
+        const s = payload.new;
+        const isBulk = s.customer_name?.includes('Bulk') || s.customer_name?.includes('واک ان');
+        const title = isBulk ? '⚡ واک ان نقد سیل موصول ہوئی!' : '⚡ ورکر نے نئی سیل درج کی!';
+        const workerTag = s.notes?.includes('[ورکر:') ? s.notes.match(/\[ورکر:[^\]]+\]/)?.[0] + ' ' : '';
+        const msg = `${workerTag}بل #${s.invoice_no || ''} • گاہک: ${s.customer_name || 'کسٹمر'} • ${s.total_weight_kg || 0} KG • رقم: Rs. ${Number(s.total_amount || 0).toLocaleString()}`;
+        const notif: ShopLiveNotification = {
+          id: `sale-${Date.now()}-${Math.random()}`,
+          type: 'sale',
+          title,
+          message: msg,
+          details: s.notes || undefined,
+          timestamp: new Date().toLocaleTimeString('ur-PK', { hour: '2-digit', minute: '2-digit' }),
+          read: false,
+        };
+        if (soundEnabledRef.current) playShopChime();
+        setNotifications(prev => [notif, ...prev.slice(0, 49)]);
+        setLatestToast(notif);
+      }
+    };
+
+    const handlePaymentEvent = (payload: any) => {
+      triggerReload();
+      if (payload.eventType === 'INSERT' && payload.new) {
+        const p = payload.new;
+        const workerTag = p.notes?.includes('[ورکر:') ? p.notes.match(/\[ورکر:[^\]]+\]/)?.[0] + ' ' : '';
+        const notif: ShopLiveNotification = {
+          id: `pay-${Date.now()}-${Math.random()}`,
+          type: 'payment',
+          title: '💰 نئی کسٹمر وصولی (Payment) درج ہوئی!',
+          message: `${workerTag}گاہک: ${p.customer_name || 'کسٹمر'} • وصول شدہ رقم: Rs. ${Number(p.amount || 0).toLocaleString()} (${p.payment_method || 'نقد'})`,
+          details: p.notes || undefined,
+          timestamp: new Date().toLocaleTimeString('ur-PK', { hour: '2-digit', minute: '2-digit' }),
+          read: false,
+        };
+        if (soundEnabledRef.current) playShopChime();
+        setNotifications(prev => [notif, ...prev.slice(0, 49)]);
+        setLatestToast(notif);
+      }
+    };
+
+    const handleArrivalEvent = (payload: any) => {
+      triggerReload();
+      if (payload.eventType === 'INSERT' && payload.new) {
+        const a = payload.new;
+        const notif: ShopLiveNotification = {
+          id: `arr-${Date.now()}-${Math.random()}`,
+          type: 'arrival',
+          title: '🐔 نئی چکن آمد موصول ہوئی!',
+          message: `سپلائر: ${a.supplier_name || 'نامعلوم'} • وزن: ${a.net_weight_kg || a.total_weight_kg || 0} KG • رقم: Rs. ${Number(a.total_cost || 0).toLocaleString()}`,
+          details: a.notes || undefined,
+          timestamp: new Date().toLocaleTimeString('ur-PK', { hour: '2-digit', minute: '2-digit' }),
+          read: false,
+        };
+        if (soundEnabledRef.current) playShopChime();
+        setNotifications(prev => [notif, ...prev.slice(0, 49)]);
+        setLatestToast(notif);
+      }
+    };
+
+    const handleCustomerEvent = (payload: any) => {
+      triggerReload();
+      if (payload.eventType === 'INSERT' && payload.new) {
+        const c = payload.new;
+        const notif: ShopLiveNotification = {
+          id: `cust-${Date.now()}-${Math.random()}`,
+          type: 'customer',
+          title: '👤 نیا گاہک رجسٹر ہوا',
+          message: `${c.name || 'کسٹمر'} ${c.shop_name ? `(${c.shop_name})` : ''} • بقایا: Rs. ${Number(c.opening_balance || 0).toLocaleString()}`,
+          details: c.phone || undefined,
+          timestamp: new Date().toLocaleTimeString('ur-PK', { hour: '2-digit', minute: '2-digit' }),
+          read: false,
+        };
+        if (soundEnabledRef.current) playShopChime();
+        setNotifications(prev => [notif, ...prev.slice(0, 49)]);
+        setLatestToast(notif);
+      }
+    };
+
     const channel = supabase
       .channel('chicken_shop_realtime_stream')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_sales' }, triggerReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_payments' }, triggerReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_fresh_arrivals' }, triggerReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_sales' }, handleSaleEvent)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_payments' }, handlePaymentEvent)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_fresh_arrivals' }, handleArrivalEvent)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_customers' }, handleCustomerEvent)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_products' }, triggerReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_expenses' }, triggerReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_customers' }, triggerReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_categories' }, triggerReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chicken_shop_workers' }, triggerReload)
       .subscribe();
@@ -1257,6 +1408,85 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               <UserCheck className="w-3.5 h-3.5" />
               <span>👷 ورکر پورٹل</span>
             </button>
+
+            {/* Sound Chime Toggle */}
+            <button
+              type="button"
+              onClick={() => setSoundEnabled(prev => !prev)}
+              className={`p-1.5 rounded-xl border transition shrink-0 cursor-pointer ${
+                soundEnabled
+                  ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                  : 'bg-slate-100 text-slate-400 border-slate-300 hover:bg-slate-200'
+              }`}
+              title={soundEnabled ? 'آواز الرٹ آن ہے (بند کرنے کے لیے کلک کریں)' : 'آواز الرٹ بند ہے (آن کرنے کے لیے کلک کریں)'}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-amber-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+            </button>
+
+            {/* Notification Bell Dropdown */}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotifDropdown(prev => !prev);
+                  setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                }}
+                className="relative p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer"
+                title="ریئل ٹائم اطلاعات (Realtime Alerts)"
+              >
+                <Bell className="w-4 h-4 text-slate-700" />
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
+                    {notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+
+              {showNotifDropdown && (
+                <div className="absolute left-0 sm:right-auto mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden text-right animate-fadeIn">
+                  <div className="p-3 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+                    <div className="flex items-center gap-1.5 font-urdu text-xs font-black">
+                      <Bell className="w-3.5 h-3.5 text-amber-400" />
+                      <span>لائیو ریئل ٹائم الرٹس ({notifications.length})</span>
+                    </div>
+                    {notifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setNotifications([])}
+                        className="text-[10px] text-rose-300 hover:text-white font-urdu underline cursor-pointer"
+                      >
+                        تمام صاف کریں
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400 font-urdu">
+                        ابھی تک کوئی نئی اطلاع موصول نہیں ہوئی۔ ورکر کی ہر سیل یا وصولی یہاں لائیو نظر آئے گی۔
+                      </div>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} className="p-3 hover:bg-slate-50 transition text-right">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-slate-400 font-mono">{n.timestamp}</span>
+                            <span className="text-xs font-black text-slate-900 font-urdu">{n.title}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-700 font-urdu leading-relaxed font-bold">
+                            {n.message}
+                          </p>
+                          {n.details && (
+                            <p className="text-[10px] text-amber-700 font-urdu mt-0.5 bg-amber-50 px-2 py-0.5 rounded-md inline-block">
+                              {n.details}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -1644,58 +1874,6 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                     <span>روزانہ سیلز و کلو ریکارڈ کھولیں</span>
                     <ArrowLeft className="w-3.5 h-3.5" />
                   </button>
-                </div>
-
-                {/* Mode Selector: Individual Khata Bill vs Bulk Walk-in Sales */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                  <div className="p-4 rounded-2xl border-2 border-amber-500/80 bg-amber-50/40 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-black text-amber-950 font-urdu flex items-center gap-1.5">
-                          <Users className="w-4 h-4 text-amber-600" />
-                          1. گاہک کھاتہ دار یا انفرادی بل
-                        </span>
-                        <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
-                          موجودہ فارم
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-relaxed font-urdu">
-                        کسی رجسٹرڈ کھاتہ دار کے کھاتے میں ادھار اندراج کرنے یا علیحدہ پرنٹ رسید بنانے کے لیے نیچے دیا گیا فارم استعمال کریں۔
-                      </p>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => {
-                      setBulkWalkinDate(posSaleDate || new Date().toISOString().split('T')[0]);
-                      setBulkWalkinModalOpen(true);
-                    }}
-                    className="p-4 rounded-2xl border-2 border-dashed border-emerald-500 bg-emerald-50/70 hover:bg-emerald-100/90 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between group"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-black text-emerald-950 font-urdu flex items-center gap-1.5 group-hover:text-emerald-700">
-                          <Layers className="w-4 h-4 text-emerald-600" />
-                          2. واک ان نقد سیلز یکمشت درج کریں ⚡
-                        </span>
-                        <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold animate-pulse">
-                          تجویز کردہ (Bulk)
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-emerald-900 leading-relaxed font-urdu">
-                        بغیر الگ الگ کسٹمر پرچیوں کے، تمام واک ان نقد کٹس (گوشت، بون لیس وغیرہ) کا وزن اور ریٹ ایک ساتھ درج کریں۔
-                      </p>
-                    </div>
-                    <div className="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between">
-                      <span className="text-[10px] text-emerald-700 font-semibold font-urdu">
-                        کھاتے سے الگ • 100% نقد • خودکار اسٹاک کٹوتی
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 font-urdu group-hover:translate-x-[-3px] transition-transform">
-                        <span>فارم کھولیں</span>
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
                 <form onSubmit={handleSaveSale} className="space-y-6">
@@ -2635,6 +2813,37 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         onClose={() => setExpenseModalOpen(false)}
         onSuccess={loadAllData}
       />
+
+      {/* Floating Realtime Notification Toast */}
+      {latestToast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-slate-900/95 backdrop-blur-md text-white border-2 border-emerald-500 rounded-3xl p-4 shadow-2xl animate-fadeIn">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                <Bell className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-emerald-400 font-urdu">{latestToast.title}</h4>
+                <span className="text-[10px] text-slate-400 font-mono">{latestToast.timestamp}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setLatestToast(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="mt-2 text-xs font-urdu text-slate-200 leading-relaxed font-bold">
+            {latestToast.message}
+          </p>
+          {latestToast.details && (
+            <p className="mt-1 text-[11px] font-urdu text-amber-300">
+              {latestToast.details}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };
