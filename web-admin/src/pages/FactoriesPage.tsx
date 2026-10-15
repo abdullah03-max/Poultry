@@ -31,9 +31,18 @@ import {
   ArrowRight,
   X,
   Eye,
-  FileText
+  FileText,
+  Copy,
+  Download,
+  Check,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
+import {
+  shareFactorySlipImage,
+  shareFactoryStatementImage,
+  copyBlobToClipboard,
+} from '../utils/receiptImageGenerator';
 
 export const FactoriesPage: React.FC = () => {
   // Default tab is DIRECTORY as requested by the user
@@ -66,6 +75,17 @@ export const FactoriesPage: React.FC = () => {
   const [advanceInputNotes, setAdvanceInputNotes] = useState<string>('');
 
   const [saving, setSaving] = useState<boolean>(false);
+
+  // Receipt / Statement Image Preview Modal
+  const [imagePreviewModalOpen, setImagePreviewModalOpen] = useState<boolean>(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewImageBlob, setPreviewImageBlob] = useState<Blob | null>(null);
+  const [previewImageTitle, setPreviewImageTitle] = useState<string>('');
+  const [previewImageFilename, setPreviewImageFilename] = useState<string>('');
+  const [previewPhone, setPreviewPhone] = useState<string>('');
+  const [previewCaption, setPreviewCaption] = useState<string>('');
+  const [copiedFeedback, setCopiedFeedback] = useState<boolean>(false);
+  const [generatingImage, setGeneratingImage] = useState<boolean>(false);
 
   const fetchData = async () => {
     try {
@@ -349,125 +369,89 @@ export const FactoriesPage: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // WHATSAPP STATEMENT & SLIP SHARING
+  // WHATSAPP STATEMENT & SLIP IMAGE SHARING (SEND RECEIPT AS IMAGE)
   // ---------------------------------------------------------------------------
-  const handleSendStatementWhatsApp = (factory: Factory, txs: FactoryTransaction[]) => {
-    const phone = factory.whatsapp_no || factory.phone || '';
-    let cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (cleanPhone.startsWith('03')) cleanPhone = '92' + cleanPhone.substring(1);
-    else if (cleanPhone.startsWith('3') && cleanPhone.length === 10) cleanPhone = '92' + cleanPhone;
-
-    const receiptTitle =
-      settings?.receipt_title ||
-      (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
-      '🐔 SHAN POULTRY PROTEIN - کھاتہ و سپلائی اسٹیٹمنٹ 🐔';
-
-    const shanPhone =
-      settings?.business_phone ||
-      (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
-      '0300-0000000';
-
-    const fAdv = Number(factory.advance_amount || 0);
-    const totBilled = txs.reduce((acc, t) => acc + (t.total_amount || 0), 0);
-    const totWeight = txs.reduce((acc, t) => acc + (t.total_weight || 0), 0);
-    const totCharbi = txs.reduce((acc, t) => acc + (t.charbi_weight || 0), 0);
-    const totKachara = txs.reduce((acc, t) => acc + (t.kachara_weight || 0), 0);
-    const remAdvance = fAdv - totBilled;
-
-    let slipsSummary = '';
-    if (txs.length === 0) {
-      slipsSummary = '• کوئی سپلائی پرچی موجود نہیں۔';
-    } else {
-      slipsSummary = txs
-        .slice(0, 15)
-        .map((t, idx) => {
-          return `${idx + 1}. *انوائس:* ${t.invoice_no} (${formatDate(t.transaction_date)})
-   • چربی: ${t.charbi_weight} KG @ Rs. ${t.charbi_rate} = Rs. ${t.charbi_total?.toLocaleString()}
-   • کچرا: ${t.kachara_weight} KG @ Rs. ${t.kachara_rate} = Rs. ${t.kachara_total?.toLocaleString()}
-   • کل وزن: ${t.total_weight} KG | کل بل: Rs. ${t.total_amount?.toLocaleString()}`;
-        })
-        .join('\n\n');
-      if (txs.length > 15) {
-        slipsSummary += `\n...اور ${txs.length - 15} مزید پرچیاں شامل ہیں۔`;
-      }
+  const handleSendStatementImage = async (factory: Factory, txs: FactoryTransaction[]) => {
+    try {
+      setGeneratingImage(true);
+      const res = await shareFactoryStatementImage({ factory, transactions: txs });
+      setPreviewImageBlob(res.blob);
+      setPreviewImageUrl(res.url);
+      setPreviewImageTitle(`فیکٹری کھاتہ مکمل اسٹیٹمنٹ - ${factory.name}`);
+      setPreviewImageFilename(res.filename);
+      setPreviewPhone(res.phone);
+      setPreviewCaption(res.caption);
+      setCopiedFeedback(res.copied);
+      setImagePreviewModalOpen(true);
+    } catch (err: any) {
+      alert('اسٹیٹمنٹ تصویر بنانے میں خرابی: ' + (err.message || 'Error generating image'));
+    } finally {
+      setGeneratingImage(false);
     }
-
-    const message = `*${receiptTitle}*
-*فیکٹری کھاتہ مکمل اسٹیٹمنٹ*
--------------------------------------------
-*خریدار فیکٹری:* ${factory.name}
-*کوڈ:* ${factory.factory_code}
-*رابطہ کار:* ${factory.contact_person || '—'}
-*شہر / پتہ:* ${factory.area} ${factory.address ? `(${factory.address})` : ''}
-*تاریخ اسٹیٹمنٹ:* ${formatDate(new Date().toISOString())}
-
-*💰 فیکٹری ایڈوانس رقم (Advance Received):* Rs. ${fAdv.toLocaleString()}
-
-*📦 سپلائی پرچیاں تفصیل (Deliveries Ledger):*
-${slipsSummary}
-
--------------------------------------------
-*خلاصہ حساب کتاب (Account Summary):*
-• کل سپلائی وزن: ${totWeight.toFixed(2)} KG
-  (چربی: ${totCharbi.toFixed(2)} KG | کچرا: ${totKachara.toFixed(2)} KG)
-• کل سپلائی بل: Rs. ${totBilled.toLocaleString()}
-• وصول شدہ فیکٹری ایڈوانس: Rs. ${fAdv.toLocaleString()}
-
-${remAdvance >= 0
-  ? `*✓ صافی بقایا ایڈوانس ریمائنڈر:* Rs. ${remAdvance.toLocaleString()} (کریڈٹ ابھی موجود ہے)`
-  : `*⚠️ ایڈوانس ختم! فیکٹری کے ذمے بقایا واجب الادا:* Rs. ${Math.abs(remAdvance).toLocaleString()}`}
-
-Shan Poultry Contact: ${shanPhone}`;
-
-    const encoded = encodeURIComponent(message);
-    const waUrl = cleanPhone.length >= 10
-      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encoded}`
-      : `https://api.whatsapp.com/send?text=${encoded}`;
-
-    window.open(waUrl, '_blank');
   };
 
-  const handleSendSingleSlipWhatsApp = (tx: FactoryTransaction, factory: Factory) => {
-    const phone = factory.whatsapp_no || factory.phone || '';
-    let cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (cleanPhone.startsWith('03')) cleanPhone = '92' + cleanPhone.substring(1);
-    else if (cleanPhone.startsWith('3') && cleanPhone.length === 10) cleanPhone = '92' + cleanPhone;
+  const handleSendSingleSlipImage = async (tx: FactoryTransaction, factory: Factory) => {
+    try {
+      setGeneratingImage(true);
+      // Compute previous deliveries before this slip
+      const facTxs = transactions
+        .filter(t => t.factory_id === factory.id)
+        .sort((a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime());
 
-    const receiptTitle =
-      settings?.receipt_title ||
-      (typeof window !== 'undefined' ? localStorage.getItem('spp_receipt_title') : null) ||
-      '🐔 SHAN POULTRY PROTEIN - سپلائی پرچی 🐔';
+      let prevBilled = 0;
+      for (const t of facTxs) {
+        if (t.id === tx.id) break;
+        prevBilled += (t.total_amount || 0);
+      }
 
-    const shanPhone =
-      settings?.business_phone ||
-      (typeof window !== 'undefined' ? localStorage.getItem('spp_business_phone') : null) ||
-      '0300-0000000';
+      const res = await shareFactorySlipImage({
+        slip: tx,
+        factory,
+        previousBilled: prevBilled,
+        totalAdvance: Number(factory.advance_amount || 0),
+      });
 
-    const fAdv = Number(factory.advance_amount || 0);
+      setPreviewImageBlob(res.blob);
+      setPreviewImageUrl(res.url);
+      setPreviewImageTitle(`سپلائی رسید تصویر - انوائس #${tx.invoice_no}`);
+      setPreviewImageFilename(res.filename);
+      setPreviewPhone(res.phone);
+      setPreviewCaption(res.caption);
+      setCopiedFeedback(res.copied);
+      setImagePreviewModalOpen(true);
+    } catch (err: any) {
+      alert('رسید تصویر بنانے میں خرابی: ' + (err.message || 'Error generating image'));
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
 
-    const message = `*${receiptTitle}*
-*انوائس نمبر:* ${tx.invoice_no}
-*تاریخ:* ${formatDate(tx.transaction_date)}
-*فیکٹری:* ${factory.name} (${factory.area})
-*گاڑی نمبر:* ${tx.vehicle_no || '—'} (ڈرائیور: ${tx.driver_name || '—'})
+  const handleCopyPreviewImage = async () => {
+    if (!previewImageBlob) return;
+    const ok = await copyBlobToClipboard(previewImageBlob);
+    if (ok) {
+      setCopiedFeedback(true);
+      setTimeout(() => setCopiedFeedback(false), 3000);
+    } else {
+      alert('تصویر کلپ بورڈ میں کاپی نہیں ہو سکی۔ براہ کرم نیچے "ڈاؤنلوڈ" پر کلک کر کے واٹس ایپ میں بھیجیں۔');
+    }
+  };
 
-*سپلائی تفصیل:*
-• چربی وزن: ${tx.charbi_weight} KG @ Rs. ${tx.charbi_rate} = Rs. ${tx.charbi_total?.toLocaleString()}
-• کچرا وزن: ${tx.kachara_weight} KG @ Rs. ${tx.kachara_rate} = Rs. ${tx.kachara_total?.toLocaleString()}
+  const handleDownloadPreviewImage = () => {
+    if (!previewImageUrl) return;
+    const a = document.createElement('a');
+    a.href = previewImageUrl;
+    a.download = previewImageFilename || 'receipt.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
-*کل سپلائی وزن:* ${tx.total_weight} KG
-*کل رقم بل:* Rs. ${tx.total_amount?.toLocaleString()}
-
-*فیکٹری ایڈوانس کھاتہ:* Rs. ${fAdv.toLocaleString()}
-*نوٹ:* ${tx.notes || 'سپلائی وصول پا کر کھاتہ میں ایڈجسٹ کی گئی ہے۔'}
-
-Shan Poultry Contact: ${shanPhone}`;
-
-    const encoded = encodeURIComponent(message);
-    const waUrl = cleanPhone.length >= 10
-      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encoded}`
+  const handleOpenWhatsAppFromPreview = () => {
+    const encoded = encodeURIComponent(previewCaption);
+    const waUrl = previewPhone.length >= 10
+      ? `https://api.whatsapp.com/send?phone=${previewPhone}&text=${encoded}`
       : `https://api.whatsapp.com/send?text=${encoded}`;
-
     window.open(waUrl, '_blank');
   };
 
@@ -816,9 +800,9 @@ Shan Poultry Contact: ${shanPhone}`;
 
                     <button
                       type="button"
-                      onClick={() => handleSendStatementWhatsApp(f, facTxs)}
+                      onClick={() => handleSendStatementImage(f, facTxs)}
                       className="p-2 text-emerald-600 hover:bg-emerald-50 border border-emerald-200 rounded-xl transition"
-                      title="واٹس ایپ پر اسٹیٹمنٹ بھیجیں"
+                      title="واٹس ایپ پر اسٹیٹمنٹ امیج بھیجیں"
                     >
                       <Share2 className="w-4 h-4" />
                     </button>
@@ -891,10 +875,10 @@ Shan Poultry Contact: ${shanPhone}`;
                           <button
                             type="button"
                             onClick={() => {
-                              if (f) handleSendSingleSlipWhatsApp(tx, f);
+                              if (f) handleSendSingleSlipImage(tx, f);
                             }}
                             className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                            title="واٹس ایپ پر پرچی بھیجیں"
+                            title="واٹس ایپ پر رسید امیج بھیجیں"
                           >
                             <Share2 className="w-3.5 h-3.5" />
                           </button>
@@ -1060,12 +1044,13 @@ Shan Poultry Contact: ${shanPhone}`;
 
                 <button
                   type="button"
-                  onClick={() => handleSendStatementWhatsApp(activeStatementFactory, activeStatementTxs)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition"
-                  title="واٹس ایپ پر مکمل کھاتہ بھیجیں"
+                  disabled={generatingImage}
+                  onClick={() => handleSendStatementImage(activeStatementFactory, activeStatementTxs)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition disabled:opacity-50"
+                  title="واٹس ایپ پر مکمل کھاتہ اسٹیٹمنٹ امیج بھیجیں"
                 >
-                  <Share2 className="w-4 h-4" />
-                  <span>واٹس ایپ پر اسٹیٹمنٹ شیئر کریں</span>
+                  {generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                  <span>واٹس ایپ پر اسٹیٹمنٹ امیج شیئر کریں</span>
                 </button>
               </div>
             </div>
@@ -1123,9 +1108,9 @@ Shan Poultry Contact: ${shanPhone}`;
                           <div className="flex items-center justify-center gap-1">
                             <button
                               type="button"
-                              onClick={() => handleSendSingleSlipWhatsApp(tx, activeStatementFactory)}
+                              onClick={() => handleSendSingleSlipImage(tx, activeStatementFactory)}
                               className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                              title="واٹس ایپ پر پرچی بھیجیں"
+                              title="واٹس ایپ پر رسید امیج بھیجیں"
                             >
                               <Share2 className="w-3.5 h-3.5" />
                             </button>
@@ -1744,6 +1729,95 @@ Shan Poultry Contact: ${shanPhone}`;
           </form>
         </Modal>
       )}
+
+      {/* ======================================================================= */}
+      {/* MODAL 5: RECEIPT / STATEMENT IMAGE PREVIEW MODAL */}
+      {/* ======================================================================= */}
+      <Modal
+        isOpen={imagePreviewModalOpen}
+        onClose={() => setImagePreviewModalOpen(false)}
+        title={previewImageTitle || 'رسید تصویر'}
+        subtitle="یہ تصویر فیکٹری کو بھیجی جائے گی (وزن، ریٹ، بل اور ایڈوانس کی مکمل تفصیلات کے ساتھ)"
+        maxWidth="lg"
+      >
+        <div className="space-y-4 text-xs">
+          {/* Notification banner */}
+          <div className="p-3.5 bg-purple-50/90 border border-purple-200 rounded-2xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📋</span>
+              <div>
+                <span className="font-bold text-xs text-purple-950 block font-urdu">
+                  {copiedFeedback
+                    ? '✓ تصویر آپ کے کلپ بورڈ میں کاپی ہو چکی ہے!'
+                    : 'رسید کی تصویر تیار ہے!'}
+                </span>
+                <span className="text-[11px] text-purple-800 font-urdu block mt-0.5">
+                  واٹس ایپ چیٹ میں جا کر صرف <strong className="font-mono bg-purple-200/80 px-1.5 py-0.5 rounded text-purple-950 font-bold">Ctrl + V</strong> دبائیں، تصویر چلی جائے گی۔ یا نیچے ڈاؤنلوڈ سے فائل بھیجیں۔
+                </span>
+              </div>
+            </div>
+            {copiedFeedback && (
+              <span className="shrink-0 px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl font-urdu border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                <Check className="w-4 h-4 text-emerald-700" />
+                <span>کاپی ہو گئی!</span>
+              </span>
+            )}
+          </div>
+
+          {/* Rendered Image Display */}
+          {previewImageUrl && (
+            <div className="max-h-[62vh] overflow-y-auto border-2 border-slate-200 rounded-2xl p-2.5 bg-slate-100/90 flex justify-center shadow-inner">
+              <img
+                src={previewImageUrl}
+                alt="Receipt Preview"
+                className="max-w-full h-auto rounded-xl shadow-md border border-slate-300"
+              />
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyPreviewImage}
+                className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shadow-sm transition"
+              >
+                <Copy className="w-4 h-4" />
+                <span>{copiedFeedback ? '✓ دوبارہ کاپی ہو گئی' : 'تصویر کاپی کریں (Ctrl + V)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadPreviewImage}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition border border-slate-200"
+              >
+                <Download className="w-4 h-4" />
+                <span>ڈاؤنلوڈ (PNG)</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenWhatsAppFromPreview}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>واٹس ایپ چیٹ کھولیں</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setImagePreviewModalOpen(false)}
+                className="px-4 py-2 font-semibold text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition"
+              >
+                بند کریں
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
