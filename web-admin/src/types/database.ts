@@ -255,6 +255,7 @@ export interface Factory {
   area: string;
   rate_charbi: number;
   rate_kachara: number;
+  advance_amount?: number;
   status: 'active' | 'inactive';
   notes: string | null;
   is_deleted?: boolean;
