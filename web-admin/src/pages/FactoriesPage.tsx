@@ -505,8 +505,10 @@ export const FactoriesPage: React.FC = () => {
     return fname.toLowerCase().includes(q) || inv.toLowerCase().includes(q) || veh.toLowerCase().includes(q);
   });
 
+  const isAnyModalOpen = statementFactoryId !== null || slipModalOpen || factoryModalOpen || advanceModalOpen || imagePreviewModalOpen;
+
   return (
-    <div className="space-y-6 text-slate-800">
+    <div className={`space-y-6 text-slate-800 ${isAnyModalOpen ? 'no-print' : ''}`}>
       {/* Top Header */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -976,9 +978,9 @@ export const FactoriesPage: React.FC = () => {
           subtitle={`کوڈ: ${activeStatementFactory.factory_code} | شہر: ${activeStatementFactory.area} | رابطہ: ${activeStatementFactory.contact_person || '—'} (${activeStatementFactory.phone})`}
           maxWidth="2xl"
         >
-          <div className="space-y-5 text-xs">
-            {/* Top 3 Live Financial Badges */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono">
+          <div className="space-y-4 text-xs">
+            {/* Top 3 Live Financial Badges (Screen Only) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono no-print">
               {/* Badge 1: Advance Pool */}
               <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-3.5 flex flex-col justify-between">
                 <div>
@@ -1054,8 +1056,36 @@ export const FactoriesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Statement Action Buttons Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+            {/* Print-Only Sleek Financial Summary Box (Ultra-Compact for 1-Page Print) */}
+            <div className="hidden print:block mb-3 border border-slate-300 rounded-lg p-2.5 text-slate-900 bg-slate-50">
+              <div className="grid grid-cols-3 gap-2 text-center text-xs border-b border-slate-300 pb-2 mb-2 font-mono">
+                <div>
+                  <span className="text-[10px] text-slate-600 font-sans block font-bold">فیکٹری ایڈوانس رقم (Advance)</span>
+                  <span className="text-sm font-black text-purple-900">{formatCurrency(activeStatementAdvance)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-600 font-sans block font-bold">کل سپلائی مالیت (Delivered Value)</span>
+                  <span className="text-sm font-black text-blue-900">{formatCurrency(activeStatementBilled)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-600 font-sans block font-bold">
+                    {activeStatementRemainingAdvance >= 0 ? 'صافی بقایا ایڈوانس (Balance)' : 'بقایا واجب الادا (Due)'}
+                  </span>
+                  <span className={`text-sm font-black ${activeStatementRemainingAdvance >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                    {activeStatementRemainingAdvance >= 0 ? `+${formatCurrency(activeStatementRemainingAdvance)}` : `-${formatCurrency(Math.abs(activeStatementRemainingAdvance))}`}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[11px] font-sans px-1 text-slate-700">
+                <span><strong>کل سپلائی پرچیاں:</strong> {activeStatementTxs.length} پرچیاں</span>
+                <span><strong>کل سپلائی وزن:</strong> {activeStatementWeight.toFixed(1)} KG</span>
+                <span><strong>چربی وزن:</strong> {activeStatementCharbiWeight.toFixed(1)} KG</span>
+                <span><strong>کچرا وزن:</strong> {activeStatementKacharaWeight.toFixed(1)} KG</span>
+              </div>
+            </div>
+
+            {/* Statement Action Buttons Bar (Hidden in Print) */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-2xl no-print">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1083,10 +1113,10 @@ export const FactoriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold rounded-xl text-xs transition"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
                   title="اسٹیٹمنٹ پرنٹ کریں"
                 >
-                  <Printer className="w-3.5 h-3.5 text-slate-500" />
+                  <Printer className="w-4 h-4" />
                   <span>پرنٹ (Print)</span>
                 </button>
 
@@ -1120,49 +1150,49 @@ export const FactoriesPage: React.FC = () => {
                   <FileText className="w-4 h-4 text-purple-600" />
                   <span>اس فیکٹری کی تمام سپلائی پرچیاں ({activeStatementTxs.length})</span>
                 </h4>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-500 no-print">
                   کسی بھی پرچی کے وزن یا ریٹ کو ایڈٹ کرنے کے لیے "ایڈٹ (✏️)" پر کلک کریں۔
                 </span>
               </div>
 
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-                <table className="w-full text-left border-collapse text-xs">
+              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs print:border-none print:shadow-none">
+                <table className="w-full text-left border-collapse text-xs print-table min-w-0">
                   <thead className="bg-slate-100 text-slate-700 font-bold text-[10px] uppercase border-b border-slate-200">
                     <tr>
-                      <th className="py-2.5 px-3">انوائس #</th>
-                      <th className="py-2.5 px-3">تاریخ</th>
-                      <th className="py-2.5 px-3">گاڑی / ڈرائیور</th>
-                      <th className="py-2.5 px-3 text-right">چربی وزن و ریٹ</th>
-                      <th className="py-2.5 px-3 text-right">کچرا وزن و ریٹ</th>
-                      <th className="py-2.5 px-3 text-right">کل وزن</th>
-                      <th className="py-2.5 px-3 text-right">کل بل رقم</th>
-                      <th className="py-2.5 px-3 text-center">ایکشن</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2">انوائس #</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2">تاریخ</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2">گاڑی / ڈرائیور</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2 text-right">چربی وزن و ریٹ</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2 text-right">کچرا وزن و ریٹ</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2 text-right">کل وزن</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2 text-right">کل بل رقم</th>
+                      <th className="py-2.5 px-3 text-center no-print">ایکشن</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
                     {activeStatementTxs.map(tx => (
                       <tr key={tx.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-bold text-purple-700">{tx.invoice_no}</td>
-                        <td className="py-2.5 px-3 text-slate-600 font-sans">{formatDate(tx.transaction_date)}</td>
-                        <td className="py-2.5 px-3 text-slate-600 font-sans">
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 font-bold text-purple-700 print:text-slate-900 whitespace-nowrap">{tx.invoice_no}</td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-slate-600 font-sans whitespace-nowrap">{formatDate(tx.transaction_date)}</td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-slate-600 font-sans">
                           {tx.vehicle_no || '—'}
                           {tx.driver_name && <span className="text-[10px] text-slate-400 block">{tx.driver_name}</span>}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-emerald-800 font-bold">
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right text-emerald-800 font-bold whitespace-nowrap">
                           {tx.charbi_weight} KG
-                          <span className="text-[10px] text-slate-400 block font-normal">
+                          <span className="text-[10px] text-slate-500 block font-normal">
                             @{tx.charbi_rate} = Rs. {tx.charbi_total?.toLocaleString()}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right text-amber-800 font-bold">
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right text-amber-800 font-bold whitespace-nowrap">
                           {tx.kachara_weight} KG
-                          <span className="text-[10px] text-slate-400 block font-normal">
+                          <span className="text-[10px] text-slate-500 block font-normal">
                             @{tx.kachara_rate} = Rs. {tx.kachara_total?.toLocaleString()}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right font-black text-slate-900">{tx.total_weight} KG</td>
-                        <td className="py-2.5 px-3 text-right font-black text-blue-700">{formatCurrency(tx.total_amount || 0)}</td>
-                        <td className="py-2.5 px-3 text-center font-sans">
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-slate-900 whitespace-nowrap">{tx.total_weight} KG</td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-blue-700 print:text-slate-900 whitespace-nowrap">{formatCurrency(tx.total_amount || 0)}</td>
+                        <td className="py-2.5 px-3 text-center font-sans no-print">
                           <div className="flex items-center justify-center gap-1">
                             <button
                               type="button"
@@ -1209,12 +1239,48 @@ export const FactoriesPage: React.FC = () => {
                       </tr>
                     )}
                   </tbody>
+                  {activeStatementTxs.length > 0 && (
+                    <tfoot className="print:table-row-group">
+                      <tr className="bg-slate-100/90 font-extrabold text-slate-900 border-t-2 border-slate-300">
+                        <td colSpan={3} className="py-2 px-3 print:py-1.5 print:px-2 uppercase text-slate-800 font-urdu whitespace-nowrap">
+                          کل میزان (Total Delivered):
+                        </td>
+                        <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-emerald-800 font-black whitespace-nowrap">
+                          {activeStatementCharbiWeight.toFixed(1)} KG
+                        </td>
+                        <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-amber-800 font-black whitespace-nowrap">
+                          {activeStatementKacharaWeight.toFixed(1)} KG
+                        </td>
+                        <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-slate-900 font-black whitespace-nowrap">
+                          {activeStatementWeight.toFixed(1)} KG
+                        </td>
+                        <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-blue-900 font-black whitespace-nowrap">
+                          {formatCurrency(activeStatementBilled)}
+                        </td>
+                        <td className="no-print"></td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
 
-            {/* Footer close */}
-            <div className="flex justify-end pt-3 border-t border-slate-100">
+            {/* Print-Only Official Signatures & Stamp Section */}
+            <div className="hidden print:flex items-center justify-between pt-8 mt-6 border-t border-slate-300 text-xs text-slate-700 font-urdu">
+              <div>
+                <p className="font-bold">دستخط محرر / اکاؤنٹنٹ:</p>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">Shan Poultry Protein Accounts</p>
+                <div className="w-44 border-b border-dashed border-slate-400 mt-6" />
+              </div>
+              <div className="text-right">
+                <p className="font-bold">دستخط و مہر فیکٹری نمائندہ:</p>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">{activeStatementFactory.name}</p>
+                <div className="w-44 border-b border-dashed border-slate-400 mt-6" />
+              </div>
+            </div>
+
+            {/* Footer close (Hidden in Print) */}
+            <div className="flex justify-end pt-3 border-t border-slate-100 no-print">
               <button
                 type="button"
                 onClick={() => setStatementFactoryId(null)}

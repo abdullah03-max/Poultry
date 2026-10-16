@@ -35,7 +35,7 @@
 /* High-fidelity Print Styles for Registers and Daily Reconciliation Sheets */
 @media print {
   @page {
-    size: A4 landscape;
+    size: auto;
     margin: 8mm 6mm;
   }
 
