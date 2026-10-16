@@ -6,9 +6,10 @@
 import React, { useState, useEffect } from 'react';
 import { MonthlyRegisterCustomerRow } from '../../types/database';
 import { formatWeight, formatCurrency } from '../../utils/formatters';
-import { Search, Download, Printer, Filter, DollarSign, X, CheckCircle2, Trash2, History } from 'lucide-react';
+import { Search, Download, Printer, Filter, DollarSign, X, CheckCircle2, Trash2, History, FileText } from 'lucide-react';
 import { exportMonthlyRegisterToCSV, triggerPrint } from '../../utils/exportUtils';
 import { CustomerMonthlyBillModal } from './CustomerMonthlyBillModal';
+import { CustomerMonthlyDailyCollectionsModal } from './CustomerMonthlyDailyCollectionsModal';
 import { api } from '../../services/api';
 
 interface MonthlyMatrixTableProps {
@@ -39,6 +40,7 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
   const [search, setSearch] = useState<string>('');
   const [selectedArea, setSelectedArea] = useState<string>('all');
   const [selectedBillRow, setSelectedBillRow] = useState<MonthlyRegisterCustomerRow | null>(null);
+  const [selectedDailyEntriesRow, setSelectedDailyEntriesRow] = useState<MonthlyRegisterCustomerRow | null>(null);
 
   // Customer Payment Modal State
   const [payingRow, setPayingRow] = useState<MonthlyRegisterCustomerRow | null>(null);
@@ -213,7 +215,7 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                 <th className="py-3 px-4 text-right border-b border-r border-slate-200 min-w-[110px] bg-amber-100/70 text-amber-900 font-black">
                   ٹوٹل بل (PKR)
                 </th>
-                <th className="py-3 px-3 text-center border-b border-slate-200 min-w-[90px] bg-slate-100 text-slate-700 no-print">
+                <th className="py-3 px-3 text-center border-b border-slate-200 min-w-[190px] bg-slate-100 text-slate-700 no-print">
                   کارروائی (Actions)
                 </th>
               </tr>
@@ -321,17 +323,26 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
                       {formatCurrency(row.totalAmount, '')}
                     </td>
 
-                    {/* Print Customer Bill Button */}
-                    <td className="py-2.5 px-2 text-center no-print border-l border-slate-200">
-                      <div className="flex items-center justify-center">
+                    {/* Customer Action Buttons: Daily Entries & Monthly Bill */}
+                    <td className="py-2 px-2 text-center no-print border-l border-slate-200">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDailyEntriesRow(row)}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap"
+                          title="اس گاہک کی روزانہ کی تمام پرچیاں دیکھیں اور پرنٹ کریں"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>روزانہ اینٹریز</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => setSelectedBillRow(row)}
-                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 shadow-2xs"
+                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap"
                           title="ماہانہ بل پرنٹ کریں"
                         >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>پرنٹ</span>
+                          <Printer className="w-3.5 h-3.5 text-blue-600" />
+                          <span>ماہانہ بل</span>
                         </button>
                       </div>
                     </td>
@@ -436,6 +447,17 @@ export const MonthlyMatrixTable: React.FC<MonthlyMatrixTableProps> = ({
         isOpen={!!selectedBillRow}
         onClose={() => setSelectedBillRow(null)}
         row={selectedBillRow}
+        monthName={monthName}
+        year={year}
+        daysInMonth={daysInMonth}
+      />
+
+      {/* Customer Monthly Daily Collections List & Print Modal */}
+      <CustomerMonthlyDailyCollectionsModal
+        isOpen={!!selectedDailyEntriesRow}
+        onClose={() => setSelectedDailyEntriesRow(null)}
+        row={selectedDailyEntriesRow}
+        monthIndex={monthIndex}
         monthName={monthName}
         year={year}
         daysInMonth={daysInMonth}
