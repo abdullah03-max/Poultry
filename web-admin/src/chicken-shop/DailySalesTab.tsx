@@ -45,6 +45,7 @@ interface DailySalesTabProps {
   onOpenBulkWalkin?: (date?: string) => void;
   onOpenPaymentModal?: (customer?: ChickenCustomer | null) => void;
   onOpenFreshArrival?: () => void;
+  onOpenMushtarkaKhata?: () => void;
 }
 
 export const DailySalesTab: React.FC<DailySalesTabProps> = ({
@@ -61,6 +62,7 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
   onOpenBulkWalkin,
   onOpenPaymentModal,
   onOpenFreshArrival,
+  onOpenMushtarkaKhata,
 }) => {
   // Current local date in YYYY-MM-DD
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -277,6 +279,18 @@ export const DailySalesTab: React.FC<DailySalesTabProps> = ({
               >
                 <Plus className="w-4 h-4" />
                 <span>+ واک ان بلک سیل</span>
+              </button>
+            )}
+
+            {onOpenMushtarkaKhata && (
+              <button
+                type="button"
+                onClick={onOpenMushtarkaKhata}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs rounded-xl shadow-xs transition active:scale-95 font-urdu cursor-pointer"
+                title="مشترکہ کھاتہ (چھوٹا ادھار 1-2 کلو)"
+              >
+                <Wallet className="w-4 h-4 text-purple-200" />
+                <span>+ مشترکہ کھاتہ ادھار</span>
               </button>
             )}
 

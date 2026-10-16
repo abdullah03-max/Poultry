@@ -17,6 +17,8 @@ import {
   SupplierPaymentItem,
   ChickenCategory,
   ChickenShopWorker,
+  MushtarkaCustomer,
+  MushtarkaTransaction,
 } from './types';
 
 export const FRESH_CHICKEN_PRODUCT_ID = 'prod-fresh-chicken';
@@ -62,6 +64,8 @@ const STORAGE_KEYS = {
   expenses: 'cs_portal_expenses',
   deletedSaleIds: 'cs_deleted_sale_ids',
   deletedArrivalIds: 'cs_deleted_arrival_ids',
+  mushtarkaCustomers: 'cs_portal_mushtarka_customers',
+  mushtarkaTransactions: 'cs_portal_mushtarka_transactions',
 };
 
 const SUPPLIER_META_TAG = '__SUPPLIER_PAYMENT__';
@@ -1648,5 +1652,324 @@ export const chickenShopApi = {
       localStorage.removeItem(STORAGE_KEYS.stockLogs);
       localStorage.setItem('cs_purged_clean_slate_v5', 'true');
     } catch {}
+  },
+
+  // ===========================================================================
+  // MUSHTARKA KHATA (مشترکہ کھاتہ) - Small Credit Customers (1-2 KG)
+  // Strictly Isolated from Commercial Khatadars
+  // ===========================================================================
+  async getMushtarkaCustomers(): Promise<MushtarkaCustomer[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('chicken_shop_mushtarka_customers')
+          .select('*')
+          .order('name');
+        if (!error && data) {
+          localStorage.setItem(STORAGE_KEYS.mushtarkaCustomers, JSON.stringify(data));
+          return data as MushtarkaCustomer[];
+        }
+      } catch (e) {
+        console.warn('[CS API] Supabase mushtarka customers read fallback:', e);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.mushtarkaCustomers);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+
+    return [];
+  },
+
+  async getMushtarkaCustomerById(id: string): Promise<MushtarkaCustomer | null> {
+    const list = await this.getMushtarkaCustomers();
+    return list.find(c => c.id === id) || null;
+  },
+
+  async createMushtarkaCustomer(data: {
+    name: string;
+    phone: string;
+    address?: string | null;
+    notes?: string | null;
+  }): Promise<MushtarkaCustomer> {
+    const list = await this.getMushtarkaCustomers();
+    const newCust: MushtarkaCustomer = {
+      id: `mush-cust-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      address: data.address?.trim() || null,
+      current_balance: 0,
+      total_purchases: 0,
+      total_payments: 0,
+      notes: data.notes?.trim() || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    list.unshift(newCust);
+    localStorage.setItem(STORAGE_KEYS.mushtarkaCustomers, JSON.stringify(list));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_mushtarka_customers').insert([newCust]);
+      } catch (e) {
+        console.warn('[CS API] Supabase mushtarka customer insert fallback:', e);
+      }
+    }
+
+    return newCust;
+  },
+
+  async updateMushtarkaCustomer(id: string, updates: Partial<MushtarkaCustomer>): Promise<MushtarkaCustomer> {
+    const list = await this.getMushtarkaCustomers();
+    const idx = list.findIndex(c => c.id === id);
+    if (idx === -1) throw new Error('Mushtarka customer not found');
+
+    const updated: MushtarkaCustomer = {
+      ...list[idx],
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    list[idx] = updated;
+    localStorage.setItem(STORAGE_KEYS.mushtarkaCustomers, JSON.stringify(list));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_mushtarka_customers').update(updated).eq('id', id);
+      } catch (e) {
+        console.warn('[CS API] Supabase mushtarka customer update fallback:', e);
+      }
+    }
+
+    return updated;
+  },
+
+  async deleteMushtarkaCustomer(id: string): Promise<void> {
+    let list = await this.getMushtarkaCustomers();
+    list = list.filter(c => c.id !== id);
+    localStorage.setItem(STORAGE_KEYS.mushtarkaCustomers, JSON.stringify(list));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_mushtarka_customers').delete().eq('id', id);
+      } catch {}
+    }
+  },
+
+  async getMushtarkaTransactions(customerId?: string): Promise<MushtarkaTransaction[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = supabase
+          .from('chicken_shop_mushtarka_transactions')
+          .select('*')
+          .order('date', { ascending: false });
+
+        if (customerId) {
+          query = query.eq('customer_id', customerId);
+        }
+
+        const { data, error } = await query;
+        if (!error && data) {
+          if (!customerId) {
+            localStorage.setItem(STORAGE_KEYS.mushtarkaTransactions, JSON.stringify(data));
+          }
+          return data as MushtarkaTransaction[];
+        }
+      } catch (e) {
+        console.warn('[CS API] Supabase mushtarka transactions read fallback:', e);
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.mushtarkaTransactions);
+      if (stored) {
+        const parsed: MushtarkaTransaction[] = JSON.parse(stored);
+        if (customerId) return parsed.filter(t => t.customer_id === customerId);
+        return parsed;
+      }
+    } catch {}
+
+    return [];
+  },
+
+  async recordMushtarkaSale(data: {
+    customer_id?: string;
+    customer_name: string;
+    phone?: string;
+    category_name: string;
+    weight_kg: number;
+    rate_per_kg: number;
+    date?: string;
+    notes?: string;
+  }): Promise<{ customer: MushtarkaCustomer; transaction: MushtarkaTransaction }> {
+    const custs = await this.getMushtarkaCustomers();
+    let customer: MushtarkaCustomer | undefined;
+
+    if (data.customer_id) {
+      customer = custs.find(c => c.id === data.customer_id);
+    } else if (data.phone) {
+      customer = custs.find(c => c.phone && c.phone === data.phone?.trim());
+    } else if (data.customer_name) {
+      customer = custs.find(c => c.name.toLowerCase() === data.customer_name.trim().toLowerCase());
+    }
+
+    if (!customer) {
+      customer = await this.createMushtarkaCustomer({
+        name: data.customer_name || 'کسٹمر',
+        phone: data.phone || '',
+        notes: 'مشترکہ کھاتہ رجسٹر',
+      });
+    }
+
+    const totalAmt = Math.round(Number(data.weight_kg) * Number(data.rate_per_kg));
+    const prevBal = Number(customer.current_balance || 0);
+    const newBal = prevBal + totalAmt;
+
+    const txDate = data.date || new Date().toISOString().split('T')[0];
+    const txTime = new Date().toLocaleTimeString('en-US', { hour12: false });
+
+    const newTx: MushtarkaTransaction = {
+      id: `mush-tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      customer_id: customer.id,
+      customer_name: customer.name,
+      phone: customer.phone,
+      type: 'sale',
+      date: txDate,
+      time: txTime,
+      category_name: data.category_name,
+      weight_kg: Number(data.weight_kg),
+      rate_per_kg: Number(data.rate_per_kg),
+      total_amount: totalAmt,
+      received_amount: 0,
+      payment_method: 'cash',
+      previous_balance: prevBal,
+      new_balance: newBal,
+      notes: data.notes?.trim() || null,
+      created_at: new Date().toISOString(),
+    };
+
+    // Update customer balance
+    const updatedCust = await this.updateMushtarkaCustomer(customer.id, {
+      current_balance: newBal,
+      total_purchases: Number(customer.total_purchases || 0) + totalAmt,
+    });
+
+    // Save transaction
+    const txList = await this.getMushtarkaTransactions();
+    txList.unshift(newTx);
+    localStorage.setItem(STORAGE_KEYS.mushtarkaTransactions, JSON.stringify(txList));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_mushtarka_transactions').insert([newTx]);
+      } catch (e) {
+        console.warn('[CS API] Supabase mushtarka transaction insert fallback:', e);
+      }
+    }
+
+    // Deduct stock from live chicken if applicable
+    try {
+      await this.updateProductStock(
+        FRESH_CHICKEN_PRODUCT_ID,
+        -Number(data.weight_kg),
+        'sale',
+        `مشترکہ کھاتہ ادھار سیل: ${customer.name} (${data.category_name})`,
+        newTx.id
+      );
+    } catch {}
+
+    return { customer: updatedCust, transaction: newTx };
+  },
+
+  async recordMushtarkaPayment(data: {
+    customer_id: string;
+    amount: number;
+    payment_method?: 'cash' | 'online' | 'bank';
+    date?: string;
+    notes?: string;
+  }): Promise<{ customer: MushtarkaCustomer; transaction: MushtarkaTransaction }> {
+    const customer = await this.getMushtarkaCustomerById(data.customer_id);
+    if (!customer) throw new Error('Customer not found');
+
+    const payAmt = Number(data.amount);
+    const prevBal = Number(customer.current_balance || 0);
+    const newBal = Math.max(0, prevBal - payAmt);
+
+    const txDate = data.date || new Date().toISOString().split('T')[0];
+    const txTime = new Date().toLocaleTimeString('en-US', { hour12: false });
+
+    const newTx: MushtarkaTransaction = {
+      id: `mush-tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      customer_id: customer.id,
+      customer_name: customer.name,
+      phone: customer.phone,
+      type: 'payment',
+      date: txDate,
+      time: txTime,
+      total_amount: payAmt,
+      received_amount: payAmt,
+      payment_method: data.payment_method || 'cash',
+      previous_balance: prevBal,
+      new_balance: newBal,
+      notes: data.notes?.trim() || null,
+      created_at: new Date().toISOString(),
+    };
+
+    // Update customer balance
+    const updatedCust = await this.updateMushtarkaCustomer(customer.id, {
+      current_balance: newBal,
+      total_payments: Number(customer.total_payments || 0) + payAmt,
+    });
+
+    // Save transaction
+    const txList = await this.getMushtarkaTransactions();
+    txList.unshift(newTx);
+    localStorage.setItem(STORAGE_KEYS.mushtarkaTransactions, JSON.stringify(txList));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_mushtarka_transactions').insert([newTx]);
+      } catch (e) {
+        console.warn('[CS API] Supabase mushtarka transaction insert fallback:', e);
+      }
+    }
+
+    return { customer: updatedCust, transaction: newTx };
+  },
+
+  async deleteMushtarkaTransaction(id: string): Promise<void> {
+    const txList = await this.getMushtarkaTransactions();
+    const target = txList.find(t => t.id === id);
+    if (!target) return;
+
+    const remaining = txList.filter(t => t.id !== id);
+    localStorage.setItem(STORAGE_KEYS.mushtarkaTransactions, JSON.stringify(remaining));
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('chicken_shop_mushtarka_transactions').delete().eq('id', id);
+      } catch {}
+    }
+
+    // Adjust customer balance
+    const customer = await this.getMushtarkaCustomerById(target.customer_id);
+    if (customer) {
+      if (target.type === 'sale') {
+        const newBal = Math.max(0, customer.current_balance - target.total_amount);
+        const newPurchases = Math.max(0, customer.total_purchases - target.total_amount);
+        await this.updateMushtarkaCustomer(customer.id, {
+          current_balance: newBal,
+          total_purchases: newPurchases,
+        });
+      } else if (target.type === 'payment') {
+        const newBal = customer.current_balance + target.total_amount;
+        const newPayments = Math.max(0, customer.total_payments - target.total_amount);
+        await this.updateMushtarkaCustomer(customer.id, {
+          current_balance: newBal,
+          total_payments: newPayments,
+        });
+      }
+    }
   },
 };

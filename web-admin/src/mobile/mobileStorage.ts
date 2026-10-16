@@ -48,6 +48,10 @@ export interface OfflineCollectionItem {
   kachara_rate?: number;
   kachara_total?: number;
 
+  duplicate_cleared?: boolean;
+  duplicate_cleared_at?: string | null;
+  duplicate_cleared_by?: string | null;
+
   status: 'pending_sync' | 'synced';
   created_at: string;
 }

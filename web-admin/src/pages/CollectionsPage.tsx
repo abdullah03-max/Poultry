@@ -114,6 +114,32 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
     }
   };
 
+  // Group collections by date + customer to detect suspected duplicate entries
+  const duplicateCounts = React.useMemo(() => {
+    const map = new Map<string, number>();
+    collections.forEach(c => {
+      if (c.customer_id && c.collection_date) {
+        const key = `${c.collection_date}_${c.customer_id}`;
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    });
+    return map;
+  }, [collections]);
+
+  const handleToggleDuplicateCleared = async (collectionId: string, cleared: boolean) => {
+    try {
+      await api.setCollectionDuplicateCleared(collectionId, cleared);
+      setCollections(prev => prev.map(c => c.id === collectionId ? {
+        ...c,
+        duplicate_cleared: cleared,
+        duplicate_cleared_at: cleared ? new Date().toISOString() : null,
+        duplicate_cleared_by: cleared ? 'Admin' : null,
+      } : c));
+    } catch (err: any) {
+      alert(`ڈپلیکیٹ اسٹیٹس تبدیل نہیں ہو سکا: ${err?.message || err}`);
+    }
+  };
+
   const handleExportCSV = () => {
     const headers = [
       'Receipt No',
@@ -414,82 +440,130 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ refreshTrigger
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {collections.map(c => (
-                  <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-brand-700">{c.receipt_no}</td>
-                    <td className="py-3 px-4 text-slate-700">
-                      <div>{formatDate(c.collection_date)}</div>
-                      <div className="text-[10px] text-slate-400">{formatTime(c.collection_time)}</div>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">
-                      <div>{c.customer?.name}</div>
-                      <div className="text-[10px] text-slate-500 font-normal">{c.customer?.customer_code}</div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600 font-medium">{c.customer?.area}</td>
-                    <td className="py-3 px-4 text-slate-600">{c.worker?.full_name || 'System / Admin'}</td>
-                    <td className="py-3 px-4 text-right font-mono text-slate-600">{c.gross_weight}</td>
-                    <td className="py-3 px-4 text-right font-mono text-rose-600">-{c.tare_weight}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-amber-700">
-                      {c.charbi_net && Number(c.charbi_net) > 0 ? (
-                        Number(c.charbi_net)
-                      ) : (
-                        <span className="text-slate-300 font-normal">0</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-800">
-                      {(() => {
-                        const k = Number(c.kachara_net || 0);
-                        const ch = Number(c.charbi_net || 0);
-                        const displayK = (k === 0 && ch === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
-                        return displayK > 0 ? displayK : <span className="text-slate-300 font-normal">0</span>;
-                      })()}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-extrabold text-slate-900 text-sm">
-                      {formatWeight(c.total_net_weight, '')}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono text-slate-600">{c.rate_per_kg}</td>
-                    <td className="py-3 px-4 text-right font-mono font-extrabold text-amber-700">
-                      {formatCurrency(c.total_amount, '')}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => setSelectedSlip(c)}
-                          className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition"
-                          title="View Details & Signature"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingSlip(c);
-                            setIsEditModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                          title="Edit Slip"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to delete slip ${c.receipt_no}?`)) {
-                              handleDelete(c.id);
-                            }
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          title="Delete Slip"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {collections.map(c => {
+                  const key = `${c.collection_date}_${c.customer_id}`;
+                  const isMultiSlip = (duplicateCounts.get(key) || 0) > 1;
+                  const isSuspectedDuplicate = isMultiSlip && !c.duplicate_cleared;
+                  const isClearedDuplicate = isMultiSlip && Boolean(c.duplicate_cleared);
+
+                  return (
+                    <tr
+                      key={c.id}
+                      className={`transition-colors ${
+                        isSuspectedDuplicate
+                          ? 'bg-rose-50/80 hover:bg-rose-100/80 border-l-4 border-l-rose-500'
+                          : isClearedDuplicate
+                          ? 'bg-emerald-50/30 hover:bg-emerald-50/60'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-3 px-4 font-mono font-bold text-brand-700">{c.receipt_no}</td>
+                      <td className="py-3 px-4 text-slate-700">
+                        <div>{formatDate(c.collection_date)}</div>
+                        <div className="text-[10px] text-slate-400">{formatTime(c.collection_time)}</div>
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-900">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{c.customer?.name}</span>
+                          {isSuspectedDuplicate && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white animate-pulse font-urdu">
+                              ⚠️ مشکوک ڈپلیکیٹ
+                            </span>
+                          )}
+                          {isClearedDuplicate && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-urdu">
+                              ✓ تصدیق شدہ علیحدہ
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-normal">{c.customer?.customer_code}</div>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 font-medium">{c.customer?.area}</td>
+                      <td className="py-3 px-4 text-slate-600">{c.worker?.full_name || 'System / Admin'}</td>
+                      <td className="py-3 px-4 text-right font-mono text-slate-600">{c.gross_weight}</td>
+                      <td className="py-3 px-4 text-right font-mono text-rose-600">-{c.tare_weight}</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-700">
+                        {c.charbi_net && Number(c.charbi_net) > 0 ? (
+                          Number(c.charbi_net)
+                        ) : (
+                          <span className="text-slate-300 font-normal">0</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-800">
+                        {(() => {
+                          const k = Number(c.kachara_net || 0);
+                          const ch = Number(c.charbi_net || 0);
+                          const displayK = (k === 0 && ch === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
+                          return displayK > 0 ? displayK : <span className="text-slate-300 font-normal">0</span>;
+                        })()}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-extrabold text-slate-900 text-sm">
+                        {formatWeight(c.total_net_weight, '')}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-slate-600">{c.rate_per_kg}</td>
+                      <td className="py-3 px-4 text-right font-mono font-extrabold text-amber-700">
+                        {formatCurrency(c.total_amount, '')}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {isSuspectedDuplicate && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDuplicateCleared(c.id, true)}
+                              className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black font-urdu transition shadow-2xs whitespace-nowrap cursor-pointer"
+                              title="یہ درست علیحدہ پرچی ہے، ڈپلیکیٹ وارننگ ختم کریں"
+                            >
+                              <span>✓ کلیئر کریں</span>
+                            </button>
+                          )}
+                          {isClearedDuplicate && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDuplicateCleared(c.id, false)}
+                              className="px-1.5 py-0.5 text-slate-400 hover:text-rose-600 rounded text-[9px] font-urdu transition whitespace-nowrap cursor-pointer"
+                              title="دوبارہ ڈپلیکیٹ وارننگ لگائیں"
+                            >
+                              دوبارہ وارننگ
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedSlip(c)}
+                            className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                            title="View Details & Signature"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingSlip(c);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                            title="Edit Slip"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to delete slip ${c.receipt_no}?`)) {
+                                handleDelete(c.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Delete Slip"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {collections.length === 0 && (
                   <tr>

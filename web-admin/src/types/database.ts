@@ -185,6 +185,11 @@ export interface Collection {
   worker?: Profile;
   items?: CollectionWeightItem[];
   attachments?: CollectionAttachment[];
+
+  // Duplicate collection entry management & clearance
+  duplicate_cleared?: boolean;
+  duplicate_cleared_at?: string | null;
+  duplicate_cleared_by?: string | null;
 }
 
 export interface BusinessSettings {

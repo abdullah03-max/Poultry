@@ -40,11 +40,13 @@ import { BulkWalkinSaleModal } from './BulkWalkinSaleModal';
 import { ChickenCategoriesTab } from './ChickenCategoriesTab';
 import { ChickenWorkersTab } from './ChickenWorkersTab';
 import { CustomerKhataEntryModal } from './CustomerKhataEntryModal';
+import { MushtarkaKhataModal } from './MushtarkaKhataModal';
 import { formatDate } from '../utils/formatters';
 import {
   Store,
   ShoppingCart,
   Users,
+  BookOpen,
   Package,
   Layers,
   History,
@@ -284,6 +286,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
   const [expenseModalOpen, setExpenseModalOpen] = useState<boolean>(false);
   const [bulkWalkinModalOpen, setBulkWalkinModalOpen] = useState<boolean>(false);
   const [bulkWalkinDate, setBulkWalkinDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [mushtarkaKhataModalOpen, setMushtarkaKhataModalOpen] = useState<boolean>(false);
 
   // POS State (Multi-Item Chicken Cuts, fast counter inputs with + Add Item)
   const [posCustomerId, setPosCustomerId] = useState<string>('');
@@ -1130,6 +1133,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
       badgeColor: 'bg-rose-500',
     },
     {
+      id: 'mushtarka_khata' as any,
+      label: 'مشترکہ کھاتہ (چھوٹا ادھار)',
+      sublabel: 'Small Credit Khata (1-2 KG)',
+      icon: BookOpen,
+      badge: 'نیا',
+      badgeColor: 'bg-purple-600',
+    },
+    {
       id: 'supplier_payments',
       label: 'سپلائر ادائیگی رجسٹر',
       sublabel: 'Supplier Farm Khata',
@@ -1214,7 +1225,11 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
               <button
                 key={item.id}
                 onClick={() => {
-                  setActiveTab(item.id);
+                  if (item.id === ('mushtarka_khata' as any)) {
+                    setMushtarkaKhataModalOpen(true);
+                  } else {
+                    setActiveTab(item.id);
+                  }
                   setMobileSidebarOpen(false);
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition text-right group ${
@@ -1376,6 +1391,15 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
             >
               <ShoppingCart className="w-3.5 h-3.5" />
               <span>+ نیا بل</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMushtarkaKhataModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 font-urdu whitespace-nowrap shrink-0"
+              title="مشترکہ کھاتہ (چھوٹا ادھار 1-2 کلو)"
+            >
+              <Wallet className="w-3.5 h-3.5 text-purple-200" />
+              <span>+ مشترکہ کھاتہ</span>
             </button>
             <button
               onClick={() => {
@@ -2566,6 +2590,7 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
                   setSelectedArrivalCategoryId(null);
                   setFreshArrivalModalOpen(true);
                 }}
+                onOpenMushtarkaKhata={() => setMushtarkaKhataModalOpen(true)}
               />
             )}
 
@@ -2812,6 +2837,14 @@ export const ChickenShopApp: React.FC<ChickenShopAppProps> = ({ onBackToWaste, s
         isOpen={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}
         onSuccess={loadAllData}
+      />
+
+      {/* Mushtarka Khata (1-2 KG Credit) Modal */}
+      <MushtarkaKhataModal
+        isOpen={mushtarkaKhataModalOpen}
+        onClose={() => setMushtarkaKhataModalOpen(false)}
+        categories={categories}
+        onDataChanged={loadAllData}
       />
 
       {/* Floating Realtime Notification Toast */}

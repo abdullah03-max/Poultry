@@ -17,6 +17,7 @@ import { CustomerKhataEntryModal } from '../CustomerKhataEntryModal';
 import { CustomerLedgerModal } from '../CustomerLedgerModal';
 import { SaleReceiptModal } from '../SaleReceiptModal';
 import { PaymentModal } from '../PaymentModal';
+import { MushtarkaKhataModal } from '../MushtarkaKhataModal';
 import { formatDate } from '../../utils/formatters';
 import {
   ShoppingCart,
@@ -88,6 +89,44 @@ export const ChickenWorkerApp: React.FC = () => {
   const [receiptModalSale, setReceiptModalSale] = useState<ChickenSale | null>(null);
   const [wasooliModalOpen, setWasooliModalOpen] = useState<boolean>(false);
   const [wasooliCustomer, setWasooliCustomer] = useState<ChickenCustomer | null>(null);
+  const [mushtarkaKhataOpen, setMushtarkaKhataOpen] = useState<boolean>(false);
+
+  const handleSharePaymentWhatsApp = (pay: ChickenPayment) => {
+    const cust = customers.find(c => c.id === pay.customer_id);
+    const rawPhone = cust?.phone || '';
+    let cleaned = rawPhone.replace(/\D/g, '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '92' + cleaned.substring(1);
+    } else if (!cleaned.startsWith('92') && cleaned.length === 10) {
+      cleaned = '92' + cleaned;
+    }
+
+    const now = new Date();
+    const timeFormatted = now.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Karachi',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    const msg = `*شان چکن شاپ - رقم وصولی رسید*\n` +
+      `محترم جناب *${pay.customer_name}* صاحب!\n` +
+      `آپ کی طرف سے رقم کی وصولی کامیابی سے درج کر لی گئی ہے۔ تفصیل درج ذیل ہے:\n\n` +
+      `💵 *وصول شدہ رقم:* Rs. ${pay.amount.toLocaleString()}\n` +
+      `📅 *تاریخ و وقت:* ${pay.payment_date} (${timeFormatted})\n` +
+      `📊 *سابقہ بقایا:* Rs. ${pay.previous_balance.toLocaleString()}\n` +
+      `💰 *باقی واجب الادا کھاتہ:* Rs. ${pay.new_balance.toLocaleString()}\n` +
+      `💳 *طریقہ ادائیگی:* ${pay.payment_method === 'cash' ? 'نقد کیش (Cash)' : pay.payment_method}\n` +
+      `🧾 *رسید نمبر:* ${pay.voucher_no}\n` +
+      (pay.notes ? `📝 *تفصیل:* ${pay.notes}\n` : '') +
+      `\nشکریہ! *شان چکن شاپ*\nپروپرائیٹر: حاجی شان`;
+
+    const url = cleaned
+      ? `https://api.whatsapp.com/send?phone=${cleaned}&text=${encodeURIComponent(msg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+
+    window.open(url, '_blank');
+  };
 
   // Fast Daily Sales Form State (Within Daily Sales Tab)
   const [posCustomerId, setPosCustomerId] = useState<string>('');
@@ -586,7 +625,7 @@ export const ChickenWorkerApp: React.FC = () => {
 
             {/* Fast Daily Sales Form with Multiple Items */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs p-4 sm:p-6 space-y-4">
-              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-base font-black text-slate-900 font-urdu flex items-center gap-2">
                     <ShoppingCart className="w-5 h-5 text-amber-600" />
@@ -596,12 +635,23 @@ export const ChickenWorkerApp: React.FC = () => {
                     کیٹیگری اور وزن درج کر کے فوری نقد یا ادھار بل بنائیں
                   </p>
                 </div>
-                <input
-                  type="date"
-                  value={posSaleDate}
-                  onChange={e => setPosSaleDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono font-bold"
-                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setMushtarkaKhataOpen(true)}
+                    className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs font-urdu rounded-xl shadow-xs transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    title="چھوٹا ادھار 1-2 کلو گرام درج کریں"
+                  >
+                    <Wallet className="w-3.5 h-3.5 text-purple-200" />
+                    <span>+ مشترکہ کھاتہ ادھار (1-2 KG)</span>
+                  </button>
+                  <input
+                    type="date"
+                    value={posSaleDate}
+                    onChange={e => setPosSaleDate(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono font-bold"
+                  />
+                </div>
               </div>
 
               <form onSubmit={handleSavePosSale} className="space-y-4">
@@ -852,17 +902,29 @@ export const ChickenWorkerApp: React.FC = () => {
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setKhataEntryCustomer(null);
-                  setKhataEntryModalOpen(true);
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 text-white font-bold text-xs font-urdu rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ نیا کھاتہ بل درج کریں</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setMushtarkaKhataOpen(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 text-white font-bold text-xs font-urdu rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                  title="مشترکہ کھاتہ (چھوٹا ادھار 1-2 کلو)"
+                >
+                  <Wallet className="w-4 h-4 text-purple-200" />
+                  <span>مشترکہ کھاتہ (1-2 KG)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKhataEntryCustomer(null);
+                    setKhataEntryModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs font-urdu rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 border border-slate-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ تجارتی کھاتہ بل</span>
+                </button>
+              </div>
             </div>
 
             {/* Customers Cards Grid */}
@@ -1003,13 +1065,23 @@ export const ChickenWorkerApp: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="text-right">
-                        <span className="font-mono font-black text-emerald-700 text-sm block">
-                          Rs. {pay.amount.toLocaleString()}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          باقی: Rs. {pay.new_balance.toLocaleString()}
-                        </span>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="font-mono font-black text-emerald-700 text-sm block">
+                            Rs. {pay.amount.toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            باقی: Rs. {pay.new_balance.toLocaleString()}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleSharePaymentWhatsApp(pay)}
+                          className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition active:scale-95 cursor-pointer"
+                          title="واٹس ایپ پر وصولی رسید بھیجیں"
+                        >
+                          <Share2 className="w-4 h-4 text-emerald-600" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1066,6 +1138,14 @@ export const ChickenWorkerApp: React.FC = () => {
           }}
         />
       )}
+
+      {/* Mushtarka Khata (1-2 KG Credit) Modal */}
+      <MushtarkaKhataModal
+        isOpen={mushtarkaKhataOpen}
+        onClose={() => setMushtarkaKhataOpen(false)}
+        categories={categories}
+        onDataChanged={loadData}
+      />
 
       {/* Primary Sticky Bottom Navigation Bar (No Top Tabs Needed) */}
       <nav className="fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/90 z-50 flex items-center justify-around py-2 px-2.5 shadow-2xl safe-area-bottom">

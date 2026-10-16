@@ -4,7 +4,7 @@
 // Built for fast field collection, touch signature, camera & offline sync
 // =============================================================================
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Customer, WeightCategory } from '../types/database';
 import { mobileStorage, OfflineCollectionItem } from './mobileStorage';
@@ -560,6 +560,9 @@ export const MobileApp: React.FC = () => {
           kachara_net: Number(r.kachara_net ?? 0),
           kachara_rate: Number(r.kachara_rate ?? (r.rate_per_kg || 45)),
           kachara_total: Number(r.kachara_total ?? 0),
+          duplicate_cleared: Boolean(r.duplicate_cleared),
+          duplicate_cleared_at: r.duplicate_cleared_at || null,
+          duplicate_cleared_by: r.duplicate_cleared_by || null,
           status: 'synced',
           created_at: r.created_at || r.collection_timestamp,
         }));
@@ -1165,6 +1168,18 @@ export const MobileApp: React.FC = () => {
   const myAllSlips = slips.filter(s => s.worker_id === worker?.id);
   const displayedAllSlips = myAllSlips;
 
+  // Duplicate detection for collections on the same day for same customer
+  const duplicateSlipMap = useMemo(() => {
+    const map = new Map<string, number>();
+    slips.forEach(s => {
+      if (s.collection_date && s.customer_id) {
+        const key = `${s.collection_date}_${s.customer_id}`;
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    });
+    return map;
+  }, [slips]);
+
   // Calculate daily completion status for all customers
   const dailyStatusSummary = getDailyStatusSummary(customers, slips);
 
@@ -1516,59 +1531,84 @@ export const MobileApp: React.FC = () => {
                   <div className="text-xs text-slate-400 mt-1">نئی رسید درج کرنے کے لیے اوپر نیلا بٹن دبائیں۔</div>
                 </div>
               ) : (
-                displayedTodaySlips.map(s => (
-                  <div
-                    key={s.client_uuid}
-                    onClick={() => setReceiptModalSlip(s)}
-                    className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm active:bg-slate-50 transition cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-xs text-blue-600">{s.receipt_no}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          s.worker_id === worker?.id ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {s.worker_id === worker?.id ? `آپ (${s.worker_name})` : s.worker_name}
-                        </span>
+                displayedTodaySlips.map(s => {
+                  const isMultiSlip = (duplicateSlipMap.get(`${s.collection_date}_${s.customer_id}`) || 0) > 1;
+                  const isSuspectedDuplicate = isMultiSlip && !s.duplicate_cleared;
+                  const isClearedDuplicate = isMultiSlip && Boolean(s.duplicate_cleared);
+
+                  return (
+                    <div
+                      key={s.client_uuid}
+                      onClick={() => setReceiptModalSlip(s)}
+                      className={`border rounded-2xl p-4 shadow-sm active:opacity-90 transition cursor-pointer ${
+                        isSuspectedDuplicate
+                          ? 'bg-rose-50/80 border-2 border-rose-500 shadow-rose-100'
+                          : 'bg-white border-slate-200 active:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-xs text-blue-600">{s.receipt_no}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            s.worker_id === worker?.id ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {s.worker_id === worker?.id ? `آپ (${s.worker_name})` : s.worker_name}
+                          </span>
+                          {isSuspectedDuplicate && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white animate-pulse font-urdu">
+                              ⚠️ مشکوک ڈپلیکیٹ
+                            </span>
+                          )}
+                          {isClearedDuplicate && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-urdu">
+                              ✓ تصدیق شدہ علیحدہ
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400 font-mono">{s.collection_time.substring(0, 5)}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditingSlip(s);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-xs font-bold flex items-center gap-1 transition"
+                            title="ایڈٹ کریں / Edit Slip"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>ایڈٹ</span>
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-400 font-mono">{s.collection_time.substring(0, 5)}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditingSlip(s);
-                          }}
-                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-xs font-bold flex items-center gap-1 transition"
-                          title="ایڈٹ کریں / Edit Slip"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                          <span>ایڈٹ</span>
-                        </button>
+                      <div className="font-bold text-slate-900 text-sm truncate">{s.customer_name}</div>
+                      <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 text-slate-400" />
+                        {s.customer_area}
+                      </div>
+                      {isSuspectedDuplicate && (
+                        <div className="mt-2 py-1 px-2.5 bg-rose-100/90 rounded-lg text-rose-800 text-[11px] font-urdu font-bold">
+                          ⚠️ اس گاہک کی آج کے دن ایک سے زائد پرچیاں ہیں — ایڈمن تصدیق کرے گا
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                        <div className="font-mono font-black text-base text-blue-600">
+                          {s.total_net_weight} <span className="text-xs font-bold text-slate-500">KG</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-sm text-slate-900">
+                            Rs. {s.total_amount.toLocaleString()}
+                          </span>
+                          {s.status === 'synced' ? (
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" title="Synced" />
+                          ) : (
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Pending Sync" />
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="font-bold text-slate-900 text-sm truncate">{s.customer_name}</div>
-                    <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 text-slate-400" />
-                      {s.customer_area}
-                    </div>
-                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
-                      <div className="font-mono font-black text-base text-blue-600">
-                        {s.total_net_weight} <span className="text-xs font-bold text-slate-500">KG</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-sm text-slate-900">
-                          Rs. {s.total_amount.toLocaleString()}
-                        </span>
-                        {s.status === 'synced' ? (
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" title="Synced" />
-                        ) : (
-                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Pending Sync" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -2044,77 +2084,102 @@ export const MobileApp: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-2.5">
-                {displayedAllSlips.map(s => (
-                  <div
-                    key={s.client_uuid}
-                    onClick={() => setReceiptModalSlip(s)}
-                    className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm active:bg-slate-50 transition cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-black text-xs text-blue-600">{s.receipt_no}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          s.worker_id === worker?.id ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {s.worker_id === worker?.id ? `آپ (${s.worker_name})` : s.worker_name}
-                        </span>
+                {displayedAllSlips.map(s => {
+                  const isMultiSlip = (duplicateSlipMap.get(`${s.collection_date}_${s.customer_id}`) || 0) > 1;
+                  const isSuspectedDuplicate = isMultiSlip && !s.duplicate_cleared;
+                  const isClearedDuplicate = isMultiSlip && Boolean(s.duplicate_cleared);
+
+                  return (
+                    <div
+                      key={s.client_uuid}
+                      onClick={() => setReceiptModalSlip(s)}
+                      className={`border rounded-2xl p-4 shadow-sm active:opacity-90 transition cursor-pointer ${
+                        isSuspectedDuplicate
+                          ? 'bg-rose-50/80 border-2 border-rose-500 shadow-rose-100'
+                          : 'bg-white border-slate-200 active:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-black text-xs text-blue-600">{s.receipt_no}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            s.worker_id === worker?.id ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {s.worker_id === worker?.id ? `آپ (${s.worker_name})` : s.worker_name}
+                          </span>
+                          {isSuspectedDuplicate && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white animate-pulse font-urdu">
+                              ⚠️ مشکوک ڈپلیکیٹ
+                            </span>
+                          )}
+                          {isClearedDuplicate && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-urdu">
+                              ✓ تصدیق شدہ علیحدہ
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-400 font-mono">{s.collection_date}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            محفوظ شدہ
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const b = await generateReceiptImageBlob(s);
+                                await shareReceiptImage(s, b);
+                              } catch (err: any) {
+                                alert('رسید تصویر شیئر کرنے میں مسئلہ: ' + (err?.message || err));
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-1 transition ml-1"
+                            title="واٹس ایپ پر رسید تصویر بھیجیں / Send Receipt Image"
+                          >
+                            <Share2 className="w-3 h-3 text-emerald-600" />
+                            <span>تصویر</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditingSlip(s);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-xs font-bold flex items-center gap-1 transition ml-1"
+                            title="ایڈٹ کریں / Edit Slip"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>ایڈٹ</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSlip(s);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center gap-1 transition ml-1"
+                            title="ڈیلیٹ کریں / Delete Slip"
+                          >
+                            <Trash2 className="w-3 h-3 text-rose-600" />
+                            <span>ڈیلیٹ</span>
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-slate-400 font-mono">{s.collection_date}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          محفوظ شدہ
-                        </span>
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              const b = await generateReceiptImageBlob(s);
-                              await shareReceiptImage(s, b);
-                            } catch (err: any) {
-                              alert('رسید تصویر شیئر کرنے میں مسئلہ: ' + (err?.message || err));
-                            }
-                          }}
-                          className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-1 transition ml-1"
-                          title="واٹس ایپ پر رسید تصویر بھیجیں / Send Receipt Image"
-                        >
-                          <Share2 className="w-3 h-3 text-emerald-600" />
-                          <span>تصویر</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditingSlip(s);
-                          }}
-                          className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-xs font-bold flex items-center gap-1 transition ml-1"
-                          title="ایڈٹ کریں / Edit Slip"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                          <span>ایڈٹ</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSlip(s);
-                          }}
-                          className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center gap-1 transition ml-1"
-                          title="ڈیلیٹ کریں / Delete Slip"
-                        >
-                          <Trash2 className="w-3 h-3 text-rose-600" />
-                          <span>ڈیلیٹ</span>
-                        </button>
+                      <div className="font-bold text-slate-900 text-sm truncate">{s.customer_name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{s.customer_area}</div>
+                      {isSuspectedDuplicate && (
+                        <div className="mt-2 py-1 px-2.5 bg-rose-100/90 rounded-lg text-rose-800 text-[11px] font-urdu font-bold">
+                          ⚠️ اس گاہک کی آج کے دن ایک سے زائد پرچیاں ہیں — ایڈمن تصدیق کرے گا
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-slate-100 font-mono">
+                        <span className="font-bold text-sm text-blue-600">{s.total_net_weight} KG</span>
+                        <span className="font-black text-sm text-slate-900">Rs. {s.total_amount.toLocaleString()}</span>
                       </div>
                     </div>
-                    <div className="font-bold text-slate-900 text-sm truncate">{s.customer_name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{s.customer_area}</div>
-                    <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-slate-100 font-mono">
-                      <span className="font-bold text-sm text-blue-600">{s.total_net_weight} KG</span>
-                      <span className="font-black text-sm text-slate-900">Rs. {s.total_amount.toLocaleString()}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

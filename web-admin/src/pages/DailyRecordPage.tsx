@@ -114,6 +114,35 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
     });
   });
 
+  // Group daily collections by customer_id to detect multiple collections on the same day
+  const duplicateCounts = React.useMemo(() => {
+    const map = new Map<string, number>();
+    collections.forEach(c => {
+      if (c.customer_id) {
+        map.set(c.customer_id, (map.get(c.customer_id) || 0) + 1);
+      }
+    });
+    return map;
+  }, [collections]);
+
+  const suspectedDuplicatesCount = React.useMemo(() => {
+    return collections.filter(c => (duplicateCounts.get(c.customer_id) || 0) > 1 && !c.duplicate_cleared).length;
+  }, [collections, duplicateCounts]);
+
+  const handleToggleDuplicateCleared = async (collectionId: string, cleared: boolean) => {
+    try {
+      await api.setCollectionDuplicateCleared(collectionId, cleared);
+      setCollections(prev => prev.map(c => c.id === collectionId ? {
+        ...c,
+        duplicate_cleared: cleared,
+        duplicate_cleared_at: cleared ? new Date().toISOString() : null,
+        duplicate_cleared_by: cleared ? 'Admin' : null,
+      } : c));
+    } catch (err: any) {
+      alert(`ڈپلیکیٹ اسٹیٹس تبدیل نہیں ہو سکا: ${err?.message || err}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Date Header & Quick Navigation */}
@@ -213,6 +242,23 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
               گزشتہ کل (15 Oct) کا ریکارڈ دیکھیں ➔
             </button>
           )}
+        </div>
+      )}
+
+      {/* Suspected Duplicate Notice Banner */}
+      {suspectedDuplicatesCount > 0 && (
+        <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-900 flex items-center justify-between gap-3 no-print shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <span className="p-2 rounded-xl bg-rose-200 text-rose-800 text-base">⚠️</span>
+            <div>
+              <h4 className="font-bold text-sm font-urdu">
+                مشکوک ڈپلیکیٹ پرچیاں موجود ہیں ({suspectedDuplicatesCount})
+              </h4>
+              <p className="text-xs text-rose-700 font-urdu mt-0.5">
+                ایک ہی گاہک کے لیے آج کی تاریخ میں ایک سے زائد پرچیاں ملی ہیں۔ اگر یہ چربی اور کچرا کی جائز الگ الگ پرچیاں ہیں تو نیچے پرچی کے سامنے <strong className="bg-rose-200 px-1.5 py-0.5 rounded font-bold font-mono">✓ کلیئر کریں</strong> پر کلک کر کے تصدیق کریں۔
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -389,67 +435,116 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {collections.map((c, idx) => (
-                  <tr key={c.id} className="hover:bg-slate-50/70 transition">
-                    <td className="py-2.5 px-2 print:py-1 print:px-1 text-slate-400 text-center font-mono">{idx + 1}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 font-mono font-bold text-blue-600 print:text-slate-900 whitespace-nowrap">{c.receipt_no}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-600 font-mono whitespace-nowrap">{formatTime(c.collection_time)}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-2 font-semibold text-slate-900">
-                      <div>{c.customer?.name}</div>
-                      <div className="text-[10px] text-slate-400 print:text-[8px] font-normal">{c.customer?.customer_code}</div>
-                    </td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-600 whitespace-nowrap">{c.customer?.area}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-700 font-medium whitespace-nowrap">{c.worker?.full_name || 'Admin'}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-slate-600 whitespace-nowrap">{Number(c.gross_weight).toFixed(1)}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-rose-600 whitespace-nowrap">-{Number(c.tare_weight).toFixed(1)}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-amber-700 print:text-slate-900 whitespace-nowrap">
-                      {c.charbi_net && Number(c.charbi_net) > 0 ? (
-                        Number(c.charbi_net).toFixed(1)
-                      ) : (
-                        <span className="text-slate-300 font-normal">0</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
-                      {(() => {
-                        const k = Number(c.kachara_net || 0);
-                        const charbi = Number(c.charbi_net || 0);
-                        const displayK = (k === 0 && charbi === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
-                        return displayK > 0 ? displayK.toFixed(1) : <span className="text-slate-300 font-normal">0</span>;
-                      })()}
-                    </td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-blue-700 print:text-slate-900 whitespace-nowrap">{Number(c.total_net_weight).toFixed(1)}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-slate-500 whitespace-nowrap">{c.rate_per_kg}</td>
-                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-amber-700 print:text-slate-900 whitespace-nowrap">{formatCurrency(c.total_amount, '')}</td>
-                    <td className="py-2.5 px-2 text-center no-print">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => setSelectedSlip(c)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
-                          title="View Slip"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingSlip(c);
-                            setIsEditModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition"
-                          title="Edit Slip"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCollection(c.id, c.receipt_no)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                          title="Delete Slip"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {collections.map((c, idx) => {
+                  const isMultiSlip = (duplicateCounts.get(c.customer_id) || 0) > 1;
+                  const isSuspectedDuplicate = isMultiSlip && !c.duplicate_cleared;
+                  const isClearedDuplicate = isMultiSlip && Boolean(c.duplicate_cleared);
+
+                  return (
+                    <tr
+                      key={c.id}
+                      className={`transition ${
+                        isSuspectedDuplicate
+                          ? 'bg-rose-50/90 hover:bg-rose-100/90 border-l-4 border-l-rose-500'
+                          : isClearedDuplicate
+                          ? 'bg-emerald-50/30 hover:bg-emerald-50/60'
+                          : 'hover:bg-slate-50/70'
+                      }`}
+                    >
+                      <td className="py-2.5 px-2 print:py-1 print:px-1 text-slate-400 text-center font-mono">{idx + 1}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 font-mono font-bold text-blue-600 print:text-slate-900 whitespace-nowrap">
+                        {c.receipt_no}
+                      </td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-600 font-mono whitespace-nowrap">{formatTime(c.collection_time)}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-2 font-semibold text-slate-900">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{c.customer?.name}</span>
+                          {isSuspectedDuplicate && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white animate-pulse font-urdu">
+                              ⚠️ مشکوک ڈپلیکیٹ
+                            </span>
+                          )}
+                          {isClearedDuplicate && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-urdu">
+                              ✓ تصدیق شدہ علیحدہ
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400 print:text-[8px] font-normal">{c.customer?.customer_code}</div>
+                      </td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-600 whitespace-nowrap">{c.customer?.area}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-700 font-medium whitespace-nowrap">{c.worker?.full_name || 'Admin'}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-slate-600 whitespace-nowrap">{Number(c.gross_weight).toFixed(1)}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-rose-600 whitespace-nowrap">-{Number(c.tare_weight).toFixed(1)}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-amber-700 print:text-slate-900 whitespace-nowrap">
+                        {c.charbi_net && Number(c.charbi_net) > 0 ? (
+                          Number(c.charbi_net).toFixed(1)
+                        ) : (
+                          <span className="text-slate-300 font-normal">0</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
+                        {(() => {
+                          const k = Number(c.kachara_net || 0);
+                          const charbi = Number(c.charbi_net || 0);
+                          const displayK = (k === 0 && charbi === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
+                          return displayK > 0 ? displayK.toFixed(1) : <span className="text-slate-300 font-normal">0</span>;
+                        })()}
+                      </td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-blue-700 print:text-slate-900 whitespace-nowrap">{Number(c.total_net_weight).toFixed(1)}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-slate-500 whitespace-nowrap">{c.rate_per_kg}</td>
+                      <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-amber-700 print:text-slate-900 whitespace-nowrap">{formatCurrency(c.total_amount, '')}</td>
+                      <td className="py-2.5 px-2 text-center no-print">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {isSuspectedDuplicate && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDuplicateCleared(c.id, true)}
+                              className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black font-urdu flex items-center gap-1 transition shadow-2xs whitespace-nowrap cursor-pointer"
+                              title="یہ درست علیحدہ پرچی ہے، ڈپلیکیٹ وارننگ ختم کریں"
+                            >
+                              <span>✓ کلیئر کریں</span>
+                            </button>
+                          )}
+                          {isClearedDuplicate && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDuplicateCleared(c.id, false)}
+                              className="px-1.5 py-0.5 text-slate-400 hover:text-rose-600 rounded text-[9px] font-urdu transition whitespace-nowrap cursor-pointer"
+                              title="دوبارہ ڈپلیکیٹ وارننگ لگائیں"
+                            >
+                              دوبارہ وارننگ
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedSlip(c)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition cursor-pointer"
+                            title="View Slip"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingSlip(c);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition cursor-pointer"
+                            title="Edit Slip"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCollection(c.id, c.receipt_no)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                            title="Delete Slip"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {collections.length === 0 && (
                   <tr>

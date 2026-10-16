@@ -2231,6 +2231,40 @@ export const api = {
     mockCollections = mockCollections.filter(c => c.id !== id);
   },
 
+  async setCollectionDuplicateCleared(id: string, cleared: boolean): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase
+          .from('collections')
+          .update({
+            duplicate_cleared: cleared,
+            duplicate_cleared_at: cleared ? new Date().toISOString() : null,
+            duplicate_cleared_by: cleared ? 'admin' : null,
+          })
+          .eq('id', id);
+        if (error) console.warn('[API] Could not update duplicate_cleared in Supabase:', error);
+      } catch (err) {
+        console.warn('[API] Error updating duplicate_cleared:', err);
+      }
+    }
+    const idx = mockCollections.findIndex(c => c.id === id);
+    if (idx !== -1) {
+      mockCollections[idx].duplicate_cleared = cleared;
+      mockCollections[idx].duplicate_cleared_at = cleared ? new Date().toISOString() : null;
+      mockCollections[idx].duplicate_cleared_by = cleared ? 'admin' : null;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem('spp_cleared_duplicate_ids') || '[]');
+      let updated: string[];
+      if (cleared) {
+        updated = Array.from(new Set([...stored, id]));
+      } else {
+        updated = stored.filter((x: string) => x !== id);
+      }
+      localStorage.setItem('spp_cleared_duplicate_ids', JSON.stringify(updated));
+    } catch {}
+  },
+
   // Monthly Register Calculation
   async getMonthlyRegisterData(year: number, monthIndex: number): Promise<{
     rows: MonthlyRegisterCustomerRow[];

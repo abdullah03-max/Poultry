@@ -192,3 +192,42 @@ export interface ChickenExpense {
   notes?: string | null;
   created_at: string;
 }
+
+// =============================================================================
+// Mushtarka Khata (مشترکہ کھاتہ) Types
+// Strictly isolated from commercial Khatadars for small 1-2 kg credit customers
+// =============================================================================
+
+export interface MushtarkaCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  address?: string | null;
+  current_balance: number;
+  total_purchases: number;
+  total_payments: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MushtarkaTransaction {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  phone?: string | null;
+  type: 'sale' | 'payment';
+  date: string; // YYYY-MM-DD
+  time?: string; // HH:mm:ss
+  category_name?: string;
+  weight_kg?: number;
+  rate_per_kg?: number;
+  total_amount: number;
+  received_amount?: number;
+  payment_method?: 'cash' | 'online' | 'bank';
+  previous_balance: number;
+  new_balance: number;
+  notes?: string | null;
+  created_at: string;
+}
+
