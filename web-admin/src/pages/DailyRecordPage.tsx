@@ -16,8 +16,33 @@ interface DailyRecordPageProps {
   refreshTrigger?: number;
 }
 
+const getTodayPK = (): string => {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(new Date()); // Returns "YYYY-MM-DD"
+  } catch {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+};
+
+const getYesterdayPK = (): string => {
+  const parts = getTodayPK().split('-');
+  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger }) => {
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayPK());
   const [collections, setCollections] = useState<Collection[]>([]);
   const [categories, setCategories] = useState<WeightCategory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -46,9 +71,13 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
   }, [selectedDate, refreshTrigger]);
 
   const changeDateByDays = (delta: number) => {
-    const d = new Date(selectedDate);
+    const parts = selectedDate.split('-');
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     d.setDate(d.getDate() + delta);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    setSelectedDate(`${y}-${m}-${day}`);
   };
 
   const handleDeleteCollection = async (id: string, receipt_no: string) => {
@@ -100,6 +129,7 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 تاریخ <strong>{formatDate(selectedDate)}</strong> کے تمام ویسٹ کلیکشن اور پرچیوں کا روزنامچہ
+                <span className="ml-2 font-mono font-bold text-blue-600">({collections.length} Slips)</span>
               </p>
             </div>
           </div>
@@ -133,15 +163,31 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
           </div>
 
           <button
-            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition font-urdu"
+            onClick={() => setSelectedDate(getTodayPK())}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition font-urdu ${
+              selectedDate === getTodayPK()
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+            }`}
           >
             📅 آج (Today)
           </button>
 
           <button
+            onClick={() => setSelectedDate(getYesterdayPK())}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition font-urdu ${
+              selectedDate === getYesterdayPK()
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+            }`}
+          >
+            ◀ کل (Yesterday)
+          </button>
+
+          <button
             onClick={triggerPrint}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition font-urdu"
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition font-urdu cursor-pointer active:scale-95"
+            title="مکمل روزانہ شیٹ پرنٹ کریں"
           >
             <Printer className="w-4 h-4" />
             <span>پرنٹ شیٹ (Print)</span>
@@ -149,15 +195,77 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
         </div>
       </div>
 
-      {/* Print View Header */}
-      <div className="hidden print-only mb-6 text-center">
-        <h1 className="text-2xl font-bold uppercase tracking-wide text-slate-900">SHAN POULTRY PROTEIN</h1>
-        <p className="text-base font-bold mt-1 text-slate-700">Daily Weight Collection Sheet</p>
-        <p className="text-sm text-slate-600 font-medium">Date: {formatDate(selectedDate)}</p>
+      {/* Helpful banner when selected date has no slips */}
+      {collections.length === 0 && !loading && (
+        <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <Calendar className="w-5 h-5 text-amber-600 shrink-0" />
+            <div className="text-xs">
+              <span className="font-bold">منتخب تاریخ ({formatDate(selectedDate)}):</span>
+              <span className="ml-1 text-slate-700">اس تاریخ کی کوئی کلیکشن پرچی سسٹم میں نہیں ملی۔</span>
+            </div>
+          </div>
+          {selectedDate !== getYesterdayPK() && (
+            <button
+              onClick={() => setSelectedDate(getYesterdayPK())}
+              className="text-xs font-bold px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-2xs font-urdu whitespace-nowrap"
+            >
+              گزشتہ کل (15 Oct) کا ریکارڈ دیکھیں ➔
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Print-Only Professional Header & 1-Line Compact Summary */}
+      <div className="hidden print-only mb-3">
+        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-2">
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-wider text-slate-900">SHAN POULTRY PROTEIN</h1>
+            <p className="text-xs font-bold text-slate-700 font-urdu">
+              روزانہ ویسٹ کلیکشن و وزن ریکارڈ شیٹ (Daily Weight Collection Sheet)
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold text-slate-900">
+              تاریخ (Date): <span className="font-mono text-sm underline">{formatDate(selectedDate)}</span>
+            </p>
+            <p className="text-[10px] text-slate-500 font-mono">
+              پرنٹ وقت: {new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Karachi' })} {new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit', hour12: true })} PKT
+            </p>
+          </div>
+        </div>
+
+        {/* Ultra-compact 1-line KPI summary box for print */}
+        <div className="grid grid-cols-6 gap-1 bg-slate-100 border border-slate-400 rounded p-1.5 text-center text-[10px]">
+          <div>
+            <span className="text-slate-600 block text-[9px] uppercase font-bold">Slips (پرچیاں)</span>
+            <span className="font-mono font-black text-slate-900 text-xs">{collections.length}</span>
+          </div>
+          <div>
+            <span className="text-slate-600 block text-[9px] uppercase font-bold">Net (کل وزن)</span>
+            <span className="font-mono font-black text-blue-900 text-xs">{totalNet.toFixed(1)} KG</span>
+          </div>
+          <div>
+            <span className="text-slate-600 block text-[9px] uppercase font-bold">Charbi (چربی)</span>
+            <span className="font-mono font-black text-amber-900 text-xs">{totalCharbi.toFixed(1)} KG</span>
+          </div>
+          <div>
+            <span className="text-slate-600 block text-[9px] uppercase font-bold">Kachra (کچرا)</span>
+            <span className="font-mono font-black text-slate-900 text-xs">{totalKachara.toFixed(1)} KG</span>
+          </div>
+          <div>
+            <span className="text-slate-600 block text-[9px] uppercase font-bold">Gross / Tare</span>
+            <span className="font-mono font-bold text-slate-700 text-[10px]">{totalGross.toFixed(1)} / -{totalTare.toFixed(1)}</span>
+          </div>
+          <div>
+            <span className="text-slate-600 block text-[9px] uppercase font-bold">Day Total (کل رقم)</span>
+            <span className="font-mono font-black text-emerald-900 text-xs">Rs. {totalAmount.toLocaleString()}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Summary KPI Badges */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      {/* Screen-Only Summary KPI Badges */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 no-print">
         <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-card flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
@@ -246,7 +354,7 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
       </div>
 
       {/* Slips Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-card">
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-card print:border-none print:shadow-none">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 no-print">
           <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700">
             Daily Collection Slips ({collections.length})
@@ -260,59 +368,59 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
             <p className="text-xs">Loading daily records...</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs print-table min-w-[850px]">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-left border-collapse text-xs print-table min-w-[850px] print:min-w-0">
               <thead>
                 <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-3">#</th>
-                  <th className="py-3 px-3">Receipt No</th>
-                  <th className="py-3 px-3">Time</th>
-                  <th className="py-3 px-3">Customer Name</th>
-                  <th className="py-3 px-3">Area</th>
-                  <th className="py-3 px-3">Collector</th>
-                  <th className="py-3 px-3 text-right">Gross (KG)</th>
-                  <th className="py-3 px-3 text-right">Tare (KG)</th>
-                  <th className="py-3 px-3 text-right text-amber-700 font-bold">Charbi (KG)</th>
-                  <th className="py-3 px-3 text-right text-slate-800 font-bold">Kachra (KG)</th>
-                  <th className="py-3 px-3 text-right text-blue-700 font-bold">Net (KG)</th>
-                  <th className="py-3 px-3 text-right">Rate</th>
-                  <th className="py-3 px-3 text-right text-amber-700 font-bold">Amount (PKR)</th>
-                  <th className="py-3 px-3 text-center no-print">Action</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1 text-center w-8 print:w-6">#</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 whitespace-nowrap">Receipt No</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 whitespace-nowrap">Time</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-2">Customer Name</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5">Area</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5">Collector</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 text-right whitespace-nowrap">Gross (KG)</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 text-right whitespace-nowrap">Tare (KG)</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 text-right text-amber-700 font-bold whitespace-nowrap">Charbi (KG)</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 text-right text-slate-800 font-bold whitespace-nowrap">Kachra (KG)</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 text-right text-blue-700 font-bold whitespace-nowrap">Net (KG)</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 text-right whitespace-nowrap">Rate</th>
+                  <th className="py-2.5 px-2 print:py-1 print:px-1.5 text-right text-amber-700 font-bold whitespace-nowrap">Amount (PKR)</th>
+                  <th className="py-2.5 px-2 text-center no-print">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {collections.map((c, idx) => (
                   <tr key={c.id} className="hover:bg-slate-50/70 transition">
-                    <td className="py-3 px-3 text-slate-400">{idx + 1}</td>
-                    <td className="py-3 px-3 font-mono font-bold text-blue-600">{c.receipt_no}</td>
-                    <td className="py-3 px-3 text-slate-600 font-mono">{formatTime(c.collection_time)}</td>
-                    <td className="py-3 px-3 font-semibold text-slate-900">
+                    <td className="py-2.5 px-2 print:py-1 print:px-1 text-slate-400 text-center font-mono">{idx + 1}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 font-mono font-bold text-blue-600 print:text-slate-900 whitespace-nowrap">{c.receipt_no}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-600 font-mono whitespace-nowrap">{formatTime(c.collection_time)}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-2 font-semibold text-slate-900">
                       <div>{c.customer?.name}</div>
-                      <div className="text-[10px] text-slate-400 font-normal">{c.customer?.customer_code}</div>
+                      <div className="text-[10px] text-slate-400 print:text-[8px] font-normal">{c.customer?.customer_code}</div>
                     </td>
-                    <td className="py-3 px-3 text-slate-600">{c.customer?.area}</td>
-                    <td className="py-3 px-3 text-slate-700 font-medium">{c.worker?.full_name || 'Admin'}</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-600">{c.gross_weight}</td>
-                    <td className="py-3 px-3 text-right font-mono text-rose-600">-{c.tare_weight}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-amber-700">
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-600 whitespace-nowrap">{c.customer?.area}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-slate-700 font-medium whitespace-nowrap">{c.worker?.full_name || 'Admin'}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-slate-600 whitespace-nowrap">{Number(c.gross_weight).toFixed(1)}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-rose-600 whitespace-nowrap">-{Number(c.tare_weight).toFixed(1)}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-amber-700 print:text-slate-900 whitespace-nowrap">
                       {c.charbi_net && Number(c.charbi_net) > 0 ? (
-                        Number(c.charbi_net)
+                        Number(c.charbi_net).toFixed(1)
                       ) : (
                         <span className="text-slate-300 font-normal">0</span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
                       {(() => {
                         const k = Number(c.kachara_net || 0);
                         const charbi = Number(c.charbi_net || 0);
                         const displayK = (k === 0 && charbi === 0 && Number(c.total_net_weight || 0) > 0) ? Number(c.total_net_weight) : k;
-                        return displayK > 0 ? displayK : <span className="text-slate-300 font-normal">0</span>;
+                        return displayK > 0 ? displayK.toFixed(1) : <span className="text-slate-300 font-normal">0</span>;
                       })()}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-blue-700">{c.total_net_weight}</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-500">{c.rate_per_kg}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(c.total_amount, '')}</td>
-                    <td className="py-3 px-3 text-center no-print">
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-blue-700 print:text-slate-900 whitespace-nowrap">{Number(c.total_net_weight).toFixed(1)}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono text-slate-500 whitespace-nowrap">{c.rate_per_kg}</td>
+                    <td className="py-2.5 px-2 print:py-1 print:px-1.5 text-right font-mono font-bold text-amber-700 print:text-slate-900 whitespace-nowrap">{formatCurrency(c.total_amount, '')}</td>
+                    <td className="py-2.5 px-2 text-center no-print">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => setSelectedSlip(c)}
@@ -353,17 +461,19 @@ export const DailyRecordPage: React.FC<DailyRecordPageProps> = ({ refreshTrigger
               </tbody>
 
               {collections.length > 0 && (
-                <tfoot>
-                  <tr className="bg-slate-100/90 font-extrabold text-slate-900 border-t-2 border-slate-200">
-                    <td colSpan={6} className="py-3 px-3 uppercase text-slate-700 font-urdu">کل میزان (Daily Total):</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-700">{totalGross.toFixed(1)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-rose-600">-{totalTare.toFixed(1)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-amber-700 font-black">{totalCharbi.toFixed(1)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-900 font-black">{totalKachara.toFixed(1)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-blue-700 text-sm font-black">{totalNet.toFixed(1)}</td>
-                    <td className="py-3 px-3 text-right">—</td>
-                    <td className="py-3 px-3 text-right font-mono text-amber-700 text-sm font-black">{totalAmount.toLocaleString()}</td>
-                    <td className="py-3 px-3 no-print"></td>
+                <tfoot className="print:table-row-group">
+                  <tr className="bg-slate-100/90 font-extrabold text-slate-900 border-t-2 border-slate-300">
+                    <td colSpan={6} className="py-2 px-2 print:py-1.5 print:px-2 uppercase text-slate-800 font-urdu whitespace-nowrap">
+                      کل میزان (Daily Total):
+                    </td>
+                    <td className="py-2 px-2 print:py-1.5 print:px-1.5 text-right font-mono text-slate-700 whitespace-nowrap">{totalGross.toFixed(1)}</td>
+                    <td className="py-2 px-2 print:py-1.5 print:px-1.5 text-right font-mono text-rose-600 whitespace-nowrap">-{totalTare.toFixed(1)}</td>
+                    <td className="py-2 px-2 print:py-1.5 print:px-1.5 text-right font-mono text-amber-700 print:text-slate-900 font-black whitespace-nowrap">{totalCharbi.toFixed(1)}</td>
+                    <td className="py-2 px-2 print:py-1.5 print:px-1.5 text-right font-mono text-slate-900 font-black whitespace-nowrap">{totalKachara.toFixed(1)}</td>
+                    <td className="py-2 px-2 print:py-1.5 print:px-1.5 text-right font-mono text-blue-700 print:text-slate-900 font-black whitespace-nowrap">{totalNet.toFixed(1)}</td>
+                    <td className="py-2 px-2 print:py-1.5 print:px-1.5 text-right font-mono text-slate-500 whitespace-nowrap">—</td>
+                    <td className="py-2 px-2 print:py-1.5 print:px-1.5 text-right font-mono text-amber-700 print:text-slate-900 font-black whitespace-nowrap">{totalAmount.toLocaleString()}</td>
+                    <td className="py-2 px-2 no-print"></td>
                   </tr>
                 </tfoot>
               )}
