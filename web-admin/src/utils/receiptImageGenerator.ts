@@ -1739,7 +1739,7 @@ export function buildStatementReceiptText(params: FactoryStatementImageParams): 
 
   if (params.transactions.length > 0) {
     lines.push('📑 *سپلائی پرچیوں کی تفصیل (DELIVERY SLIPS):*');
-    const displayTxs = params.transactions.slice(0, 20);
+    const displayTxs = params.transactions.slice(0, 100);
     displayTxs.forEach((tx, idx) => {
       lines.push(
         `${idx + 1}. *#${tx.invoice_no}* (${formatDate(tx.transaction_date)}):\n` +
@@ -1749,8 +1749,8 @@ export function buildStatementReceiptText(params: FactoryStatementImageParams): 
       );
     });
 
-    if (params.transactions.length > 20) {
-      lines.push(`... اور ${params.transactions.length - 20} مزید پرچیاں شامل ہیں۔`);
+    if (params.transactions.length > 100) {
+      lines.push(`... اور ${params.transactions.length - 100} مزید پرچیاں شامل ہیں۔`);
     }
     lines.push('─────────────────────────────');
   }
@@ -1758,6 +1758,104 @@ export function buildStatementReceiptText(params: FactoryStatementImageParams): 
   lines.push('📞 *شان پولٹری پروٹین مینجمنٹ*');
 
   return lines.join('\n');
+}
+
+/**
+ * Builds the complete supply delivery slips list text for a factory
+ * Itemizes every single delivery slip with Date, Invoice #, Vehicle, Driver,
+ * Charbi weight & rate & total, Kachara weight & rate & total, Net total weight, Slip total bill, Notes
+ * Followed by full summary of weights, billed amounts, advance, and remaining balance.
+ */
+export function buildSupplyListReceiptText(params: FactoryStatementImageParams): string {
+  const fAdv = Number(params.factory.advance_amount || 0);
+  const totBilled = params.transactions.reduce((acc, t) => acc + (t.total_amount || 0), 0);
+  const totWeight = params.transactions.reduce((acc, t) => acc + (t.total_weight || 0), 0);
+  const totCharbi = params.transactions.reduce((acc, t) => acc + (t.charbi_weight || 0), 0);
+  const totKachara = params.transactions.reduce((acc, t) => acc + (t.kachara_weight || 0), 0);
+  const remAdvance = fAdv - totBilled;
+
+  const lines = [
+    '🍗 *شان پولٹری پروٹین (SHAN POULTRY PROTEIN)* 🍗',
+    '🚚 *فیکٹری مال سپلائی ڈلیوری لسٹ (DELIVERY SLIPS LIST)*',
+    '─────────────────────────────',
+    `🏢 *خریدار فیکٹری:* ${params.factory.name}`,
+    `🏷️ *فیکٹری کوڈ:* ${params.factory.factory_code}`,
+    params.factory.area ? `📍 *علاقہ / پتہ:* ${params.factory.area}${params.factory.address ? `, ${params.factory.address}` : ''}` : '',
+    params.factory.contact_person ? `👤 *رابطہ کار:* ${params.factory.contact_person}` : '',
+    params.factory.phone ? `📱 *فون:* ${params.factory.phone}` : '',
+    `📅 *تاریخ جاری:* ${new Date().toLocaleDateString('en-GB')}`,
+    '─────────────────────────────',
+    `📑 *سپلائی پرچیوں کی مکمل تفصیل (${params.transactions.length} پرچیاں):*`
+  ];
+
+  if (params.transactions.length === 0) {
+    lines.push('کوئی سپلائی پرچی درج نہیں ہے۔');
+  } else {
+    // Sort chronologically
+    const sorted = [...params.transactions].sort(
+      (a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+    );
+
+    sorted.forEach((tx, idx) => {
+      const cW = Number(tx.charbi_weight || 0);
+      const cR = Number(tx.charbi_rate || 0);
+      const cTot = Number(tx.charbi_total || (cW * cR));
+
+      const kW = Number(tx.kachara_weight || 0);
+      const kR = Number(tx.kachara_rate || 0);
+      const kTot = Number(tx.kachara_total || (kW * kR));
+
+      const totW = Number(tx.total_weight || (cW + kW));
+      const totBill = Number(tx.total_amount || (cTot + kTot));
+
+      lines.push(
+        `\n*${idx + 1}. انوائس: #${tx.invoice_no}*`,
+        `   📅 تاریخ: ${formatDate(tx.transaction_date)}`,
+        tx.vehicle_no || tx.driver_name ? `   🚛 گاڑی: ${tx.vehicle_no || '—'}${tx.driver_name ? ` | ڈرائیور: ${tx.driver_name}` : ''}` : '',
+        `   🥩 چربی: ${cW.toFixed(1)} KG @ Rs. ${cR} = Rs. ${cTot.toLocaleString()}`,
+        `   📦 کچرا: ${kW.toFixed(1)} KG @ Rs. ${kR} = Rs. ${kTot.toLocaleString()}`,
+        `   ⚖️ کل وزن: *${totW.toFixed(1)} KG*`,
+        `   💵 پرچی کل رقم: *Rs. ${totBill.toLocaleString()}*`
+      );
+
+      if (tx.notes) {
+        lines.push(`   📝 نوٹس: ${tx.notes}`);
+      }
+    });
+  }
+
+  lines.push(
+    '\n─────────────────────────────',
+    '📊 *مجموعی ٹوٹل میزان (GRAND TOTALS):*',
+    `📋 کل سپلائی پرچیاں: ${params.transactions.length}`,
+    `🥩 کل چربی وزن: *${totCharbi.toFixed(1)} KG*`,
+    `📦 کل کچرا وزن: *${totKachara.toFixed(1)} KG*`,
+    `⚖️ کل مجموعی سپلائی وزن: *${totWeight.toFixed(1)} KG*`,
+    `💵 کل سپلائی مالیت: *Rs. ${totBilled.toLocaleString()}*`,
+    `💰 فیکٹری ایڈوانس رقم: *Rs. ${fAdv.toLocaleString()}*`,
+    remAdvance >= 0
+      ? `✅ *صافی بقایا ایڈوانس (Remaining):* *Rs. ${remAdvance.toLocaleString()}*`
+      : `⚠️ *بقایا واجب الادا (Balance Due):* *Rs. ${Math.abs(remAdvance).toLocaleString()}*`,
+    '─────────────────────────────',
+    '📞 *شان پولٹری پروٹین مینجمنٹ*'
+  );
+
+  return lines.filter(l => l !== '').join('\n');
+}
+
+/**
+ * Direct WhatsApp opener for the supply slips list
+ * Opens WhatsApp Web/Desktop directly to that factory number with complete itemized list
+ */
+export function openDirectSupplyListWhatsApp(params: FactoryStatementImageParams): void {
+  const text = buildSupplyListReceiptText(params);
+  const rawPhone = params.factory.whatsapp_no || params.factory.phone || '';
+  const phone = cleanWhatsAppPhone(rawPhone);
+  const encoded = encodeURIComponent(text);
+  const waUrl = phone.length >= 10
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`
+    : `https://api.whatsapp.com/send?text=${encoded}`;
+  window.open(waUrl, '_blank');
 }
 
 /**

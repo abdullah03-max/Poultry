@@ -43,6 +43,7 @@ import {
   shareFactoryStatementImage,
   openDirectSlipWhatsApp,
   openDirectStatementWhatsApp,
+  openDirectSupplyListWhatsApp,
   copyBlobToClipboard,
 } from '../utils/receiptImageGenerator';
 
@@ -377,6 +378,283 @@ export const FactoriesPage: React.FC = () => {
     openDirectStatementWhatsApp({ factory, transactions: txs });
   };
 
+  const handleSendDirectSupplyListWhatsApp = (factory: Factory, txs: FactoryTransaction[]) => {
+    openDirectSupplyListWhatsApp({ factory, transactions: txs });
+  };
+
+  // ---------------------------------------------------------------------------
+  // HIGH-RESOLUTION A4 PRINT ENGINE FOR FACTORY STATEMENT & SUPPLY LEDGER
+  // ---------------------------------------------------------------------------
+  const handlePrintFactoryStatement = (factory: Factory, txs: FactoryTransaction[]) => {
+    const fAdv = Number(factory.advance_amount || 0);
+    const totBilled = txs.reduce((acc, t) => acc + (t.total_amount || 0), 0);
+    const totWeight = txs.reduce((acc, t) => acc + (t.total_weight || 0), 0);
+    const totCharbi = txs.reduce((acc, t) => acc + (t.charbi_weight || 0), 0);
+    const totKachara = txs.reduce((acc, t) => acc + (t.kachara_weight || 0), 0);
+    const remAdvance = fAdv - totBilled;
+
+    const printDate = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const printTime = new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    const printWindow = window.open('', '_blank', 'width=1050,height=900');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    const rowsHtml = txs.map((tx, idx) => {
+      const cW = Number(tx.charbi_weight || 0);
+      const cR = Number(tx.charbi_rate || 0);
+      const cTot = Number(tx.charbi_total || (cW * cR));
+
+      const kW = Number(tx.kachara_weight || 0);
+      const kR = Number(tx.kachara_rate || 0);
+      const kTot = Number(tx.kachara_total || (kW * kR));
+
+      const totW = Number(tx.total_weight || (cW + kW));
+      const totBill = Number(tx.total_amount || (cTot + kTot));
+
+      return `
+        <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align: center; font-weight: bold; color: #64748b; font-family: monospace;">${idx + 1}</td>
+          <td style="font-family: monospace; font-weight: bold; color: #6b21a8; white-space: nowrap;">${tx.invoice_no}</td>
+          <td style="font-weight: bold; white-space: nowrap; color: #0f172a;">${formatDate(tx.transaction_date)}</td>
+          <td style="color: #334155; white-space: nowrap;">
+            ${tx.vehicle_no || '—'}
+            ${tx.driver_name ? `<span style="font-size: 10px; color: #64748b; display: block;">${tx.driver_name}</span>` : ''}
+          </td>
+          <td style="text-align: right; font-family: monospace; font-weight: bold; color: #065f46; white-space: nowrap;">
+            ${cW.toFixed(1)} KG <span style="font-size: 10px; color: #64748b; font-weight: normal;">(@${cR} = Rs. ${cTot.toLocaleString()})</span>
+          </td>
+          <td style="text-align: right; font-family: monospace; font-weight: bold; color: #92400e; white-space: nowrap;">
+            ${kW.toFixed(1)} KG <span style="font-size: 10px; color: #64748b; font-weight: normal;">(@${kR} = Rs. ${kTot.toLocaleString()})</span>
+          </td>
+          <td style="text-align: right; font-family: monospace; font-weight: 900; color: #0f172a; white-space: nowrap;">
+            ${totW.toFixed(1)} KG
+          </td>
+          <td style="text-align: right; font-family: monospace; font-weight: 900; color: #1e3a8a; white-space: nowrap;">
+            Rs. ${totBill.toLocaleString()}
+          </td>
+          <td style="font-size: 10px; color: #64748b;">${tx.notes || '—'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ur">
+      <head>
+        <meta charset="utf-8" />
+        <title>فیکٹری سپلائی اسٹیٹمنٹ — ${factory.name} (${factory.factory_code})</title>
+        <style>
+          @page { size: A4 portrait; margin: 8mm 8mm; }
+          * { box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Arabic", Arial, sans-serif; 
+            margin: 0; 
+            padding: 12px; 
+            color: #0f172a; 
+            direction: rtl; 
+            background: #fff; 
+            font-size: 11.5px; 
+            line-height: 1.35;
+          }
+          .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
+          .header h1 { margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px; font-family: monospace; }
+          .header h2 { margin: 2px 0; font-size: 15px; color: #6b21a8; font-weight: bold; }
+          .header p { margin: 1px 0; font-size: 11px; color: #64748b; }
+          
+          .factory-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #faf5ff;
+            border: 1px solid #d8b4fe;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            font-size: 11.5px;
+          }
+          .factory-box div { margin-bottom: 2px; }
+          
+          .summary-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 12px;
+            text-align: center;
+          }
+          .summary-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 4px; }
+          .summary-title { font-size: 10px; font-weight: bold; color: #64748b; margin-bottom: 2px; }
+          .summary-val { font-size: 13px; font-weight: 900; font-family: monospace; color: #0f172a; }
+          
+          .weights-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 6px 12px;
+            margin-bottom: 12px;
+            text-align: center;
+            font-size: 11px;
+          }
+
+          table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10.5px; }
+          th { 
+            background: #f3e8ff; 
+            color: #581c87; 
+            padding: 6px 6px; 
+            border: 1px solid #cbd5e1; 
+            font-size: 10px; 
+            font-weight: 800; 
+            text-align: right; 
+          }
+          td { padding: 5px 6px; border: 1px solid #e2e8f0; text-align: right; }
+          .tfoot-row { 
+            background: #f1f5f9; 
+            font-weight: 900; 
+            border-top: 2px solid #64748b; 
+            color: #0f172a; 
+          }
+          
+          .signatures { 
+            margin-top: 24px; 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 40px; 
+            text-align: center; 
+            font-size: 11px; 
+            page-break-inside: avoid;
+          }
+          .sig-line { border-top: 1px dashed #475569; padding-top: 4px; font-weight: bold; color: #334155; margin-top: 30px; }
+          .footer-note { 
+            margin-top: 16px; 
+            text-align: center; 
+            font-size: 9.5px; 
+            color: #94a3b8; 
+            border-top: 1px dashed #e2e8f0; 
+            padding-top: 6px; 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>SHAN POULTRY PROTEIN</h1>
+          <h2>شان پولٹری پروٹین — فیکٹری سپلائی اسٹیٹمنٹ و کھاتہ لیجر</h2>
+          <p>چربی و کچرا انڈسٹریل سپلائی، ایڈوانس کٹوتی و بقایا بیلنس تفصیل</p>
+          <p style="font-size: 10px; color: #94a3b8;">تاریخ پرنٹ: ${printDate} بوقت ${printTime}</p>
+        </div>
+
+        <div class="factory-box">
+          <div>
+            <div><strong>خریدار فیکٹری:</strong> <span style="font-size: 13px; font-weight: bold; color: #6b21a8;">${factory.name}</span></div>
+            <div><strong>فیکٹری کوڈ:</strong> <span style="font-family: monospace; font-weight: bold; color: #1e40af;">${factory.factory_code}</span></div>
+            ${factory.contact_person ? `<div><strong>رابطہ کار:</strong> ${factory.contact_person}</div>` : ''}
+          </div>
+          <div>
+            <div><strong>فون / واٹس ایپ:</strong> <span style="font-family: monospace;">${factory.phone || factory.whatsapp_no || '—'}</span></div>
+            <div><strong>علاقہ و شہر:</strong> ${factory.area} ${factory.address ? `(${factory.address})` : ''}</div>
+            <div><strong>اسٹیٹس:</strong> <span style="color: #059669; font-weight: bold;">ایکٹو پارٹنر (Active)</span></div>
+          </div>
+        </div>
+
+        <div class="summary-bar">
+          <div class="summary-card">
+            <div class="summary-title">فیکٹری ایڈوانس رقم</div>
+            <div class="summary-val" style="color: #6b21a8;">Rs. ${fAdv.toLocaleString()}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">کل سپلائی شدہ مالیت</div>
+            <div class="summary-val" style="color: #1e40af;">Rs. ${totBilled.toLocaleString()}</div>
+          </div>
+          <div class="summary-card" style="border: 2px solid ${remAdvance >= 0 ? '#10b981' : '#f43f5e'};">
+            <div class="summary-title" style="color: ${remAdvance >= 0 ? '#047857' : '#be123c'}; font-weight: bold;">
+              ${remAdvance >= 0 ? 'صافی بقایا ایڈوانس (Credit)' : 'بقایا واجب الادا (Due)'}
+            </div>
+            <div class="summary-val" style="color: ${remAdvance >= 0 ? '#047857' : '#be123c'}; font-size: 14px;">
+              ${remAdvance >= 0 ? `+Rs. ${remAdvance.toLocaleString()}` : `-Rs. ${Math.abs(remAdvance).toLocaleString()}`}
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">کل سپلائی پرچیاں</div>
+            <div class="summary-val">${txs.length} پرچیاں</div>
+          </div>
+        </div>
+
+        <div class="weights-bar">
+          <div><strong>چربی کل وزن:</strong> <span style="font-family: monospace; font-weight: bold; color: #065f46;">${totCharbi.toFixed(1)} KG</span></div>
+          <div><strong>کچرا کل وزن:</strong> <span style="font-family: monospace; font-weight: bold; color: #92400e;">${totKachara.toFixed(1)} KG</span></div>
+          <div><strong>مجموعی سپلائی وزن:</strong> <span style="font-family: monospace; font-weight: 900; color: #0f172a;">${totWeight.toFixed(1)} KG</span></div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 30px; text-align: center;">#</th>
+              <th>انوائس #</th>
+              <th>تاریخ</th>
+              <th>گاڑی / ڈرائیور</th>
+              <th style="text-align: right;">چربی تفصیل</th>
+              <th style="text-align: right;">کچرا تفصیل</th>
+              <th style="text-align: right;">کل وزن</th>
+              <th style="text-align: right;">کل بل رقم</th>
+              <th>نوٹس</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            ${txs.length === 0 ? '<tr><td colspan="9" style="text-align:center; padding: 20px; color: #94a3b8;">کوئی سپلائی پرچی درج نہیں ہوئی</td></tr>' : ''}
+          </tbody>
+          ${txs.length > 0 ? `
+            <tfoot>
+              <tr class="tfoot-row">
+                <td colspan="4" style="text-align: center; font-weight: 900;">کل میزان (GRAND TOTALS):</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #065f46;">${totCharbi.toFixed(1)} KG</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #92400e;">${totKachara.toFixed(1)} KG</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #0f172a;">${totWeight.toFixed(1)} KG</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #1e3a8a;">Rs. ${totBilled.toLocaleString()}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          ` : ''}
+        </table>
+
+        <div class="signatures">
+          <div>
+            <div class="sig-line">دستخط محرر / اکاؤنٹنٹ (Shan Poultry Protein)</div>
+          </div>
+          <div>
+            <div class="sig-line">دستخط و مہر فیکٹری نمائندہ (${factory.name})</div>
+          </div>
+        </div>
+
+        <div class="footer-note">
+          یہ کمپیوٹرائزڈ فیکٹری سپلائی اسٹیٹمنٹ لیجر ہے • شان پولٹری پروٹین مینیجمنٹ سسٹم
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
+  };
+
   const handleSendDirectSlipWhatsApp = (tx: FactoryTransaction, factory: Factory) => {
     // Compute previous deliveries before this slip
     const facTxs = transactions
@@ -508,9 +786,11 @@ export const FactoriesPage: React.FC = () => {
   const isAnyModalOpen = statementFactoryId !== null || slipModalOpen || factoryModalOpen || advanceModalOpen || imagePreviewModalOpen;
 
   return (
-    <div className={`space-y-6 text-slate-800 ${isAnyModalOpen ? 'no-print' : ''}`}>
-      {/* Top Header */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 text-slate-800">
+      {/* Background page content (Directory / Deliveries / Top Header) - hidden in print when any modal is open */}
+      <div className={`space-y-6 ${isAnyModalOpen ? 'no-print' : ''}`}>
+        {/* Top Header */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-purple-50 text-purple-700 shadow-2xs">
             <FactoryIcon className="w-6 h-6" />
@@ -833,9 +1113,18 @@ export const FactoriesPage: React.FC = () => {
                       type="button"
                       onClick={() => handleSendDirectStatementWhatsApp(f, facTxs)}
                       className="p-2 text-emerald-600 hover:bg-emerald-50 border border-emerald-200 rounded-xl transition"
-                      title="براہ راست فیکٹری واٹس ایپ پر مکمل کھاتہ اسٹیٹمنٹ بھیجیں (بغیر پیسٹ کیے)"
+                      title="براہ راست فیکٹری واٹس ایپ پر مکمل کھاتہ اسٹیٹمنٹ بھیجیں"
                     >
                       <Share2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSendDirectSupplyListWhatsApp(f, facTxs)}
+                      className="p-2 text-teal-600 hover:bg-teal-50 border border-teal-200 rounded-xl transition"
+                      title="فیکٹری واٹس ایپ پر سپلائی پرچیوں کی مکمل لسٹ الگ سے بھیجیں"
+                    >
+                      <FileText className="w-4 h-4" />
                     </button>
 
                     <button
@@ -966,6 +1255,7 @@ export const FactoriesPage: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* ======================================================================= */}
       {/* MODAL 1: FACTORY STATEMENT & SUPPLY LEDGER MODAL (ON CLICK FACTORY) */}
@@ -976,7 +1266,7 @@ export const FactoriesPage: React.FC = () => {
           onClose={() => setStatementFactoryId(null)}
           title={`فیکٹری اسٹیٹمنٹ و کھاتہ لیجر - ${activeStatementFactory.name}`}
           subtitle={`کوڈ: ${activeStatementFactory.factory_code} | شہر: ${activeStatementFactory.area} | رابطہ: ${activeStatementFactory.contact_person || '—'} (${activeStatementFactory.phone})`}
-          maxWidth="2xl"
+          maxWidth="5xl"
         >
           <div className="space-y-4 text-xs">
             {/* Top 3 Live Financial Badges (Screen Only) */}
@@ -1109,15 +1399,15 @@ export const FactoriesPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
-                  title="اسٹیٹمنٹ پرنٹ کریں"
+                  onClick={() => handlePrintFactoryStatement(activeStatementFactory, activeStatementTxs)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
+                  title="مکمل فیکٹری اسٹیٹمنٹ اور سپلائی لسٹ A4 پرنٹ کریں"
                 >
-                  <Printer className="w-4 h-4" />
-                  <span>پرنٹ (Print)</span>
+                  <Printer className="w-4 h-4 text-emerald-400" />
+                  <span>پرنٹ (Print A4)</span>
                 </button>
 
                 <button
@@ -1128,6 +1418,16 @@ export const FactoriesPage: React.FC = () => {
                 >
                   <Share2 className="w-4 h-4" />
                   <span>واٹس ایپ پر اسٹیٹمنٹ بھیجیں</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSendDirectSupplyListWhatsApp(activeStatementFactory, activeStatementTxs)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow-sm transition"
+                  title="فیکٹری واٹس ایپ پر سپلائی پرچیوں کی مکمل لسٹ الگ سے بھیجیں"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>واٹس ایپ پر سپلائی لسٹ بھیجیں</span>
                 </button>
 
                 <button
@@ -1145,14 +1445,25 @@ export const FactoriesPage: React.FC = () => {
 
             {/* List of Slips for this Factory */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-purple-600" />
                   <span>اس فیکٹری کی تمام سپلائی پرچیاں ({activeStatementTxs.length})</span>
                 </h4>
-                <span className="text-[11px] text-slate-500 no-print">
-                  کسی بھی پرچی کے وزن یا ریٹ کو ایڈٹ کرنے کے لیے "ایڈٹ (✏️)" پر کلک کریں۔
-                </span>
+                <div className="flex items-center gap-2 no-print">
+                  <button
+                    type="button"
+                    onClick={() => handleSendDirectSupplyListWhatsApp(activeStatementFactory, activeStatementTxs)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-lg text-[11px] font-bold transition shadow-2xs"
+                    title="سپلائی پرچیوں کی یہ مکمل لسٹ الگ سے واٹس ایپ پر بھیجیں"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-teal-600" />
+                    <span>واٹس ایپ پر سپلائی لسٹ بھیجیں</span>
+                  </button>
+                  <span className="text-[11px] text-slate-500 hidden sm:inline">
+                    کسی بھی پرچی کے وزن یا ریٹ کو ایڈٹ کرنے کے لیے "ایڈٹ (✏️)" پر کلک کریں۔
+                  </span>
+                </div>
               </div>
 
               <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs print:border-none print:shadow-none">
@@ -1166,6 +1477,7 @@ export const FactoriesPage: React.FC = () => {
                       <th className="py-2.5 px-3 print:py-1 print:px-2 text-right">کچرا وزن و ریٹ</th>
                       <th className="py-2.5 px-3 print:py-1 print:px-2 text-right">کل وزن</th>
                       <th className="py-2.5 px-3 print:py-1 print:px-2 text-right">کل بل رقم</th>
+                      <th className="py-2.5 px-3 print:py-1 print:px-2">نوٹس</th>
                       <th className="py-2.5 px-3 text-center no-print">ایکشن</th>
                     </tr>
                   </thead>
@@ -1192,6 +1504,7 @@ export const FactoriesPage: React.FC = () => {
                         </td>
                         <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-slate-900 whitespace-nowrap">{tx.total_weight} KG</td>
                         <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-blue-700 print:text-slate-900 whitespace-nowrap">{formatCurrency(tx.total_amount || 0)}</td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-slate-500 font-sans text-[11px]">{tx.notes || '—'}</td>
                         <td className="py-2.5 px-3 text-center font-sans no-print">
                           <div className="flex items-center justify-center gap-1">
                             <button
@@ -1233,7 +1546,7 @@ export const FactoriesPage: React.FC = () => {
 
                     {activeStatementTxs.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-slate-400 font-sans">
+                        <td colSpan={9} className="py-8 text-center text-slate-400 font-sans">
                           اس فیکٹری کے لیے ابھی کوئی سپلائی پرچی درج نہیں ہوئی۔ اوپر "نئی سپلائی پرچی درج کریں" پر کلک کریں۔
                         </td>
                       </tr>
@@ -1257,6 +1570,7 @@ export const FactoriesPage: React.FC = () => {
                         <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-blue-900 font-black whitespace-nowrap">
                           {formatCurrency(activeStatementBilled)}
                         </td>
+                        <td className="py-2 px-3 print:py-1.5 print:px-2"></td>
                         <td className="no-print"></td>
                       </tr>
                     </tfoot>

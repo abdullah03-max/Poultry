@@ -59,6 +59,22 @@
     overflow: visible !important;
   }
 
+  /* Reset layout margins and hide drawer for clean print */
+  .lg\:ml-72 {
+    margin-left: 0 !important;
+  }
+  aside {
+    display: none !important;
+  }
+  header {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
   .print-table {
     width: 100% !important;
     min-width: 0 !important;
