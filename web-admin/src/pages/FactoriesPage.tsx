@@ -424,26 +424,28 @@ export const FactoriesPage: React.FC = () => {
 
       return `
         <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-          <td style="text-align: center; font-weight: bold; color: #64748b; font-family: monospace;">${idx + 1}</td>
-          <td style="font-family: monospace; font-weight: bold; color: #6b21a8; white-space: nowrap;">${tx.invoice_no}</td>
-          <td style="font-weight: bold; white-space: nowrap; color: #0f172a;">${formatDate(tx.transaction_date)}</td>
-          <td style="color: #334155; white-space: nowrap;">
-            ${tx.vehicle_no || '—'}
-            ${tx.driver_name ? `<span style="font-size: 10px; color: #64748b; display: block;">${tx.driver_name}</span>` : ''}
+          <td style="text-align: center; font-weight: bold; color: #64748b;"><span class="ltr-block mono">${idx + 1}</span></td>
+          <td style="text-align: center; font-weight: bold; color: #6b21a8;"><span class="ltr-block mono">${tx.invoice_no}</span></td>
+          <td style="text-align: center; color: #0f172a;"><span class="ltr-block">${formatDate(tx.transaction_date)}</span></td>
+          <td style="color: #334155;">
+            <div>${tx.vehicle_no || '—'}</div>
+            ${tx.driver_name ? `<div style="font-size: 9px; color: #64748b;">${tx.driver_name}</div>` : ''}
+            ${tx.notes ? `<div style="font-size: 8.5px; color: #6b21a8; margin-top: 1px;">📝 ${tx.notes}</div>` : ''}
           </td>
-          <td style="text-align: right; font-family: monospace; font-weight: bold; color: #065f46; white-space: nowrap;">
-            ${cW.toFixed(1)} KG <span style="font-size: 10px; color: #64748b; font-weight: normal;">(@${cR} = Rs. ${cTot.toLocaleString()})</span>
+          <td style="text-align: right;">
+            <div style="font-weight: bold; color: #065f46;"><span class="ltr-block mono">${cW.toFixed(1)} KG</span></div>
+            <div style="font-size: 9px; color: #475569;"><span class="ltr-block">@ Rs. ${cR} = Rs. ${cTot.toLocaleString()}</span></div>
           </td>
-          <td style="text-align: right; font-family: monospace; font-weight: bold; color: #92400e; white-space: nowrap;">
-            ${kW.toFixed(1)} KG <span style="font-size: 10px; color: #64748b; font-weight: normal;">(@${kR} = Rs. ${kTot.toLocaleString()})</span>
+          <td style="text-align: right;">
+            <div style="font-weight: bold; color: #92400e;"><span class="ltr-block mono">${kW.toFixed(1)} KG</span></div>
+            <div style="font-size: 9px; color: #475569;"><span class="ltr-block">@ Rs. ${kR} = Rs. ${kTot.toLocaleString()}</span></div>
           </td>
-          <td style="text-align: right; font-family: monospace; font-weight: 900; color: #0f172a; white-space: nowrap;">
-            ${totW.toFixed(1)} KG
+          <td style="text-align: right; font-weight: 900; color: #0f172a;">
+            <span class="ltr-block mono">${totW.toFixed(1)} KG</span>
           </td>
-          <td style="text-align: right; font-family: monospace; font-weight: 900; color: #1e3a8a; white-space: nowrap;">
-            Rs. ${totBill.toLocaleString()}
+          <td style="text-align: right; font-weight: 900; color: #1e3a8a;">
+            <span class="ltr-block mono">Rs. ${totBill.toLocaleString()}</span>
           </td>
-          <td style="font-size: 10px; color: #64748b;">${tx.notes || '—'}</td>
         </tr>
       `;
     }).join('');
@@ -455,192 +457,252 @@ export const FactoriesPage: React.FC = () => {
         <meta charset="utf-8" />
         <title>فیکٹری سپلائی اسٹیٹمنٹ — ${factory.name} (${factory.factory_code})</title>
         <style>
-          @page { size: A4 portrait; margin: 8mm 8mm; }
-          * { box-sizing: border-box; }
+          @page { 
+            size: A4 portrait; 
+            margin: 8mm 7mm; 
+          }
+          * { 
+            box-sizing: border-box; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important; 
+          }
           body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Arabic", Arial, sans-serif; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Arabic", "Noto Nastaliq Urdu", Arial, sans-serif; 
             margin: 0; 
-            padding: 12px; 
+            padding: 0; 
             color: #0f172a; 
             direction: rtl; 
-            background: #fff; 
-            font-size: 11.5px; 
-            line-height: 1.35;
+            background: #ffffff; 
+            font-size: 11px; 
+            line-height: 1.3;
+            overflow-x: hidden;
           }
-          .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
-          .header h1 { margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px; font-family: monospace; }
-          .header h2 { margin: 2px 0; font-size: 15px; color: #6b21a8; font-weight: bold; }
-          .header p { margin: 1px 0; font-size: 11px; color: #64748b; }
-          
-          .factory-box {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            background: #faf5ff;
-            border: 1px solid #d8b4fe;
-            border-radius: 8px;
-            padding: 10px 14px;
-            margin-bottom: 12px;
-            font-size: 11.5px;
+          .ltr-block {
+            direction: ltr !important;
+            unicode-bidi: isolate !important;
+            display: inline-block;
+            text-align: left;
           }
-          .factory-box div { margin-bottom: 2px; }
-          
-          .summary-bar {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            padding: 8px;
-            margin-bottom: 12px;
-            text-align: center;
+          .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
           }
-          .summary-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 4px; }
-          .summary-title { font-size: 10px; font-weight: bold; color: #64748b; margin-bottom: 2px; }
-          .summary-val { font-size: 13px; font-weight: 900; font-family: monospace; color: #0f172a; }
-          
-          .weights-bar {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            background: #f1f5f9;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 6px 12px;
-            margin-bottom: 12px;
-            text-align: center;
-            font-size: 11px;
+          .header { 
+            text-align: center; 
+            border-bottom: 2px solid #0f172a; 
+            padding-bottom: 5px; 
+            margin-bottom: 7px; 
+          }
+          .header h1 { 
+            margin: 0; 
+            font-size: 19px; 
+            font-weight: 900; 
+            color: #0f172a; 
+            letter-spacing: 0.5px; 
+            font-family: monospace; 
+          }
+          .header h2 { 
+            margin: 2px 0; 
+            font-size: 13.5px; 
+            color: #581c87; 
+            font-weight: bold; 
+          }
+          .header p { 
+            margin: 1px 0; 
+            font-size: 10.5px; 
+            color: #64748b; 
           }
 
-          table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10.5px; }
-          th { 
-            background: #f3e8ff; 
-            color: #581c87; 
-            padding: 6px 6px; 
-            border: 1px solid #cbd5e1; 
-            font-size: 10px; 
-            font-weight: 800; 
+          table.smart-table { 
+            width: 100% !important; 
+            max-width: 100% !important; 
+            border-collapse: collapse !important; 
+            table-layout: fixed !important; 
+            margin-bottom: 7px !important; 
+          }
+          table.smart-table th, table.smart-table td { 
+            border: 1px solid #94a3b8 !important; 
+            padding: 4px 5px !important; 
+            vertical-align: middle !important; 
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+          table.smart-table th { 
+            background-color: #f1f5f9 !important; 
+            color: #1e293b !important; 
+            font-weight: 800 !important; 
+            font-size: 10px !important; 
+            text-transform: uppercase !important; 
             text-align: right; 
           }
-          td { padding: 5px 6px; border: 1px solid #e2e8f0; text-align: right; }
+
           .tfoot-row { 
-            background: #f1f5f9; 
-            font-weight: 900; 
-            border-top: 2px solid #64748b; 
-            color: #0f172a; 
+            background: #f1f5f9 !important; 
+            font-weight: 900 !important; 
+            border-top: 2px solid #0f172a !important; 
+            color: #0f172a !important; 
           }
-          
+
           .signatures { 
-            margin-top: 24px; 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 40px; 
-            text-align: center; 
-            font-size: 11px; 
+            margin-top: 18px; 
+            width: 100%;
+            border-collapse: collapse;
             page-break-inside: avoid;
           }
-          .sig-line { border-top: 1px dashed #475569; padding-top: 4px; font-weight: bold; color: #334155; margin-top: 30px; }
+          .sig-line { 
+            border-top: 1px dashed #475569; 
+            padding-top: 4px; 
+            font-weight: bold; 
+            color: #334155; 
+            margin-top: 25px; 
+            width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+            font-size: 10.5px;
+          }
           .footer-note { 
-            margin-top: 16px; 
+            margin-top: 12px; 
             text-align: center; 
-            font-size: 9.5px; 
+            font-size: 9px; 
             color: #94a3b8; 
-            border-top: 1px dashed #e2e8f0; 
-            padding-top: 6px; 
+            border-top: 1px dashed #cbd5e1; 
+            padding-top: 4px; 
           }
         </style>
       </head>
       <body>
+        <!-- Header -->
         <div class="header">
           <h1>SHAN POULTRY PROTEIN</h1>
           <h2>شان پولٹری پروٹین — فیکٹری سپلائی اسٹیٹمنٹ و کھاتہ لیجر</h2>
-          <p>چربی و کچرا انڈسٹریل سپلائی، ایڈوانس کٹوتی و بقایا بیلنس تفصیل</p>
-          <p style="font-size: 10px; color: #94a3b8;">تاریخ پرنٹ: ${printDate} بوقت ${printTime}</p>
+          <p>چربی و کچرا انڈسٹریل سپلائی، ایڈوانس کٹوتی و صافی بقایا بیلنس تفصیل</p>
+          <p style="font-size: 9.5px; color: #94a3b8;">
+            تاریخ پرنٹ: <span class="ltr-block">${printDate}</span> بوقت <span class="ltr-block">${printTime}</span>
+          </p>
         </div>
 
-        <div class="factory-box">
-          <div>
-            <div><strong>خریدار فیکٹری:</strong> <span style="font-size: 13px; font-weight: bold; color: #6b21a8;">${factory.name}</span></div>
-            <div><strong>فیکٹری کوڈ:</strong> <span style="font-family: monospace; font-weight: bold; color: #1e40af;">${factory.factory_code}</span></div>
-            ${factory.contact_person ? `<div><strong>رابطہ کار:</strong> ${factory.contact_person}</div>` : ''}
-          </div>
-          <div>
-            <div><strong>فون / واٹس ایپ:</strong> <span style="font-family: monospace;">${factory.phone || factory.whatsapp_no || '—'}</span></div>
-            <div><strong>علاقہ و شہر:</strong> ${factory.area} ${factory.address ? `(${factory.address})` : ''}</div>
-            <div><strong>اسٹیٹس:</strong> <span style="color: #059669; font-weight: bold;">ایکٹو پارٹنر (Active)</span></div>
-          </div>
-        </div>
+        <!-- Table 1: Factory Profile Table -->
+        <table class="smart-table" style="background: #faf5ff;">
+          <tr>
+            <td style="width: 15%; background: #f3e8ff; font-weight: bold; color: #581c87;">خریدار فیکٹری:</td>
+            <td style="width: 38%; font-weight: 900; font-size: 12.5px; color: #581c87;">
+              ${factory.name} 
+              <span class="ltr-block mono" style="font-size: 10.5px; color: #1e40af; margin-right: 4px;">[${factory.factory_code}]</span>
+            </td>
+            <td style="width: 15%; background: #f3e8ff; font-weight: bold; color: #581c87;">فون / واٹس ایپ:</td>
+            <td style="width: 32%; font-weight: bold;">
+              <span class="ltr-block mono" style="font-size: 11px;">${factory.whatsapp_no || factory.phone || '—'}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="background: #f3e8ff; font-weight: bold; color: #581c87;">علاقہ و شہر:</td>
+            <td>${factory.area} ${factory.address ? `(${factory.address})` : ''}</td>
+            <td style="background: #f3e8ff; font-weight: bold; color: #581c87;">رابطہ کار / اسٹیٹس:</td>
+            <td>
+              ${factory.contact_person || '—'} • <span style="color: #059669; font-weight: bold;">ایکٹو خریدار (Active)</span>
+            </td>
+          </tr>
+        </table>
 
-        <div class="summary-bar">
-          <div class="summary-card">
-            <div class="summary-title">فیکٹری ایڈوانس رقم</div>
-            <div class="summary-val" style="color: #6b21a8;">Rs. ${fAdv.toLocaleString()}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">کل سپلائی شدہ مالیت</div>
-            <div class="summary-val" style="color: #1e40af;">Rs. ${totBilled.toLocaleString()}</div>
-          </div>
-          <div class="summary-card" style="border: 2px solid ${remAdvance >= 0 ? '#10b981' : '#f43f5e'};">
-            <div class="summary-title" style="color: ${remAdvance >= 0 ? '#047857' : '#be123c'}; font-weight: bold;">
-              ${remAdvance >= 0 ? 'صافی بقایا ایڈوانس (Credit)' : 'بقایا واجب الادا (Due)'}
-            </div>
-            <div class="summary-val" style="color: ${remAdvance >= 0 ? '#047857' : '#be123c'}; font-size: 14px;">
-              ${remAdvance >= 0 ? `+Rs. ${remAdvance.toLocaleString()}` : `-Rs. ${Math.abs(remAdvance).toLocaleString()}`}
-            </div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">کل سپلائی پرچیاں</div>
-            <div class="summary-val">${txs.length} پرچیاں</div>
-          </div>
-        </div>
-
-        <div class="weights-bar">
-          <div><strong>چربی کل وزن:</strong> <span style="font-family: monospace; font-weight: bold; color: #065f46;">${totCharbi.toFixed(1)} KG</span></div>
-          <div><strong>کچرا کل وزن:</strong> <span style="font-family: monospace; font-weight: bold; color: #92400e;">${totKachara.toFixed(1)} KG</span></div>
-          <div><strong>مجموعی سپلائی وزن:</strong> <span style="font-family: monospace; font-weight: 900; color: #0f172a;">${totWeight.toFixed(1)} KG</span></div>
-        </div>
-
-        <table>
+        <!-- Table 2: Financial & Weight Ledger Summary Table -->
+        <table class="smart-table">
           <thead>
+            <tr style="font-size: 9.5px;">
+              <th style="width: 25%; text-align: center; color: #581c87; background: #faf5ff;">فیکٹری ایڈوانس رقم (Advance)</th>
+              <th style="width: 25%; text-align: center; color: #1e40af; background: #eff6ff;">کل سپلائی شدہ مالیت (Delivered)</th>
+              <th style="width: 25%; text-align: center; color: ${remAdvance >= 0 ? '#047857' : '#be123c'}; background: ${remAdvance >= 0 ? '#ecfdf5' : '#fff1f2'};">
+                ${remAdvance >= 0 ? 'صافی بقایا ایڈوانس (Credit)' : 'بقایا واجب الادا (Due)'}
+              </th>
+              <th style="width: 25%; text-align: center; color: #0f172a; background: #f1f5f9;">کل سپلائی اوزان (Total Weight)</th>
+            </tr>
+          </thead>
+          <tbody>
             <tr>
-              <th style="width: 30px; text-align: center;">#</th>
-              <th>انوائس #</th>
-              <th>تاریخ</th>
-              <th>گاڑی / ڈرائیور</th>
-              <th style="text-align: right;">چربی تفصیل</th>
-              <th style="text-align: right;">کچرا تفصیل</th>
-              <th style="text-align: right;">کل وزن</th>
-              <th style="text-align: right;">کل بل رقم</th>
-              <th>نوٹس</th>
+              <td style="text-align: center; padding: 5px 4px; background: #faf5ff;">
+                <div style="font-size: 13.5px; font-weight: 900; color: #581c87;">
+                  <span class="ltr-block mono">Rs. ${fAdv.toLocaleString()}</span>
+                </div>
+                <div style="font-size: 9px; color: #7e22ce;">فیکٹری ایڈوانس رقم</div>
+              </td>
+              <td style="text-align: center; padding: 5px 4px; background: #eff6ff;">
+                <div style="font-size: 13.5px; font-weight: 900; color: #1e40af;">
+                  <span class="ltr-block mono">Rs. ${totBilled.toLocaleString()}</span>
+                </div>
+                <div style="font-size: 9px; color: #2563eb;">${txs.length} سپلائی پرچیاں</div>
+              </td>
+              <td style="text-align: center; padding: 5px 4px; background: ${remAdvance >= 0 ? '#ecfdf5' : '#fff1f2'}; border: 2px solid ${remAdvance >= 0 ? '#10b981' : '#f43f5e'} !important;">
+                <div style="font-size: 14.5px; font-weight: 900; color: ${remAdvance >= 0 ? '#047857' : '#be123c'};">
+                  <span class="ltr-block mono">${remAdvance >= 0 ? `+Rs. ${remAdvance.toLocaleString()}` : `-Rs. ${Math.abs(remAdvance).toLocaleString()}`}</span>
+                </div>
+                <div style="font-size: 9px; font-weight: bold; color: ${remAdvance >= 0 ? '#047857' : '#be123c'};">
+                  ${remAdvance >= 0 ? '✓ ایڈوانس رقم موجود ہے (Credit)' : '⚠️ فیکٹری سے رقم وصول کرنی ہے'}
+                </div>
+              </td>
+              <td style="text-align: center; padding: 5px 4px; background: #f1f5f9;">
+                <div style="font-size: 13.5px; font-weight: 900; color: #0f172a;">
+                  <span class="ltr-block mono">${totWeight.toFixed(1)} KG</span>
+                </div>
+                <div style="font-size: 9px; color: #475569;">
+                  چربی: <span class="ltr-block mono" style="font-weight: bold; color: #065f46;">${totCharbi.toFixed(1)}k</span> | 
+                  کچرا: <span class="ltr-block mono" style="font-weight: bold; color: #92400e;">${totKachara.toFixed(1)}k</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Table 3: Itemized Supply Delivery Slips Table -->
+        <table class="smart-table">
+          <thead>
+            <tr style="background: #e2e8f0; color: #1e293b; font-size: 9.5px; font-weight: 800; text-align: center;">
+              <th style="width: 4%; text-align: center;">#</th>
+              <th style="width: 15%; text-align: center;">انوائس #</th>
+              <th style="width: 12%; text-align: center;">تاریخ</th>
+              <th style="width: 14%;">گاڑی / ڈرائیور</th>
+              <th style="width: 17%; text-align: right;">چربی سپلائی</th>
+              <th style="width: 17%; text-align: right;">کچرا سپلائی</th>
+              <th style="width: 10%; text-align: right;">کل وزن</th>
+              <th style="width: 11%; text-align: right;">پرچی بل رقم</th>
             </tr>
           </thead>
           <tbody>
             ${rowsHtml}
-            ${txs.length === 0 ? '<tr><td colspan="9" style="text-align:center; padding: 20px; color: #94a3b8;">کوئی سپلائی پرچی درج نہیں ہوئی</td></tr>' : ''}
+            ${txs.length === 0 ? '<tr><td colspan="8" style="text-align:center; padding: 16px; color: #94a3b8;">کوئی سپلائی پرچی درج نہیں ہوئی</td></tr>' : ''}
           </tbody>
           ${txs.length > 0 ? `
             <tfoot>
               <tr class="tfoot-row">
-                <td colspan="4" style="text-align: center; font-weight: 900;">کل میزان (GRAND TOTALS):</td>
-                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #065f46;">${totCharbi.toFixed(1)} KG</td>
-                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #92400e;">${totKachara.toFixed(1)} KG</td>
-                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #0f172a;">${totWeight.toFixed(1)} KG</td>
-                <td style="text-align: right; font-family: monospace; font-weight: 900; color: #1e3a8a;">Rs. ${totBilled.toLocaleString()}</td>
-                <td></td>
+                <td colspan="4" style="text-align: center; font-size: 10.5px; font-weight: 900;">
+                  کل میزان (GRAND TOTALS - ${txs.length} پرچیاں):
+                </td>
+                <td style="text-align: right; color: #065f46;">
+                  <span class="ltr-block mono" style="font-size: 11px; font-weight: 900;">${totCharbi.toFixed(1)} KG</span>
+                </td>
+                <td style="text-align: right; color: #92400e;">
+                  <span class="ltr-block mono" style="font-size: 11px; font-weight: 900;">${totKachara.toFixed(1)} KG</span>
+                </td>
+                <td style="text-align: right; color: #0f172a;">
+                  <span class="ltr-block mono" style="font-size: 11.5px; font-weight: 900;">${totWeight.toFixed(1)} KG</span>
+                </td>
+                <td style="text-align: right; color: #1e3a8a;">
+                  <span class="ltr-block mono" style="font-size: 11.5px; font-weight: 900;">Rs. ${totBilled.toLocaleString()}</span>
+                </td>
               </tr>
             </tfoot>
           ` : ''}
         </table>
 
-        <div class="signatures">
-          <div>
-            <div class="sig-line">دستخط محرر / اکاؤنٹنٹ (Shan Poultry Protein)</div>
-          </div>
-          <div>
-            <div class="sig-line">دستخط و مہر فیکٹری نمائندہ (${factory.name})</div>
-          </div>
-        </div>
+        <!-- Signatures -->
+        <table class="signatures">
+          <tr>
+            <td style="width: 50%; border: none; padding: 0 16px;">
+              <div class="sig-line">دستخط محرر / اکاؤنٹنٹ (Shan Poultry Protein)</div>
+            </td>
+            <td style="width: 50%; border: none; padding: 0 16px;">
+              <div class="sig-line">دستخط و مہر فیکٹری نمائندہ (${factory.name})</div>
+            </td>
+          </tr>
+        </table>
 
         <div class="footer-note">
           یہ کمپیوٹرائزڈ فیکٹری سپلائی اسٹیٹمنٹ لیجر ہے • شان پولٹری پروٹین مینیجمنٹ سسٹم
@@ -1346,32 +1408,44 @@ export const FactoriesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Print-Only Sleek Financial Summary Box (Ultra-Compact for 1-Page Print) */}
-            <div className="hidden print:block mb-3 border border-slate-300 rounded-lg p-2.5 text-slate-900 bg-slate-50">
-              <div className="grid grid-cols-3 gap-2 text-center text-xs border-b border-slate-300 pb-2 mb-2 font-mono">
-                <div>
-                  <span className="text-[10px] text-slate-600 font-sans block font-bold">فیکٹری ایڈوانس رقم (Advance)</span>
-                  <span className="text-sm font-black text-purple-900">{formatCurrency(activeStatementAdvance)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-600 font-sans block font-bold">کل سپلائی مالیت (Delivered Value)</span>
-                  <span className="text-sm font-black text-blue-900">{formatCurrency(activeStatementBilled)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-600 font-sans block font-bold">
-                    {activeStatementRemainingAdvance >= 0 ? 'صافی بقایا ایڈوانس (Balance)' : 'بقایا واجب الادا (Due)'}
-                  </span>
-                  <span className={`text-sm font-black ${activeStatementRemainingAdvance >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
-                    {activeStatementRemainingAdvance >= 0 ? `+${formatCurrency(activeStatementRemainingAdvance)}` : `-${formatCurrency(Math.abs(activeStatementRemainingAdvance))}`}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-[11px] font-sans px-1 text-slate-700">
-                <span><strong>کل سپلائی پرچیاں:</strong> {activeStatementTxs.length} پرچیاں</span>
-                <span><strong>کل سپلائی وزن:</strong> {activeStatementWeight.toFixed(1)} KG</span>
-                <span><strong>چربی وزن:</strong> {activeStatementCharbiWeight.toFixed(1)} KG</span>
-                <span><strong>کچرا وزن:</strong> {activeStatementKacharaWeight.toFixed(1)} KG</span>
-              </div>
+            {/* Print-Only Smart Tabular Financial Summary (Ultra-Compact for 1-Page Print) */}
+            <div className="hidden print:block mb-3">
+              <table className="w-full text-xs border-collapse border border-slate-400 table-fixed mb-2">
+                <thead>
+                  <tr className="bg-slate-100 text-[10px] text-slate-700 font-bold uppercase">
+                    <th className="border border-slate-300 p-1.5 text-center w-1/4">فیکٹری ایڈوانس رقم</th>
+                    <th className="border border-slate-300 p-1.5 text-center w-1/4">کل سپلائی شدہ مالیت</th>
+                    <th className="border border-slate-300 p-1.5 text-center w-1/4">صافی بقایا ایڈوانس</th>
+                    <th className="border border-slate-300 p-1.5 text-center w-1/4">کل سپلائی اوزان</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border border-slate-300 p-2 text-center bg-purple-50/50">
+                      <div className="font-mono font-black text-purple-900 text-sm" dir="ltr">{formatCurrency(activeStatementAdvance)}</div>
+                      <div className="text-[9px] text-purple-700">فیکٹری ایڈوانس رقم</div>
+                    </td>
+                    <td className="border border-slate-300 p-2 text-center bg-blue-50/50">
+                      <div className="font-mono font-black text-blue-900 text-sm" dir="ltr">{formatCurrency(activeStatementBilled)}</div>
+                      <div className="text-[9px] text-blue-700">{activeStatementTxs.length} سپلائی پرچیاں</div>
+                    </td>
+                    <td className={`border-2 p-2 text-center ${activeStatementRemainingAdvance >= 0 ? 'bg-emerald-50 border-emerald-500' : 'bg-rose-50 border-rose-500'}`}>
+                      <div className={`font-mono font-black text-sm ${activeStatementRemainingAdvance >= 0 ? 'text-emerald-800' : 'text-rose-800'}`} dir="ltr">
+                        {activeStatementRemainingAdvance >= 0 ? `+${formatCurrency(activeStatementRemainingAdvance)}` : `-${formatCurrency(Math.abs(activeStatementRemainingAdvance))}`}
+                      </div>
+                      <div className={`text-[9px] font-bold ${activeStatementRemainingAdvance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        {activeStatementRemainingAdvance >= 0 ? '✓ ایڈوانس رقم موجود ہے' : '⚠️ فیکٹری سے وصول کرنی ہے'}
+                      </div>
+                    </td>
+                    <td className="border border-slate-300 p-2 text-center bg-slate-50">
+                      <div className="font-mono font-black text-slate-900 text-sm" dir="ltr">{activeStatementWeight.toFixed(1)} KG</div>
+                      <div className="text-[9px] text-slate-600">
+                        چربی: <span dir="ltr" className="font-bold text-emerald-800">{activeStatementCharbiWeight.toFixed(1)}k</span> | کچرا: <span dir="ltr" className="font-bold text-amber-800">{activeStatementKacharaWeight.toFixed(1)}k</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             {/* Statement Action Buttons Bar (Hidden in Print) */}
@@ -1484,26 +1558,34 @@ export const FactoriesPage: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 font-mono">
                     {activeStatementTxs.map(tx => (
                       <tr key={tx.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 print:py-1 print:px-2 font-bold text-purple-700 print:text-slate-900 whitespace-nowrap">{tx.invoice_no}</td>
-                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-slate-600 font-sans whitespace-nowrap">{formatDate(tx.transaction_date)}</td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 font-bold text-purple-700 print:text-slate-900 whitespace-nowrap">
+                          <span dir="ltr">{tx.invoice_no}</span>
+                        </td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-slate-600 font-sans whitespace-nowrap">
+                          <span dir="ltr">{formatDate(tx.transaction_date)}</span>
+                        </td>
                         <td className="py-2.5 px-3 print:py-1 print:px-2 text-slate-600 font-sans">
                           {tx.vehicle_no || '—'}
                           {tx.driver_name && <span className="text-[10px] text-slate-400 block">{tx.driver_name}</span>}
                         </td>
                         <td className="py-2.5 px-3 print:py-1 print:px-2 text-right text-emerald-800 font-bold whitespace-nowrap">
-                          {tx.charbi_weight} KG
-                          <span className="text-[10px] text-slate-500 block font-normal">
+                          <span dir="ltr">{tx.charbi_weight} KG</span>
+                          <span className="text-[10px] text-slate-500 block font-normal" dir="ltr">
                             @{tx.charbi_rate} = Rs. {tx.charbi_total?.toLocaleString()}
                           </span>
                         </td>
                         <td className="py-2.5 px-3 print:py-1 print:px-2 text-right text-amber-800 font-bold whitespace-nowrap">
-                          {tx.kachara_weight} KG
-                          <span className="text-[10px] text-slate-500 block font-normal">
+                          <span dir="ltr">{tx.kachara_weight} KG</span>
+                          <span className="text-[10px] text-slate-500 block font-normal" dir="ltr">
                             @{tx.kachara_rate} = Rs. {tx.kachara_total?.toLocaleString()}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-slate-900 whitespace-nowrap">{tx.total_weight} KG</td>
-                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-blue-700 print:text-slate-900 whitespace-nowrap">{formatCurrency(tx.total_amount || 0)}</td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-slate-900 whitespace-nowrap">
+                          <span dir="ltr">{tx.total_weight} KG</span>
+                        </td>
+                        <td className="py-2.5 px-3 print:py-1 print:px-2 text-right font-black text-blue-700 print:text-slate-900 whitespace-nowrap">
+                          <span dir="ltr">{formatCurrency(tx.total_amount || 0)}</span>
+                        </td>
                         <td className="py-2.5 px-3 print:py-1 print:px-2 text-slate-500 font-sans text-[11px]">{tx.notes || '—'}</td>
                         <td className="py-2.5 px-3 text-center font-sans no-print">
                           <div className="flex items-center justify-center gap-1">
@@ -1559,16 +1641,16 @@ export const FactoriesPage: React.FC = () => {
                           کل میزان (Total Delivered):
                         </td>
                         <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-emerald-800 font-black whitespace-nowrap">
-                          {activeStatementCharbiWeight.toFixed(1)} KG
+                          <span dir="ltr">{activeStatementCharbiWeight.toFixed(1)} KG</span>
                         </td>
                         <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-amber-800 font-black whitespace-nowrap">
-                          {activeStatementKacharaWeight.toFixed(1)} KG
+                          <span dir="ltr">{activeStatementKacharaWeight.toFixed(1)} KG</span>
                         </td>
                         <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-slate-900 font-black whitespace-nowrap">
-                          {activeStatementWeight.toFixed(1)} KG
+                          <span dir="ltr">{activeStatementWeight.toFixed(1)} KG</span>
                         </td>
                         <td className="py-2 px-3 print:py-1.5 print:px-2 text-right font-mono text-blue-900 font-black whitespace-nowrap">
-                          {formatCurrency(activeStatementBilled)}
+                          <span dir="ltr">{formatCurrency(activeStatementBilled)}</span>
                         </td>
                         <td className="py-2 px-3 print:py-1.5 print:px-2"></td>
                         <td className="no-print"></td>
